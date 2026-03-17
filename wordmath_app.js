@@ -93,6 +93,7 @@ const state = {
   historySort: "recent",
   wordCategories: [],
   wordAssignments: new Map(),
+  googlePickMode: false,
   clickTracker: {
     word: null,
     time: 0,
@@ -124,6 +125,7 @@ const els = {
   clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
   addCategoryButton: document.querySelector("[data-action='add-category']"),
+  toggleGooglePickButton: document.querySelector("[data-action='toggle-google-pick']"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
@@ -245,6 +247,10 @@ function buildSourceButton(entry) {
   button.textContent = `${titleCase(word)}${state.selfMatchedWords.has(key) ? " ✔️" : ""}`;
   button.draggable = true;
   button.addEventListener("click", () => {
+    if (state.googlePickMode) {
+      openGoogleMeaning(word);
+      return;
+    }
     spawnWordOnField(word);
     setStatus(`${titleCase(word)} was added to the field.`);
   });
@@ -271,6 +277,26 @@ function ensureWordAssignments(entries) {
 
 function getCategoryIdForWord(key) {
   return state.wordAssignments.get(key) || DEFAULT_CATEGORY_ID;
+}
+
+function getVisibleCategoryNameForWord(word) {
+  const categoryId = getCategoryIdForWord(getWordKey(word));
+  if (categoryId === DEFAULT_CATEGORY_ID) {
+    return "";
+  }
+  return getCategoryById(categoryId)?.name || "";
+}
+
+function setGooglePickMode(enabled) {
+  state.googlePickMode = enabled;
+  renderSidebar();
+}
+
+function openGoogleMeaning(word) {
+  const url = `https://www.google.com/search?q=${encodeURIComponent(`${word} meaning in english`)}`;
+  window.open(url, "_blank", "noopener");
+  setGooglePickMode(false);
+  setStatus(`Opened Google meaning search for ${titleCase(word)}.`);
 }
 
 function createDefaultCategoryState() {
@@ -413,6 +439,7 @@ function renderEncyclopedia() {
 
 function renderSidebar() {
   updateCounts();
+  els.toggleGooglePickButton.setAttribute("aria-pressed", state.googlePickMode ? "true" : "false");
   renderWordList();
   renderEncyclopedia();
 }
@@ -634,6 +661,11 @@ function spawnResultTile(word, firstTile, secondTile) {
 }
 
 function handleTileClick(word, position) {
+  if (state.googlePickMode) {
+    openGoogleMeaning(word);
+    return Promise.resolve();
+  }
+
   const now = Date.now();
   const sameWord = state.clickTracker.word === word;
   const withinWindow = now - state.clickTracker.time <= DOUBLE_CLICK_MS;
@@ -883,7 +915,9 @@ function renderTiles() {
 
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
-      metaElement.textContent = ENCYCLOPEDIA_LOOKUP.get(tile.word)?.category || "Discovered word";
+      const categoryName = getVisibleCategoryNameForWord(tile.word);
+      metaElement.textContent = categoryName;
+      metaElement.hidden = !categoryName;
 
       tileElement.append(wordElement, metaElement);
       els.playfield.append(tileElement);
@@ -930,6 +964,7 @@ function resetRun() {
   state.historySort = "recent";
   state.wordCategories = createDefaultCategoryState();
   state.wordAssignments = new Map(state.starters.map((word) => [word, DEFAULT_CATEGORY_ID]));
+  state.googlePickMode = false;
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
   state.nextTileId = 1;
@@ -1033,6 +1068,13 @@ function initEvents() {
     });
     renderWordList();
     setStatus(`Created category ${trimmed}.`);
+  });
+  els.toggleGooglePickButton.addEventListener("click", () => {
+    const nextMode = !state.googlePickMode;
+    setGooglePickMode(nextMode);
+    setStatus(nextMode
+      ? "Google mode is on. Click a field word or available word to search its meaning."
+      : "Google mode is off.");
   });
   els.runNegativeButton.addEventListener("click", async () => {
     try {
