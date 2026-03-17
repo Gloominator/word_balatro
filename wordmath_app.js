@@ -77,6 +77,7 @@ const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
 const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
 const GARBAGE_BIN_UNLOCK_WORDS = 50;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
+const AVAILABLE_WORD_WARNING_THRESHOLD = 50;
 const STORAGE_KEY = "wordmath-progress-v1";
 
 const state = {
@@ -980,14 +981,9 @@ function rollGarbageRewardToken() {
   return "Ban Word";
 }
 
-function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
-  if (!isGarbageBinUnlocked()) {
-    setStatus(`The garbage bin unlocks at ${GARBAGE_BIN_UNLOCK_WORDS} discovered words.`, "error");
-    return;
-  }
-
+function hideWordFromPanel(word, explicitWordKey = null, tileId = null) {
   if (typeof word !== "string" || !word) {
-    return;
+    return { ok: false, alreadyHidden: false, refundedTagCount: 0 };
   }
 
   const wordKey = explicitWordKey || getWordKey(word);
@@ -997,9 +993,14 @@ function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
     : "";
 
   if (state.hiddenWordPanelWords.has(wordKey)) {
-    renderGarbageBin();
-    setStatus(`${titleCase(word)} is already hidden from the word panel.${refundMessage}`, "ok");
-    return;
+    return {
+      ok: false,
+      alreadyHidden: true,
+      refundedTagCount,
+      statusMessage: `${titleCase(word)} is already hidden from the word panel.${refundMessage}`,
+      statusState: "ok",
+      rewardedToken: null,
+    };
   }
 
   state.hiddenWordPanelWords.add(wordKey);
@@ -1021,9 +1022,67 @@ function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
     }
   }
 
+  return {
+    ok: true,
+    alreadyHidden: false,
+    refundedTagCount,
+    statusMessage,
+    statusState,
+    rewardedToken: statusState === "reward" ? statusMessage : null,
+  };
+}
+
+function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
+  if (!isGarbageBinUnlocked()) {
+    setStatus(`The garbage bin unlocks at ${GARBAGE_BIN_UNLOCK_WORDS} discovered words.`, "error");
+    return;
+  }
+
+  const result = hideWordFromPanel(word, explicitWordKey, tileId);
+  if (!result) {
+    return;
+  }
+
   renderSidebar();
   queueProgressSave();
-  setStatus(statusMessage, statusState);
+  setStatus(result.statusMessage, result.statusState);
+}
+
+function getFirstUncategorizedAvailableEntry() {
+  return getAvailableWordEntries().find((entry) => getCategoryIdForWord(entry.key) === DEFAULT_CATEGORY_ID) || null;
+}
+
+function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCount) {
+  if (previousAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD - 1
+    && currentAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD) {
+    return {
+      message: "You have 50 available words. Clean your vocabulary.",
+      stateName: "error",
+    };
+  }
+
+  if (previousAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD
+    && currentAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD + 1) {
+    const uncategorizedEntry = getFirstUncategorizedAvailableEntry();
+    if (!uncategorizedEntry) {
+      return {
+        message: "You have more than 50 available words, but nothing in Uncategorized could be auto-binned.",
+        stateName: "error",
+      };
+    }
+
+    const hideResult = hideWordFromPanel(uncategorizedEntry.word, uncategorizedEntry.key);
+    const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
+      ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
+      : "";
+
+    return {
+      message: `${titleCase(uncategorizedEntry.word)} was automatically binned. Clean your vocabulary.${rewardSuffix}`,
+      stateName: "error",
+    };
+  }
+
+  return null;
 }
 
 function tagTileWithSecondResultToken(tileId) {
@@ -1579,6 +1638,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
@@ -1590,7 +1650,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     usedShift: selection.usedShift,
     refundedTagCount: selection.refundedTagCount,
   });
-  setStatus(status.message, status.stateName);
+  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
 async function handleMix(firstTile, secondTile) {
@@ -1608,6 +1668,7 @@ async function handleMix(firstTile, secondTile) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
@@ -1629,10 +1690,11 @@ async function handleMix(firstTile, secondTile) {
       refundedTagCount: selection.refundedTagCount,
     },
   );
-  setStatus(status.message, status.stateName);
+  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
 function rememberResult(result, normalized = result) {
+  const previousAvailableCount = getAvailableWordEntries().length;
   const canonicalResult = getCanonicalWord(result, normalized);
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
   const isInEncyclopedia = Boolean(encyclopediaEntry);
@@ -1696,7 +1758,11 @@ function rememberResult(result, normalized = result) {
     }
   }
 
-  if (didDiscoverNewWord || newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
+  const vocabularyOverflow = didDiscoverNewWord
+    ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
+    : null;
+
+  if (didDiscoverNewWord || newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0 || vocabularyOverflow) {
     renderSidebar();
   }
 
@@ -1707,6 +1773,7 @@ function rememberResult(result, normalized = result) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    vocabularyOverflow,
   };
 }
 
@@ -1733,6 +1800,7 @@ async function runNegativeMix() {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   recordMatch(
     state.negativeMix.a,
@@ -1759,7 +1827,7 @@ async function runNegativeMix() {
     },
   );
   hideNegativeMixAfterUse();
-  setStatus(status.message, status.stateName);
+  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
 function clearNegativeMix() {
