@@ -75,6 +75,8 @@ const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
 const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
+const GARBAGE_BIN_UNLOCK_WORDS = 50;
+const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
 const STORAGE_KEY = "wordmath-progress-v1";
 
 const state = {
@@ -107,6 +109,9 @@ const state = {
     time: 0,
   },
   removedResultWords: new Set(),
+  hiddenWordPanelWords: new Set(),
+  garbageWordsSinceReward: 0,
+  garbageRewardLevel: 0,
   availableNegativeMixTokens: 0,
   totalNegativeMixTokensEarned: 0,
   availableBanWordTokens: 0,
@@ -130,6 +135,9 @@ const els = {
   wordList: document.querySelector("[data-word-list]"),
   playfield: document.querySelector("[data-playfield]"),
   emptyMessage: document.querySelector("[data-empty-message]"),
+  garbagePanel: document.querySelector("[data-garbage-panel]"),
+  garbageBin: document.querySelector("[data-garbage-bin]"),
+  garbageProgress: document.querySelector("[data-garbage-progress]"),
   negativePanel: document.querySelector("[data-negative-panel]"),
   closeNegativeButton: document.querySelector("[data-action='close-negative']"),
   negativeSlots: document.querySelectorAll("[data-negative-slot]"),
@@ -202,6 +210,9 @@ function buildProgressSnapshot() {
     })),
     wordAssignments: [...state.wordAssignments.entries()],
     removedResultWords: [...state.removedResultWords],
+    hiddenWordPanelWords: [...state.hiddenWordPanelWords],
+    garbageWordsSinceReward: state.garbageWordsSinceReward,
+    garbageRewardLevel: state.garbageRewardLevel,
     availableNegativeMixTokens: state.availableNegativeMixTokens,
     totalNegativeMixTokensEarned: state.totalNegativeMixTokensEarned,
     availableBanWordTokens: state.availableBanWordTokens,
@@ -364,6 +375,9 @@ function loadProgress() {
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
   state.removedResultWords = new Set(getStringList(snapshot.removedResultWords));
+  state.hiddenWordPanelWords = new Set(getStringList(snapshot.hiddenWordPanelWords));
+  state.garbageRewardLevel = getSafeCount(snapshot.garbageRewardLevel);
+  state.garbageWordsSinceReward = getSafeCount(snapshot.garbageWordsSinceReward) % getCurrentGarbageTarget();
   state.availableNegativeMixTokens = getSafeCount(snapshot.availableNegativeMixTokens);
   state.totalNegativeMixTokensEarned = getSafeCount(snapshot.totalNegativeMixTokensEarned);
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
@@ -458,6 +472,10 @@ function getAvailableWordEntries() {
     }
   });
 
+  state.hiddenWordPanelWords.forEach((wordKey) => {
+    available.delete(wordKey);
+  });
+
   return [...available.values()].sort((a, b) => a.word.localeCompare(b.word));
 }
 
@@ -481,6 +499,14 @@ function getEncyclopediaDiscoveryCount() {
 
 function getUnlockedTokenCount() {
   return Math.floor(state.discovered.size / WORDS_PER_NEGATIVE_MIX_TOKEN);
+}
+
+function isGarbageBinUnlocked() {
+  return state.discovered.size >= GARBAGE_BIN_UNLOCK_WORDS;
+}
+
+function getCurrentGarbageTarget() {
+  return GARBAGE_WORDS_PER_TOKEN_BASE + ((state.garbageRewardLevel * (state.garbageRewardLevel + 1)) / 2);
 }
 
 function getTotalUsableTokenCount() {
@@ -856,6 +882,69 @@ function activateNegativeMixToken() {
   setStatus("Minus mixing is active for your next pair.", "ok");
 }
 
+function rollGarbageRewardToken() {
+  const roll = Math.random();
+  if (roll < 0.65) {
+    state.availableSecondResultTokens += 1;
+    state.totalSecondResultTokensEarned += 1;
+    return "Second Result";
+  }
+  if (roll < 0.9) {
+    state.availableNegativeMixTokens += 1;
+    state.totalNegativeMixTokensEarned += 1;
+    return "Minus Mix";
+  }
+  state.availableBanWordTokens += 1;
+  state.totalBanWordTokensEarned += 1;
+  return "Ban Word";
+}
+
+function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
+  if (!isGarbageBinUnlocked()) {
+    setStatus(`The garbage bin unlocks at ${GARBAGE_BIN_UNLOCK_WORDS} discovered words.`, "error");
+    return;
+  }
+
+  if (typeof word !== "string" || !word) {
+    return;
+  }
+
+  const wordKey = explicitWordKey || getWordKey(word);
+  const refundedTagCount = tileId === null ? 0 : removeTile(tileId);
+  const refundMessage = refundedTagCount > 0
+    ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
+    : "";
+
+  if (state.hiddenWordPanelWords.has(wordKey)) {
+    renderGarbageBin();
+    setStatus(`${titleCase(word)} is already hidden from the word panel.${refundMessage}`, "ok");
+    return;
+  }
+
+  state.hiddenWordPanelWords.add(wordKey);
+  state.garbageWordsSinceReward += 1;
+  const garbageTarget = getCurrentGarbageTarget();
+
+  let statusMessage = `${titleCase(word)} was hidden from the word panel.${refundMessage}`;
+  let statusState = "ok";
+
+  if (state.garbageWordsSinceReward >= garbageTarget) {
+    state.garbageWordsSinceReward = 0;
+    state.garbageRewardLevel += 1;
+    const rewardedToken = rollGarbageRewardToken();
+    state.unseenTokenRewards += 1;
+    statusMessage = `${statusMessage} The garbage bin paid out a ${rewardedToken} token.`;
+    statusState = "reward";
+    if (state.activeSidebarTab === "tokens") {
+      state.unseenTokenRewards = 0;
+    }
+  }
+
+  renderSidebar();
+  queueProgressSave();
+  setStatus(statusMessage, statusState);
+}
+
 function tagTileWithSecondResultToken(tileId) {
   const tile = getTileById(tileId);
   if (!tile) {
@@ -1012,6 +1101,16 @@ function renderTokenPanel() {
   }
 }
 
+function renderGarbageBin() {
+  const unlocked = isGarbageBinUnlocked();
+  els.garbagePanel.hidden = !unlocked;
+  if (!unlocked) {
+    return;
+  }
+
+  els.garbageProgress.textContent = `${state.garbageWordsSinceReward}/${getCurrentGarbageTarget()}`;
+}
+
 function renderSidebar() {
   updateCounts();
   const tokensUnlocked = hasUnlockedAnyTokenType();
@@ -1028,6 +1127,7 @@ function renderSidebar() {
   els.toggleGooglePickButton.setAttribute("aria-pressed", state.googlePickMode ? "true" : "false");
   renderWordList();
   renderTokenPanel();
+  renderGarbageBin();
   renderEncyclopedia();
 }
 
@@ -1606,6 +1706,14 @@ function getNegativeSlotAtPoint(clientX, clientY) {
   return element ? element.closest("[data-negative-slot]") : null;
 }
 
+function getGarbageBinAtPoint(clientX, clientY) {
+  if (!isGarbageBinUnlocked()) {
+    return null;
+  }
+  const element = document.elementFromPoint(clientX, clientY);
+  return element ? element.closest("[data-garbage-bin]") : null;
+}
+
 function startTileDrag(event, tileId) {
   if (event.button !== 0) {
     return;
@@ -1674,6 +1782,12 @@ function startTileDrag(event, tileId) {
       assignNegativeSlot(slot, tile.word, tile.id);
       renderTiles();
       setStatus(`${titleCase(tile.word)} was placed into slot ${slot.toUpperCase()}.`);
+      return;
+    }
+
+    const garbageBinElement = getGarbageBinAtPoint(endEvent.clientX, endEvent.clientY);
+    if (garbageBinElement) {
+      sendWordToGarbage(tile.word, getWordKey(tile.word), tile.id);
       return;
     }
 
@@ -1827,6 +1941,9 @@ function resetRun() {
   state.totalBanWordTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
+  state.hiddenWordPanelWords = new Set();
+  state.garbageWordsSinceReward = 0;
+  state.garbageRewardLevel = 0;
   state.hasActiveNegativeMixToken = false;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
@@ -1917,6 +2034,32 @@ function initNegativeMixDropzones() {
       assignNegativeSlot(slot, word);
       setStatus(`${titleCase(word)} was placed into slot ${slot.toUpperCase()}.`);
     });
+  });
+}
+
+function initGarbageBinDropzone() {
+  els.garbageBin.addEventListener("dragover", (event) => {
+    const dragTypes = Array.from(event.dataTransfer.types || []);
+    if (!dragTypes.includes("text/plain")) {
+      return;
+    }
+    event.preventDefault();
+    els.garbageBin.dataset.dragOver = "true";
+  });
+
+  els.garbageBin.addEventListener("dragleave", () => {
+    els.garbageBin.dataset.dragOver = "false";
+  });
+
+  els.garbageBin.addEventListener("drop", (event) => {
+    event.preventDefault();
+    els.garbageBin.dataset.dragOver = "false";
+    const word = event.dataTransfer.getData("text/plain");
+    const wordKey = event.dataTransfer.getData("application/x-word-key") || null;
+    if (!word) {
+      return;
+    }
+    sendWordToGarbage(word, wordKey);
   });
 }
 
@@ -2019,6 +2162,7 @@ function initEvents() {
 
   initPlayfieldDropzone();
   initNegativeMixDropzones();
+  initGarbageBinDropzone();
 }
 
 function init() {
