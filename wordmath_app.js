@@ -847,6 +847,28 @@ function getCategoryById(categoryId) {
   return state.wordCategories.find((category) => category.id === categoryId) || null;
 }
 
+function deleteCategory(categoryId) {
+  if (categoryId === DEFAULT_CATEGORY_ID) {
+    return;
+  }
+
+  const category = getCategoryById(categoryId);
+  if (!category) {
+    return;
+  }
+
+  state.wordCategories = state.wordCategories.filter((entry) => entry.id !== categoryId);
+  state.wordAssignments.forEach((assignedCategoryId, wordKey) => {
+    if (assignedCategoryId === categoryId) {
+      state.wordAssignments.set(wordKey, DEFAULT_CATEGORY_ID);
+    }
+  });
+
+  renderWordList();
+  queueProgressSave();
+  setStatus(`${category.name} was deleted. Its words moved to Uncategorized.`);
+}
+
 function ensureWordAssignments(entries) {
   const validCategoryIds = new Set(state.wordCategories.map((category) => category.id));
   entries.forEach((entry) => {
@@ -940,7 +962,22 @@ function renderWordList() {
     count.className = "word-category-count";
     count.textContent = entries.length.toString();
 
-    header.append(toggle, count);
+    const actions = document.createElement("div");
+    actions.className = "word-category-actions";
+    actions.append(count);
+
+    if (category.id !== DEFAULT_CATEGORY_ID) {
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "ghost-button word-category-delete";
+      deleteButton.textContent = "Delete";
+      deleteButton.addEventListener("click", () => {
+        deleteCategory(category.id);
+      });
+      actions.append(deleteButton);
+    }
+
+    header.append(toggle, actions);
 
     const dropzone = document.createElement("div");
     dropzone.className = "word-category-dropzone";

@@ -540,6 +540,12 @@ input {
   margin-bottom: 0.7rem;
 }
 
+.word-category-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
 .word-category-toggle {
   display: inline-flex;
   align-items: center;
@@ -564,6 +570,11 @@ input {
 .word-category-count {
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.word-category-delete {
+  padding: 0.38rem 0.68rem;
+  font-size: 0.82rem;
 }
 
 .word-category-dropzone {
