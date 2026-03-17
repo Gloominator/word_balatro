@@ -75,6 +75,7 @@ const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
 const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
+const STORAGE_KEY = "wordmath-progress-v1";
 
 const state = {
   starters: [],
@@ -157,6 +158,249 @@ const els = {
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
   closeEncyclopediaButton: document.querySelector("[data-action='close-encyclopedia']"),
 };
+
+let pendingProgressSave = null;
+
+function getSafeCount(value, fallback = 0) {
+  return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
+}
+
+function getStringList(value) {
+  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+
+function buildProgressSnapshot() {
+  return {
+    version: 1,
+    starters: [...state.starters],
+    discovered: [...state.discovered.entries()],
+    selfMatchedWords: [...state.selfMatchedWords],
+    tiles: state.tiles.map((tile) => ({
+      id: tile.id,
+      word: tile.word,
+      secondResultTagged: Boolean(tile.secondResultTagged),
+      x: tile.x,
+      y: tile.y,
+      zIndex: tile.zIndex,
+    })),
+    negativeMix: { ...state.negativeMix },
+    negativeMixSources: { ...state.negativeMixSources },
+    lastMix: {
+      label: state.lastMix.label,
+      operation: state.lastMix.operation,
+      candidates: Array.isArray(state.lastMix.candidates) ? [...state.lastMix.candidates] : [],
+    },
+    matchHistory: state.matchHistory.map((match) => ({
+      ...match,
+      nextCandidates: Array.isArray(match.nextCandidates) ? [...match.nextCandidates] : [],
+    })),
+    historySort: state.historySort,
+    wordCategories: state.wordCategories.map((category) => ({
+      id: category.id,
+      name: category.name,
+      collapsed: Boolean(category.collapsed),
+    })),
+    wordAssignments: [...state.wordAssignments.entries()],
+    removedResultWords: [...state.removedResultWords],
+    availableNegativeMixTokens: state.availableNegativeMixTokens,
+    totalNegativeMixTokensEarned: state.totalNegativeMixTokensEarned,
+    availableBanWordTokens: state.availableBanWordTokens,
+    totalBanWordTokensEarned: state.totalBanWordTokensEarned,
+    availableSecondResultTokens: state.availableSecondResultTokens,
+    totalSecondResultTokensEarned: state.totalSecondResultTokensEarned,
+    hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
+    activeSidebarTab: state.activeSidebarTab,
+    unseenTokenRewards: state.unseenTokenRewards,
+    nextTileId: state.nextTileId,
+    nextZIndex: state.nextZIndex,
+  };
+}
+
+function saveProgress() {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildProgressSnapshot()));
+  } catch (error) {
+    console.warn("[wordmath] Could not save progress.", error);
+  }
+}
+
+function queueProgressSave() {
+  if (pendingProgressSave !== null) {
+    window.clearTimeout(pendingProgressSave);
+  }
+  pendingProgressSave = window.setTimeout(() => {
+    pendingProgressSave = null;
+    saveProgress();
+  }, 50);
+}
+
+function normalizeSavedTiles(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((tile) => tile && typeof tile.word === "string")
+    .map((tile) => ({
+      id: getSafeCount(tile.id, 0),
+      word: tile.word,
+      secondResultTagged: Boolean(tile.secondResultTagged),
+      x: Number.isFinite(tile.x) ? tile.x : 0,
+      y: Number.isFinite(tile.y) ? tile.y : 0,
+      zIndex: getSafeCount(tile.zIndex, 1),
+    }))
+    .filter((tile) => tile.id > 0);
+}
+
+function normalizeSavedHistory(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((match) => match
+      && typeof match.left === "string"
+      && typeof match.right === "string"
+      && typeof match.result === "string"
+      && typeof match.operation === "string")
+    .map((match) => ({
+      left: match.left,
+      right: match.right,
+      result: match.result,
+      operation: match.operation,
+      nextCandidates: getStringList(match.nextCandidates),
+    }));
+}
+
+function normalizeSavedCategories(value) {
+  const categories = Array.isArray(value)
+    ? value
+      .filter((category) => category && typeof category.id === "string" && typeof category.name === "string")
+      .map((category) => ({
+        id: category.id,
+        name: category.name,
+        collapsed: Boolean(category.collapsed),
+      }))
+    : [];
+
+  if (!categories.some((category) => category.id === DEFAULT_CATEGORY_ID)) {
+    categories.unshift({
+      id: DEFAULT_CATEGORY_ID,
+      name: "Uncategorized",
+      collapsed: false,
+    });
+  }
+
+  return categories;
+}
+
+function loadProgress() {
+  let snapshot;
+  try {
+    const rawProgress = window.localStorage.getItem(STORAGE_KEY);
+    if (!rawProgress) {
+      return false;
+    }
+    snapshot = JSON.parse(rawProgress);
+  } catch (error) {
+    console.warn("[wordmath] Could not read saved progress.", error);
+    window.localStorage.removeItem(STORAGE_KEY);
+    return false;
+  }
+
+  const starters = getStringList(snapshot?.starters);
+  if (starters.length !== 2) {
+    return false;
+  }
+
+  const discoveredEntries = Array.isArray(snapshot.discovered)
+    ? snapshot.discovered.filter((entry) =>
+      Array.isArray(entry)
+      && typeof entry[0] === "string"
+      && typeof entry[1] === "string")
+    : [];
+  const discovered = new Map(discoveredEntries);
+  starters.forEach((word) => {
+    if (!discovered.has(word)) {
+      discovered.set(word, word);
+    }
+  });
+
+  const tiles = normalizeSavedTiles(snapshot.tiles);
+  const tileIds = new Set(tiles.map((tile) => tile.id));
+  const categories = normalizeSavedCategories(snapshot.wordCategories);
+  const validCategoryIds = new Set(categories.map((category) => category.id));
+  const wordAssignments = new Map(
+    Array.isArray(snapshot.wordAssignments)
+      ? snapshot.wordAssignments.filter((entry) =>
+        Array.isArray(entry)
+        && typeof entry[0] === "string"
+        && typeof entry[1] === "string"
+        && validCategoryIds.has(entry[1]))
+      : [],
+  );
+
+  state.starters = starters;
+  state.discovered = discovered;
+  state.selfMatchedWords = new Set(getStringList(snapshot.selfMatchedWords));
+  state.tiles = tiles;
+  state.search = "";
+  state.negativeMix.a = typeof snapshot.negativeMix?.a === "string" ? snapshot.negativeMix.a : null;
+  state.negativeMix.b = typeof snapshot.negativeMix?.b === "string" ? snapshot.negativeMix.b : null;
+  state.negativeMixSources.a = tileIds.has(snapshot.negativeMixSources?.a) ? snapshot.negativeMixSources.a : null;
+  state.negativeMixSources.b = tileIds.has(snapshot.negativeMixSources?.b) ? snapshot.negativeMixSources.b : null;
+  state.lastMix = {
+    label: typeof snapshot.lastMix?.label === "string" ? snapshot.lastMix.label : "No mix yet.",
+    operation: typeof snapshot.lastMix?.operation === "string" ? snapshot.lastMix.operation : "None",
+    candidates: Array.isArray(snapshot.lastMix?.candidates) ? [...snapshot.lastMix.candidates] : [],
+  };
+  state.matchHistory = normalizeSavedHistory(snapshot.matchHistory);
+  state.matchHistoryKeys = new Set(
+    state.matchHistory.map((match) =>
+      getMatchHistoryKey(match.left, match.right, match.result, match.operation)),
+  );
+  state.historySort = snapshot.historySort === "result" ? "result" : "recent";
+  state.wordCategories = categories;
+  state.wordAssignments = wordAssignments;
+  state.googlePickMode = false;
+  state.clickTracker.word = null;
+  state.clickTracker.time = 0;
+  state.removedResultWords = new Set(getStringList(snapshot.removedResultWords));
+  state.availableNegativeMixTokens = getSafeCount(snapshot.availableNegativeMixTokens);
+  state.totalNegativeMixTokensEarned = getSafeCount(snapshot.totalNegativeMixTokensEarned);
+  state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
+  state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
+  state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
+  state.totalSecondResultTokensEarned = getSafeCount(snapshot.totalSecondResultTokensEarned);
+  state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
+  state.activeSidebarTab = snapshot.activeSidebarTab === "tokens" && hasUnlockedAnyTokenType()
+    ? "tokens"
+    : "words";
+  state.unseenTokenRewards = getSafeCount(snapshot.unseenTokenRewards);
+  state.nextTileId = Math.max(
+    getSafeCount(snapshot.nextTileId, 1),
+    ...tiles.map((tile) => tile.id + 1),
+    1,
+  );
+  state.nextZIndex = Math.max(
+    getSafeCount(snapshot.nextZIndex, 1),
+    ...tiles.map((tile) => tile.zIndex + 1),
+    1,
+  );
+  els.wordSearch.value = "";
+
+  if (!state.hasActiveNegativeMixToken) {
+    state.negativeMix.a = null;
+    state.negativeMix.b = null;
+    state.negativeMixSources.a = null;
+    state.negativeMixSources.b = null;
+  }
+
+  renderSidebar();
+  renderTiles();
+  renderNegativeMix();
+  renderHistory();
+  setStatus("Loaded your saved game.", "ok");
+  return true;
+}
 
 function titleCase(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -434,6 +678,7 @@ function getVisibleCategoryNameForWord(word) {
 function setGooglePickMode(enabled) {
   state.googlePickMode = enabled;
   renderSidebar();
+  queueProgressSave();
 }
 
 function openGoogleMeaning(word) {
@@ -486,6 +731,7 @@ function renderWordList() {
     toggle.addEventListener("click", () => {
       category.collapsed = !category.collapsed;
       renderWordList();
+      queueProgressSave();
     });
 
     const chevron = document.createElement("span");
@@ -523,6 +769,7 @@ function renderWordList() {
       }
       state.wordAssignments.set(wordKey, category.id);
       renderWordList();
+      queueProgressSave();
       setStatus(`${titleCase(word)} moved to ${category.name}.`);
     });
 
@@ -587,6 +834,7 @@ function setActiveSidebarTab(tab) {
     state.unseenTokenRewards = 0;
   }
   renderSidebar();
+  queueProgressSave();
 }
 
 function activateNegativeMixToken() {
@@ -604,6 +852,7 @@ function activateNegativeMixToken() {
   clearNegativeMix();
   renderSidebar();
   renderNegativeMix();
+  queueProgressSave();
   setStatus("Minus mixing is active for your next pair.", "ok");
 }
 
@@ -626,6 +875,7 @@ function tagTileWithSecondResultToken(tileId) {
   tile.secondResultTagged = true;
   renderSidebar();
   renderTiles();
+  queueProgressSave();
   setStatus(`${titleCase(tile.word)} is tagged to jump to a deeper mix result.`, "ok");
 }
 
@@ -649,6 +899,7 @@ function banTileWordFromResults(tileId) {
   state.availableBanWordTokens -= 1;
   state.removedResultWords.add(wordKey);
   renderSidebar();
+  queueProgressSave();
   setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
 }
 
@@ -662,6 +913,7 @@ function refundNegativeMixToken() {
   clearNegativeMix();
   renderSidebar();
   renderNegativeMix();
+  queueProgressSave();
   setStatus("Minus-mix token refunded.", "ok");
 }
 
@@ -670,6 +922,7 @@ function hideNegativeMixAfterUse() {
   clearNegativeMix();
   renderSidebar();
   renderNegativeMix();
+  queueProgressSave();
 }
 
 function buildTokenButton({
@@ -801,6 +1054,7 @@ function renderNegativeMix() {
 function markWordAsSelfMatched(word) {
   state.selfMatchedWords.add(getWordKey(word));
   renderSidebar();
+  queueProgressSave();
 }
 
 function describeOperation(operation) {
@@ -959,6 +1213,7 @@ function recordMatch(wordA, wordB, result, operation, candidates = [], selectedW
   }
   updateCounts();
   renderHistory();
+  queueProgressSave();
 }
 
 function renderHistory() {
@@ -1043,6 +1298,7 @@ function spawnWordOnField(word, position = null) {
   state.nextTileId += 1;
   state.nextZIndex += 1;
   renderTiles();
+  queueProgressSave();
 }
 
 function removeTile(tileId) {
@@ -1056,6 +1312,7 @@ function removeTile(tileId) {
   });
   renderTiles();
   renderNegativeMix();
+  queueProgressSave();
   return refundedTagCount;
 }
 
@@ -1327,6 +1584,7 @@ function clearNegativeMix() {
   state.negativeMixSources.a = null;
   state.negativeMixSources.b = null;
   renderNegativeMix();
+  queueProgressSave();
 }
 
 function assignNegativeSlot(slot, word, tileId = null) {
@@ -1337,6 +1595,7 @@ function assignNegativeSlot(slot, word, tileId = null) {
   state.negativeMix[slot] = word;
   state.negativeMixSources[slot] = tileId;
   renderNegativeMix();
+  queueProgressSave();
 }
 
 function getNegativeSlotAtPoint(clientX, clientY) {
@@ -1515,6 +1774,7 @@ function clearField() {
   state.tiles = [];
   clearNegativeMix();
   renderTiles();
+  queueProgressSave();
   const refundMessage = refundedTagCount > 0
     ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
     : "";
@@ -1582,9 +1842,10 @@ function resetRun() {
   const bounds = getPlayfieldBounds();
   spawnWordOnField(state.starters[0], { x: Math.round(bounds.width * 0.18), y: Math.round(bounds.height * 0.35) });
   spawnWordOnField(state.starters[1], { x: Math.round(bounds.width * 0.58), y: Math.round(bounds.height * 0.35) });
+  queueProgressSave();
 
   setStatus(
-    `New run started with ${titleCase(state.starters[0])} and ${titleCase(state.starters[1])}. Mix them to discover new words.`,
+    `New game started with ${titleCase(state.starters[0])} and ${titleCase(state.starters[1])}. Mix them to discover new words.`,
     "ok",
   );
 }
@@ -1691,6 +1952,7 @@ function initEvents() {
       collapsed: false,
     });
     renderWordList();
+    queueProgressSave();
     setStatus(`Created category ${trimmed}.`);
   });
   els.toggleGooglePickButton.addEventListener("click", () => {
@@ -1712,6 +1974,7 @@ function initEvents() {
   els.toggleHistorySortButton.addEventListener("click", () => {
     state.historySort = state.historySort === "recent" ? "result" : "recent";
     renderHistory();
+    queueProgressSave();
   });
   els.openEncyclopediaButton.addEventListener("click", openEncyclopedia);
   els.closeEncyclopediaButton.addEventListener("click", closeEncyclopedia);
@@ -1744,6 +2007,14 @@ function initEvents() {
       y: clamp(tile.y, 0, bounds.maxY),
     }));
     renderTiles();
+    queueProgressSave();
+  });
+  window.addEventListener("beforeunload", () => {
+    if (pendingProgressSave !== null) {
+      window.clearTimeout(pendingProgressSave);
+      pendingProgressSave = null;
+    }
+    saveProgress();
   });
 
   initPlayfieldDropzone();
@@ -1752,11 +2023,9 @@ function initEvents() {
 
 function init() {
   initEvents();
-  renderSidebar();
-  renderTiles();
-  renderNegativeMix();
-  renderHistory();
-  resetRun();
+  if (!loadProgress()) {
+    resetRun();
+  }
 }
 
 init();
