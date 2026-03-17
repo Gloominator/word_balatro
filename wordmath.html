@@ -15,6 +15,10 @@
         </div>
         <div class="topbar-actions">
           <button type="button" data-action="reset">New Starters</button>
+          <button type="button" class="encyclopedia-button" data-action="open-history">
+            Match History
+            <span class="encyclopedia-count" data-history-count>0</span>
+          </button>
           <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
             Encyclopedia
             <span class="encyclopedia-count" data-encyclopedia-count>0 / 40</span>
@@ -99,6 +103,19 @@
           <button type="button" class="ghost-button" data-action="close-encyclopedia">Close</button>
         </div>
         <div class="encyclopedia-grid" data-encyclopedia-grid></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-history-modal hidden>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="history-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="history-title">Match History</h2>
+            <p class="muted">Unique mixes only. Repeating the same match does not add another entry.</p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-history">Close</button>
+        </div>
+        <div class="history-list" data-history-list></div>
       </section>
     </div>
 

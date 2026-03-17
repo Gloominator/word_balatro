@@ -116,6 +116,7 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
 
     filter_profanity_results = any(is_profanity_like(word) for word in words)
     candidates = []
+    seen_candidate_forms = set()
 
     for idx in best_indices:
         word_key = ROW_TO_KEY[idx]
@@ -124,19 +125,24 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
 
         lexeme = NLP.vocab[word_key]
         candidate = lexeme.text.lower()
+        candidate_form = normalize_word(candidate)
         if candidate in input_words:
             continue
-        if is_same_word_family(candidate, input_word_forms):
+        if candidate_form in input_word_forms:
             continue
         if not candidate.isalpha():
             continue
         if filter_profanity_results and is_profanity_like(candidate):
             continue
+        if candidate_form in seen_candidate_forms:
+            continue
 
         candidates.append({
             "word": candidate,
+            "normalized": candidate_form,
             "similarity": float(similarities[idx]),
         })
+        seen_candidate_forms.add(candidate_form)
         if len(candidates) >= top_n:
             break
 
@@ -202,6 +208,7 @@ class WordMathRequestHandler(SimpleHTTPRequestHandler):
                 {
                     "ok": True,
                     "result": top_result["word"],
+                    "normalized": top_result["normalized"],
                     "similarity": top_result["similarity"],
                     "operation": operation,
                     "candidates": candidates,

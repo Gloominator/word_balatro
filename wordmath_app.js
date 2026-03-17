@@ -72,13 +72,20 @@ const TILE_HEIGHT = 76;
 
 const state = {
   starters: [],
-  discovered: new Set(),
+  discovered: new Map(),
   tiles: [],
   search: "",
   negativeMix: {
     a: null,
     b: null,
   },
+  lastMix: {
+    label: "No mix yet.",
+    operation: "None",
+    candidates: [],
+  },
+  matchHistory: [],
+  matchHistoryKeys: new Set(),
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -86,6 +93,7 @@ const state = {
 const els = {
   status: document.querySelector("[data-status]"),
   encyclopediaCount: document.querySelector("[data-encyclopedia-count]"),
+  historyCount: document.querySelector("[data-history-count]"),
   starterCount: document.querySelector("[data-starter-count]"),
   discoveredCount: document.querySelector("[data-discovered-count]"),
   availableCount: document.querySelector("[data-available-count]"),
@@ -100,10 +108,14 @@ const els = {
   negativeWordB: document.querySelector("[data-negative-word-b]"),
   encyclopediaModal: document.querySelector("[data-encyclopedia-modal]"),
   encyclopediaGrid: document.querySelector("[data-encyclopedia-grid]"),
+  historyModal: document.querySelector("[data-history-modal]"),
+  historyList: document.querySelector("[data-history-list]"),
   resetButton: document.querySelector("[data-action='reset']"),
   clearFieldButton: document.querySelector("[data-action='clear-field']"),
   clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
+  openHistoryButton: document.querySelector("[data-action='open-history']"),
+  closeHistoryButton: document.querySelector("[data-action='close-history']"),
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
   closeEncyclopediaButton: document.querySelector("[data-action='close-encyclopedia']"),
 };
@@ -144,14 +156,18 @@ function getWordKind(word) {
   return state.starters.includes(word) ? "starter" : "discovered";
 }
 
+function getDiscoveredWords() {
+  return [...state.discovered.values()].sort((a, b) => a.localeCompare(b));
+}
+
 function getAvailableWords() {
-  return [...new Set([...state.starters, ...state.discovered])].sort((a, b) =>
+  return [...new Set([...state.starters, ...getDiscoveredWords()])].sort((a, b) =>
     a.localeCompare(b),
   );
 }
 
 function getEncyclopediaDiscoveryCount() {
-  return [...state.discovered].filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)).length;
+  return getDiscoveredWords().filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)).length;
 }
 
 function setStatus(message, stateName = "ok") {
@@ -180,6 +196,7 @@ function updateCounts() {
   els.discoveredCount.textContent = state.discovered.size.toString();
   els.availableCount.textContent = getAvailableWords().length.toString();
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
+  els.historyCount.textContent = state.matchHistory.length.toString();
 }
 
 function buildSourceButton(word) {
@@ -228,9 +245,10 @@ function renderWordList() {
 
 function renderEncyclopedia() {
   els.encyclopediaGrid.innerHTML = "";
+  const discoveredWords = new Set(getDiscoveredWords());
 
   ENCYCLOPEDIA_CATEGORIES.forEach((category) => {
-    const discoveredInCategory = category.words.filter((word) => state.discovered.has(word));
+    const discoveredInCategory = category.words.filter((word) => discoveredWords.has(word));
 
     const card = document.createElement("section");
     card.className = "category-card";
@@ -252,7 +270,7 @@ function renderEncyclopedia() {
 
     category.words.forEach((word) => {
       const entry = document.createElement("div");
-      const isDiscovered = state.discovered.has(word);
+      const isDiscovered = discoveredWords.has(word);
       entry.className = "encyclopedia-entry";
       entry.dataset.discovered = isDiscovered ? "true" : "false";
       entry.textContent = titleCase(word);
@@ -284,6 +302,88 @@ function renderNegativeMix() {
   });
 
   els.runNegativeButton.disabled = !(state.negativeMix.a && state.negativeMix.b);
+}
+
+function describeOperation(operation) {
+  return operation === "subtract" ? "A - B" : "A + B";
+}
+
+function isPreferredDiscoveredVariant(candidate, existing) {
+  const candidateIng = candidate.endsWith("ing");
+  const existingIng = existing.endsWith("ing");
+  if (candidateIng !== existingIng) {
+    return !candidateIng;
+  }
+
+  const candidatePlural = candidate.endsWith("s");
+  const existingPlural = existing.endsWith("s");
+  if (candidatePlural !== existingPlural) {
+    return !candidatePlural;
+  }
+
+  return candidate.length < existing.length;
+}
+
+function setLastMix(label, operation, candidates) {
+  state.lastMix = {
+    label,
+    operation: describeOperation(operation),
+    candidates,
+  };
+}
+
+function getMatchHistoryKey(wordA, wordB, result, operation) {
+  if (operation === "subtract") {
+    return `${operation}:${wordA.toLowerCase()}|${wordB.toLowerCase()}=>${result.toLowerCase()}`;
+  }
+
+  const [first, second] = [wordA.toLowerCase(), wordB.toLowerCase()].sort((a, b) => a.localeCompare(b));
+  return `${operation}:${first}|${second}=>${result.toLowerCase()}`;
+}
+
+function recordMatch(wordA, wordB, result, operation) {
+  const key = getMatchHistoryKey(wordA, wordB, result, operation);
+  if (state.matchHistoryKeys.has(key)) {
+    return;
+  }
+
+  state.matchHistoryKeys.add(key);
+  state.matchHistory.unshift({
+    left: wordA,
+    right: wordB,
+    result,
+    operation,
+  });
+  updateCounts();
+  renderHistory();
+}
+
+function renderHistory() {
+  els.historyList.innerHTML = "";
+
+  if (state.matchHistory.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "source-word-empty";
+    empty.textContent = "No matches recorded yet.";
+    els.historyList.append(empty);
+    return;
+  }
+
+  state.matchHistory.forEach((match) => {
+    const item = document.createElement("div");
+    item.className = "history-item";
+
+    const main = document.createElement("div");
+    main.className = "history-item-main";
+    main.textContent = `${titleCase(match.left)} ${match.operation === "subtract" ? "-" : "+"} ${titleCase(match.right)} = ${titleCase(match.result)}`;
+
+    const meta = document.createElement("div");
+    meta.className = "history-item-meta";
+    meta.textContent = match.operation === "subtract" ? "Negative mix" : "Standard mix";
+
+    item.append(main, meta);
+    els.historyList.append(item);
+  });
 }
 
 function makeTile(word, x, y) {
@@ -368,14 +468,10 @@ function spawnResultTile(word, firstTile, secondTile) {
 
 async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
+  setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
   const result = mix.result;
-  const isInEncyclopedia = ENCYCLOPEDIA_LOOKUP.has(result);
-  const wasDiscovered = state.discovered.has(result);
-
-  if (!wasDiscovered) {
-    state.discovered.add(result);
-    renderSidebar();
-  }
+  const { isInEncyclopedia, wasDiscovered } = rememberResult(result, mix.normalized);
+  recordMatch(firstTile.word, secondTile.word, result, "add");
 
   if (isInEncyclopedia && !wasDiscovered) {
     setStatus(
@@ -397,12 +493,16 @@ async function handleMix(firstTile, secondTile) {
   spawnResultTile(result, firstTile, secondTile);
 }
 
-function rememberResult(result) {
+function rememberResult(result, normalized = result) {
   const isInEncyclopedia = ENCYCLOPEDIA_LOOKUP.has(result);
-  const wasDiscovered = state.discovered.has(result);
+  const existing = state.discovered.get(normalized);
+  const wasDiscovered = Boolean(existing);
 
-  if (!wasDiscovered) {
-    state.discovered.add(result);
+  if (!existing) {
+    state.discovered.set(normalized, result);
+    renderSidebar();
+  } else if (existing !== result && isPreferredDiscoveredVariant(result, existing)) {
+    state.discovered.set(normalized, result);
     renderSidebar();
   }
 
@@ -416,8 +516,10 @@ async function runNegativeMix() {
   }
 
   const mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
+  setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", mix.candidates);
   const result = mix.result;
-  const { isInEncyclopedia, wasDiscovered } = rememberResult(result);
+  const { isInEncyclopedia, wasDiscovered } = rememberResult(result, mix.normalized);
+  recordMatch(state.negativeMix.a, state.negativeMix.b, result, "subtract");
   spawnWordOnField(result, { x: 340, y: 48 });
 
   if (isInEncyclopedia && !wasDiscovered) {
@@ -562,13 +664,28 @@ function closeEncyclopedia() {
   els.encyclopediaModal.hidden = true;
 }
 
+function openHistory() {
+  els.historyModal.hidden = false;
+}
+
+function closeHistory() {
+  els.historyModal.hidden = true;
+}
+
 function resetRun() {
   state.starters = sampleStarters();
-  state.discovered = new Set();
+  state.discovered = new Map();
   state.tiles = [];
   state.search = "";
   state.negativeMix.a = null;
   state.negativeMix.b = null;
+  state.lastMix = {
+    label: "No mix yet.",
+    operation: "None",
+    candidates: [],
+  };
+  state.matchHistory = [];
+  state.matchHistoryKeys = new Set();
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -576,6 +693,7 @@ function resetRun() {
   renderSidebar();
   renderTiles();
   renderNegativeMix();
+  renderHistory();
 
   const bounds = getPlayfieldBounds();
   spawnWordOnField(state.starters[0], { x: Math.round(bounds.width * 0.18), y: Math.round(bounds.height * 0.35) });
@@ -659,6 +777,8 @@ function initEvents() {
       setStatus(error.message, "error");
     }
   });
+  els.openHistoryButton.addEventListener("click", openHistory);
+  els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openEncyclopediaButton.addEventListener("click", openEncyclopedia);
   els.closeEncyclopediaButton.addEventListener("click", closeEncyclopedia);
 
@@ -667,8 +787,16 @@ function initEvents() {
       closeEncyclopedia();
     }
   });
+  els.historyModal.addEventListener("click", (event) => {
+    if (event.target === els.historyModal) {
+      closeHistory();
+    }
+  });
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.historyModal.hidden) {
+      closeHistory();
+    }
     if (event.key === "Escape" && !els.encyclopediaModal.hidden) {
       closeEncyclopedia();
     }
@@ -693,6 +821,7 @@ function init() {
   renderSidebar();
   renderTiles();
   renderNegativeMix();
+  renderHistory();
   resetRun();
 }
 

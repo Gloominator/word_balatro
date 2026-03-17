@@ -415,6 +415,29 @@ input {
   box-shadow: var(--shadow);
 }
 
+.history-list {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.history-item {
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #121826;
+}
+
+.history-item-main {
+  font-weight: 800;
+}
+
+.history-item-meta {
+  margin-top: 0.3rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .encyclopedia-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
