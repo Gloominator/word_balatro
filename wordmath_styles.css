@@ -567,10 +567,35 @@ input {
   background: linear-gradient(180deg, #2d3650, #1e2738);
 }
 
+.tile[data-tagged="true"] {
+  background: linear-gradient(180deg, #5a3a22, #302113);
+  border-color: #d89a52;
+  box-shadow: 0 14px 30px rgba(86, 49, 18, 0.42);
+}
+
 .tile.dragging {
   cursor: grabbing;
   border-color: var(--accent-2);
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.42);
+}
+
+.tile-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.45rem;
+  padding: 0.18rem 0.48rem;
+  border-radius: 999px;
+  background: rgba(18, 11, 6, 0.4);
+  border: 1px solid rgba(255, 204, 138, 0.38);
+  color: #ffd9ac;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tile-tag[hidden] {
+  display: none;
 }
 
 .tile-word {
