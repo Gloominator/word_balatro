@@ -66,8 +66,61 @@ def normalize_word(word: str) -> str:
     return lemma if lemma else token.text.lower()
 
 
+@lru_cache(maxsize=4096)
+def get_word_family_forms(word: str) -> frozenset[str]:
+    lowered = word.strip().lower()
+    forms = {lowered}
+
+    lemma = normalize_word(lowered)
+    if lemma:
+        forms.add(lemma)
+
+    if lowered.endswith("ies") and len(lowered) > 3:
+        forms.add(lowered[:-3] + "y")
+    if lowered.endswith("ing") and len(lowered) > 4:
+        stem = lowered[:-3]
+        forms.add(stem)
+        forms.add(stem + "e")
+        if len(stem) >= 2 and stem[-1] == stem[-2]:
+            forms.add(stem[:-1])
+    if lowered.endswith("es") and len(lowered) > 3:
+        forms.add(lowered[:-2])
+        forms.add(lowered[:-1])
+    if lowered.endswith("s") and len(lowered) > 2:
+        forms.add(lowered[:-1])
+
+    cleaned = {
+        form for form in forms
+        if form and form.isalpha() and len(form) >= 2
+    }
+    return frozenset(cleaned)
+
+
+def get_preferred_root(word: str) -> str:
+    forms = get_word_family_forms(word)
+    candidates = []
+    for form in forms:
+        lexeme = NLP.vocab[form]
+        has_vector = 1 if lexeme.has_vector else 0
+        suffix_penalty = 0
+        if form.endswith("ing"):
+            suffix_penalty += 2
+        if form.endswith("s"):
+            suffix_penalty += 1
+        candidates.append((
+            has_vector,
+            -suffix_penalty,
+            lexeme.prob,
+            -len(form),
+            form,
+        ))
+
+    candidates.sort(reverse=True)
+    return candidates[0][-1] if candidates else word.strip().lower()
+
+
 def is_same_word_family(candidate: str, input_forms: set[str]) -> bool:
-    return normalize_word(candidate) in input_forms
+    return bool(get_word_family_forms(candidate) & input_forms)
 
 
 def is_profanity_like(word: str) -> bool:
@@ -104,7 +157,7 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
         sign = -1 if operation == "subtract" and index == 1 else 1
         result_vector += sign * lexeme.vector
         input_words.add(word)
-        input_word_forms.add(normalize_word(word))
+        input_word_forms.update(get_word_family_forms(word))
 
     result_norm = np.linalg.norm(result_vector)
     if result_norm == 0:
@@ -125,10 +178,10 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
 
         lexeme = NLP.vocab[word_key]
         candidate = lexeme.text.lower()
-        candidate_form = normalize_word(candidate)
+        candidate_form = get_preferred_root(candidate)
         if candidate in input_words:
             continue
-        if candidate_form in input_word_forms:
+        if is_same_word_family(candidate, input_word_forms):
             continue
         if not candidate.isalpha():
             continue

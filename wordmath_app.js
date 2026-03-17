@@ -71,6 +71,7 @@ const TILE_WIDTH = 152;
 const TILE_HEIGHT = 76;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
+const DEFAULT_CATEGORY_ID = "uncategorized";
 
 const state = {
   starters: [],
@@ -90,6 +91,8 @@ const state = {
   matchHistory: [],
   matchHistoryKeys: new Set(),
   historySort: "recent",
+  wordCategories: [],
+  wordAssignments: new Map(),
   clickTracker: {
     word: null,
     time: 0,
@@ -120,6 +123,7 @@ const els = {
   clearFieldButton: document.querySelector("[data-action='clear-field']"),
   clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
+  addCategoryButton: document.querySelector("[data-action='add-category']"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
@@ -163,21 +167,31 @@ function getDiscoveredWords() {
   return [...state.discovered.values()].sort((a, b) => a.localeCompare(b));
 }
 
-function getAvailableWords() {
+function getAvailableWordEntries() {
   const available = new Map();
 
   state.starters.forEach((word) => {
-    available.set(word, word);
+    available.set(word, {
+      key: word,
+      word,
+    });
   });
 
   state.discovered.forEach((word, normalized) => {
     const existing = available.get(normalized);
-    if (!existing || isPreferredDiscoveredVariant(word, existing)) {
-      available.set(normalized, word);
+    if (!existing || isPreferredDiscoveredVariant(word, existing.word)) {
+      available.set(normalized, {
+        key: normalized,
+        word,
+      });
     }
   });
 
-  return [...available.values()].sort((a, b) => a.localeCompare(b));
+  return [...available.values()].sort((a, b) => a.word.localeCompare(b.word));
+}
+
+function getAvailableWords() {
+  return getAvailableWordEntries().map((entry) => entry.word);
 }
 
 function getEncyclopediaDiscoveryCount() {
@@ -207,17 +221,28 @@ async function getAssociation(wordA, wordB, operation = "add") {
 
 function updateCounts() {
   els.discoveredCount.textContent = state.discovered.size.toString();
-  els.availableCount.textContent = getAvailableWords().length.toString();
+  els.availableCount.textContent = getAvailableWordEntries().length.toString();
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
   els.historyCount.textContent = state.matchHistory.length.toString();
 }
 
-function buildSourceButton(word) {
+function getWordKey(word) {
+  for (const [key, value] of state.discovered.entries()) {
+    if (value === word) {
+      return key;
+    }
+  }
+  return word.toLowerCase();
+}
+
+function buildSourceButton(entry) {
+  const { key, word } = entry;
   const button = document.createElement("button");
   button.type = "button";
   button.className = "source-word";
   button.dataset.kind = "discovered";
-  button.textContent = `${titleCase(word)}${state.selfMatchedWords.has(word.toLowerCase()) ? " ✔️" : ""}`;
+  button.dataset.wordKey = key;
+  button.textContent = `${titleCase(word)}${state.selfMatchedWords.has(key) ? " ✔️" : ""}`;
   button.draggable = true;
   button.addEventListener("click", () => {
     spawnWordOnField(word);
@@ -225,18 +250,49 @@ function buildSourceButton(word) {
   });
   button.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("text/plain", word);
+    event.dataTransfer.setData("application/x-word-key", key);
     event.dataTransfer.effectAllowed = "copy";
   });
   return button;
 }
 
+function getCategoryById(categoryId) {
+  return state.wordCategories.find((category) => category.id === categoryId) || null;
+}
+
+function ensureWordAssignments(entries) {
+  const validCategoryIds = new Set(state.wordCategories.map((category) => category.id));
+  entries.forEach((entry) => {
+    if (!validCategoryIds.has(state.wordAssignments.get(entry.key))) {
+      state.wordAssignments.set(entry.key, DEFAULT_CATEGORY_ID);
+    }
+  });
+}
+
+function getCategoryIdForWord(key) {
+  return state.wordAssignments.get(key) || DEFAULT_CATEGORY_ID;
+}
+
+function createDefaultCategoryState() {
+  return [
+    {
+      id: DEFAULT_CATEGORY_ID,
+      name: "Uncategorized",
+      collapsed: false,
+    },
+  ];
+}
+
 function renderWordList() {
-  const availableWords = getAvailableWords().filter((word) =>
-    word.includes(state.search.trim().toLowerCase()),
+  const availableEntries = getAvailableWordEntries();
+  ensureWordAssignments(availableEntries);
+
+  const filteredEntries = availableEntries.filter((entry) =>
+    entry.word.includes(state.search.trim().toLowerCase()),
   );
 
   els.wordList.innerHTML = "";
-  if (availableWords.length === 0) {
+  if (filteredEntries.length === 0) {
     const empty = document.createElement("p");
     empty.className = "source-word-empty";
     empty.textContent = "No available words match that search.";
@@ -244,8 +300,75 @@ function renderWordList() {
     return;
   }
 
-  availableWords.forEach((word) => {
-    els.wordList.append(buildSourceButton(word));
+  state.wordCategories.forEach((category) => {
+    const entries = filteredEntries.filter((entry) => getCategoryIdForWord(entry.key) === category.id);
+
+    const section = document.createElement("section");
+    section.className = "word-category";
+    section.dataset.categoryId = category.id;
+
+    const header = document.createElement("div");
+    header.className = "word-category-header";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "word-category-toggle";
+    toggle.addEventListener("click", () => {
+      category.collapsed = !category.collapsed;
+      renderWordList();
+    });
+
+    const chevron = document.createElement("span");
+    chevron.className = "word-category-chevron";
+    chevron.textContent = category.collapsed ? ">" : "v";
+
+    const title = document.createElement("span");
+    title.textContent = category.name;
+
+    toggle.append(chevron, title);
+
+    const count = document.createElement("span");
+    count.className = "word-category-count";
+    count.textContent = entries.length.toString();
+
+    header.append(toggle, count);
+
+    const dropzone = document.createElement("div");
+    dropzone.className = "word-category-dropzone";
+    dropzone.hidden = category.collapsed;
+    dropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropzone.dataset.dragOver = "true";
+    });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.dataset.dragOver = "false";
+    });
+    dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropzone.dataset.dragOver = "false";
+      const word = event.dataTransfer.getData("text/plain");
+      const wordKey = event.dataTransfer.getData("application/x-word-key") || getWordKey(word);
+      if (!word) {
+        return;
+      }
+      state.wordAssignments.set(wordKey, category.id);
+      renderWordList();
+      setStatus(`${titleCase(word)} moved to ${category.name}.`);
+    });
+
+    if (entries.length === 0) {
+      const empty = document.createElement("p");
+      empty.className = "source-word-empty";
+      empty.textContent = "No words here yet.";
+      dropzone.append(empty);
+    } else {
+      entries.forEach((entry) => {
+        dropzone.append(buildSourceButton(entry));
+      });
+    }
+
+    section.append(header, dropzone);
+    els.wordList.append(section);
   });
 }
 
@@ -310,7 +433,7 @@ function renderNegativeMix() {
 }
 
 function markWordAsSelfMatched(word) {
-  state.selfMatchedWords.add(word.toLowerCase());
+  state.selfMatchedWords.add(getWordKey(word));
   renderSidebar();
 }
 
@@ -805,6 +928,8 @@ function resetRun() {
   state.matchHistory = [];
   state.matchHistoryKeys = new Set();
   state.historySort = "recent";
+  state.wordCategories = createDefaultCategoryState();
+  state.wordAssignments = new Map(state.starters.map((word) => [word, DEFAULT_CATEGORY_ID]));
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
   state.nextTileId = 1;
@@ -891,6 +1016,24 @@ function initEvents() {
   els.resetButton.addEventListener("click", resetRun);
   els.clearFieldButton.addEventListener("click", clearField);
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
+  els.addCategoryButton.addEventListener("click", () => {
+    const name = window.prompt("Category name?");
+    if (!name) {
+      return;
+    }
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    const id = `category-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    state.wordCategories.push({
+      id,
+      name: trimmed,
+      collapsed: false,
+    });
+    renderWordList();
+    setStatus(`Created category ${trimmed}.`);
+  });
   els.runNegativeButton.addEventListener("click", async () => {
     try {
       await runNegativeMix();
