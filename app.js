@@ -314,7 +314,7 @@ function renderScore() {
 
   links.forEach((link) => {
     const item = document.createElement("li");
-    item.textContent = `${link.from} -> ${link.to} | sim ${link.similarity.toFixed(3)} | x${link.multiplier.toFixed(1)}`;
+    item.textContent = `${link.from} -> ${link.to} | sim ${link.similarity.toFixed(3)} | x${link.multiplier.toFixed(2)}`;
     els.links.append(item);
   });
 

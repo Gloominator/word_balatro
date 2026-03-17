@@ -18,12 +18,17 @@ export function cosineSimilarity(v1, v2) {
   return dot / (Math.sqrt(norm1) * Math.sqrt(norm2));
 }
 
+function roundToTwo(value) {
+  return Math.round(value * 100) / 100;
+}
+
 export function simToMultiplier(similarity) {
+  if (similarity <= 0.1) return 0.5;
   if (similarity >= 0.7) return 3.0;
-  if (similarity >= 0.5) return 2.0;
-  if (similarity >= 0.3) return 1.5;
-  if (similarity >= 0.2) return 1.0;
-  return 0.5;
+
+  const normalized = (similarity - 0.1) / 0.6;
+  const curved = Math.pow(normalized, 1.15);
+  return roundToTwo(0.5 + curved * 2.5);
 }
 
 export function getPattern(cards) {
