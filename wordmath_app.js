@@ -72,6 +72,8 @@ const TILE_HEIGHT = 76;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const DEFAULT_CATEGORY_ID = "uncategorized";
+const MATCH_HISTORY_LIMIT = 100;
+const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
 
 const state = {
   starters: [],
@@ -98,6 +100,11 @@ const state = {
     word: null,
     time: 0,
   },
+  availableNegativeMixTokens: 0,
+  totalNegativeMixTokensEarned: 0,
+  hasActiveNegativeMixToken: false,
+  activeSidebarTab: "words",
+  unseenTokenRewards: 0,
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -113,6 +120,7 @@ const els = {
   playfield: document.querySelector("[data-playfield]"),
   emptyMessage: document.querySelector("[data-empty-message]"),
   negativePanel: document.querySelector("[data-negative-panel]"),
+  closeNegativeButton: document.querySelector("[data-action='close-negative']"),
   negativeSlots: document.querySelectorAll("[data-negative-slot]"),
   negativeWordA: document.querySelector("[data-negative-word-a]"),
   negativeWordB: document.querySelector("[data-negative-word-b]"),
@@ -126,6 +134,13 @@ const els = {
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
   addCategoryButton: document.querySelector("[data-action='add-category']"),
   toggleGooglePickButton: document.querySelector("[data-action='toggle-google-pick']"),
+  sidebarTitle: document.querySelector("[data-sidebar-title]"),
+  openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
+  openTokenTabButton: document.querySelector("[data-action='open-token-tab']"),
+  tokenCount: document.querySelector("[data-token-count]"),
+  tokenPanelCount: document.querySelector("[data-token-panel-count]"),
+  tokenList: document.querySelector("[data-token-list]"),
+  sidebarPanels: document.querySelectorAll("[data-sidebar-panel]"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
@@ -196,8 +211,26 @@ function getAvailableWords() {
   return getAvailableWordEntries().map((entry) => entry.word);
 }
 
+function getEncyclopediaEntry(word, normalized = word) {
+  return ENCYCLOPEDIA_LOOKUP.get(normalized) || ENCYCLOPEDIA_LOOKUP.get(word.toLowerCase()) || null;
+}
+
+function getDiscoveredEncyclopediaWords() {
+  return new Set(
+    [...state.discovered.keys()].filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)),
+  );
+}
+
 function getEncyclopediaDiscoveryCount() {
-  return getDiscoveredWords().filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)).length;
+  return getDiscoveredEncyclopediaWords().size;
+}
+
+function getUnlockedTokenCount() {
+  return Math.floor(state.discovered.size / WORDS_PER_NEGATIVE_MIX_TOKEN);
+}
+
+function shouldFlashTokenTab() {
+  return state.unseenTokenRewards > 0 && state.availableNegativeMixTokens > 0 && state.activeSidebarTab !== "tokens";
 }
 
 function setStatus(message, stateName = "ok") {
@@ -226,6 +259,8 @@ function updateCounts() {
   els.availableCount.textContent = getAvailableWordEntries().length.toString();
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
   els.historyCount.textContent = state.matchHistory.length.toString();
+  els.tokenCount.textContent = state.availableNegativeMixTokens.toString();
+  els.tokenPanelCount.textContent = state.availableNegativeMixTokens.toString();
 }
 
 function getWordKey(word) {
@@ -400,7 +435,7 @@ function renderWordList() {
 
 function renderEncyclopedia() {
   els.encyclopediaGrid.innerHTML = "";
-  const discoveredWords = new Set(getDiscoveredWords());
+  const discoveredWords = getDiscoveredEncyclopediaWords();
 
   ENCYCLOPEDIA_CATEGORIES.forEach((category) => {
     const discoveredInCategory = category.words.filter((word) => discoveredWords.has(word));
@@ -437,14 +472,115 @@ function renderEncyclopedia() {
   });
 }
 
+function setActiveSidebarTab(tab) {
+  state.activeSidebarTab = tab;
+  if (tab === "tokens") {
+    state.unseenTokenRewards = 0;
+  }
+  renderSidebar();
+}
+
+function activateNegativeMixToken() {
+  if (state.hasActiveNegativeMixToken) {
+    setStatus("Negative mixing is already active.", "ok");
+    return;
+  }
+  if (state.availableNegativeMixTokens <= 0) {
+    setStatus("You do not have any minus-mix tokens yet.", "error");
+    return;
+  }
+
+  state.availableNegativeMixTokens -= 1;
+  state.hasActiveNegativeMixToken = true;
+  clearNegativeMix();
+  renderSidebar();
+  renderNegativeMix();
+  setStatus("Minus mixing is active for your next pair.", "ok");
+}
+
+function refundNegativeMixToken() {
+  if (!state.hasActiveNegativeMixToken) {
+    return;
+  }
+
+  state.availableNegativeMixTokens += 1;
+  state.hasActiveNegativeMixToken = false;
+  clearNegativeMix();
+  renderSidebar();
+  renderNegativeMix();
+  setStatus("Minus-mix token refunded.", "ok");
+}
+
+function hideNegativeMixAfterUse() {
+  state.hasActiveNegativeMixToken = false;
+  clearNegativeMix();
+  renderSidebar();
+  renderNegativeMix();
+}
+
+function renderTokenPanel() {
+  els.tokenList.innerHTML = "";
+
+  if (state.availableNegativeMixTokens <= 0) {
+    const empty = document.createElement("p");
+    empty.className = "source-word-empty";
+    empty.textContent = state.totalNegativeMixTokensEarned > 0
+      ? "No unused tokens right now."
+      : "No tokens yet.";
+    els.tokenList.append(empty);
+    return;
+  }
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "token-button";
+  button.draggable = true;
+  button.innerHTML = `
+    <span class="token-button-copy">
+      <span class="token-button-title">Minus Mix</span>
+      <span class="token-button-text">Click or drag onto the field to unlock one A - B mix.</span>
+    </span>
+    <span class="token-chip">${state.availableNegativeMixTokens}</span>
+  `;
+  button.addEventListener("click", () => {
+    activateNegativeMixToken();
+  });
+  button.addEventListener("dragstart", (event) => {
+    button.classList.add("is-dragging");
+    event.dataTransfer.setData("application/x-negative-token", "minus-mix");
+    event.dataTransfer.effectAllowed = "copy";
+  });
+  button.addEventListener("dragend", () => {
+    button.classList.remove("is-dragging");
+  });
+  els.tokenList.append(button);
+}
+
 function renderSidebar() {
   updateCounts();
+  const tokensUnlocked = state.totalNegativeMixTokensEarned > 0;
+  const isTokenTabActive = state.activeSidebarTab === "tokens";
+  els.sidebarTitle.textContent = isTokenTabActive ? "Usable Tokens" : "Word Panel";
+  els.openWordTabButton.setAttribute("aria-selected", isTokenTabActive ? "false" : "true");
+  els.openTokenTabButton.hidden = !tokensUnlocked;
+  els.openTokenTabButton.setAttribute("aria-selected", isTokenTabActive ? "true" : "false");
+  els.openTokenTabButton.classList.toggle("sidebar-tab-flashing", shouldFlashTokenTab());
+  els.sidebarPanels.forEach((panel) => {
+    panel.hidden = panel.dataset.sidebarPanel !== state.activeSidebarTab;
+  });
+  els.toggleGooglePickButton.hidden = isTokenTabActive;
   els.toggleGooglePickButton.setAttribute("aria-pressed", state.googlePickMode ? "true" : "false");
   renderWordList();
+  renderTokenPanel();
   renderEncyclopedia();
 }
 
 function renderNegativeMix() {
+  els.negativePanel.hidden = !state.hasActiveNegativeMixToken;
+  if (els.negativePanel.hidden) {
+    return;
+  }
+
   const slots = [
     { key: "a", element: els.negativeWordA },
     { key: "b", element: els.negativeWordB },
@@ -506,6 +642,31 @@ function setLastMix(label, operation, candidates) {
   };
 }
 
+function getMixOutcomeMessage(leftWord, rightWord, canonicalResult, operation, isInEncyclopedia, wasDiscovered, newTokensEarned) {
+  const operator = operation === "subtract" ? "-" : "+";
+  let message;
+  let stateName;
+
+  if (isInEncyclopedia && !wasDiscovered) {
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`;
+    stateName = "success";
+  } else if (isInEncyclopedia) {
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`;
+    stateName = "ok";
+  } else {
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`;
+    stateName = "ok";
+  }
+
+  if (newTokensEarned > 0) {
+    const tokenSuffix = newTokensEarned === 1 ? "token" : "tokens";
+    message = `${message} Congrats! You earned ${newTokensEarned} minus-mix ${tokenSuffix}.`;
+    stateName = "reward";
+  }
+
+  return { message, stateName };
+}
+
 function getMatchHistoryKey(wordA, wordB, result, operation) {
   if (operation === "subtract") {
     return `${operation}:${wordA.toLowerCase()}|${wordB.toLowerCase()}=>${result.toLowerCase()}`;
@@ -528,6 +689,15 @@ function recordMatch(wordA, wordB, result, operation) {
     result,
     operation,
   });
+  while (state.matchHistory.length > MATCH_HISTORY_LIMIT) {
+    const removedMatch = state.matchHistory.pop();
+    if (!removedMatch) {
+      break;
+    }
+    state.matchHistoryKeys.delete(
+      getMatchHistoryKey(removedMatch.left, removedMatch.right, removedMatch.result, removedMatch.operation),
+    );
+  }
   updateCounts();
   renderHistory();
 }
@@ -684,74 +854,66 @@ function handleTileClick(word, position) {
 async function runSelfMatch(word, position = null) {
   const mix = await getAssociation(word, word, "add");
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", mix.candidates);
-  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  const { canonicalResult, isInEncyclopedia, wasDiscovered, newTokensEarned } = rememberResult(mix.result, mix.normalized);
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add");
   spawnWordOnField(canonicalResult, position);
-
-  if (isInEncyclopedia && !wasDiscovered) {
-    setStatus(
-      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
-      "success",
-    );
-  } else if (isInEncyclopedia) {
-    setStatus(
-      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
-      "ok",
-    );
-  } else {
-    setStatus(
-      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
-      "ok",
-    );
-  }
+  const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, newTokensEarned);
+  setStatus(status.message, status.stateName);
 }
 
 async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
-  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  const { canonicalResult, isInEncyclopedia, wasDiscovered, newTokensEarned } = rememberResult(mix.result, mix.normalized);
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
   recordMatch(firstTile.word, secondTile.word, canonicalResult, "add");
-
-  if (isInEncyclopedia && !wasDiscovered) {
-    setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
-      "success",
-    );
-  } else if (isInEncyclopedia) {
-    setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
-      "ok",
-    );
-  } else {
-    setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
-      "ok",
-    );
-  }
-
   spawnResultTile(canonicalResult, firstTile, secondTile);
+  const status = getMixOutcomeMessage(
+    firstTile.word,
+    secondTile.word,
+    canonicalResult,
+    "add",
+    isInEncyclopedia,
+    wasDiscovered,
+    newTokensEarned,
+  );
+  setStatus(status.message, status.stateName);
 }
 
 function rememberResult(result, normalized = result) {
   const canonicalResult = getCanonicalWord(result, normalized);
-  const isInEncyclopedia = ENCYCLOPEDIA_LOOKUP.has(canonicalResult);
+  const isInEncyclopedia = Boolean(getEncyclopediaEntry(canonicalResult, normalized));
   const existing = state.discovered.get(normalized);
   const wasDiscovered = Boolean(existing);
   const canonicalIsStarter = state.starters.includes(canonicalResult);
+  let didDiscoverNewWord = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(normalized, canonicalResult);
-    renderSidebar();
+    didDiscoverNewWord = true;
   } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing)) {
     state.discovered.set(normalized, canonicalResult);
+  }
+
+  const unlockedTokenCount = getUnlockedTokenCount();
+  const newTokensEarned = Math.max(0, unlockedTokenCount - state.totalNegativeMixTokensEarned);
+  if (newTokensEarned > 0) {
+    state.totalNegativeMixTokensEarned = unlockedTokenCount;
+    state.availableNegativeMixTokens += newTokensEarned;
+    state.unseenTokenRewards += newTokensEarned;
+    if (state.activeSidebarTab === "tokens") {
+      state.unseenTokenRewards = 0;
+    }
+  }
+
+  if (didDiscoverNewWord || newTokensEarned > 0) {
     renderSidebar();
   }
 
-  return { canonicalResult, isInEncyclopedia, wasDiscovered };
+  return { canonicalResult, isInEncyclopedia, wasDiscovered, newTokensEarned };
 }
 
 async function runNegativeMix() {
@@ -762,26 +924,20 @@ async function runNegativeMix() {
 
   const mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
   setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", mix.candidates);
-  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  const { canonicalResult, isInEncyclopedia, wasDiscovered, newTokensEarned } = rememberResult(mix.result, mix.normalized);
   recordMatch(state.negativeMix.a, state.negativeMix.b, canonicalResult, "subtract");
   spawnWordOnField(canonicalResult, { x: 340, y: 48 });
-
-  if (isInEncyclopedia && !wasDiscovered) {
-    setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
-      "success",
-    );
-  } else if (isInEncyclopedia) {
-    setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
-      "ok",
-    );
-  } else {
-    setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
-      "ok",
-    );
-  }
+  const status = getMixOutcomeMessage(
+    state.negativeMix.a,
+    state.negativeMix.b,
+    canonicalResult,
+    "subtract",
+    isInEncyclopedia,
+    wasDiscovered,
+    newTokensEarned,
+  );
+  hideNegativeMixAfterUse();
+  setStatus(status.message, status.stateName);
 }
 
 function clearNegativeMix() {
@@ -791,11 +947,18 @@ function clearNegativeMix() {
 }
 
 function assignNegativeSlot(slot, word) {
+  if (!state.hasActiveNegativeMixToken) {
+    setStatus("Use a minus-mix token first.", "error");
+    return;
+  }
   state.negativeMix[slot] = word;
   renderNegativeMix();
 }
 
 function getNegativeSlotAtPoint(clientX, clientY) {
+  if (!state.hasActiveNegativeMixToken) {
+    return null;
+  }
   const element = document.elementFromPoint(clientX, clientY);
   return element ? element.closest("[data-negative-slot]") : null;
 }
@@ -967,6 +1130,11 @@ function resetRun() {
   state.googlePickMode = false;
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
+  state.availableNegativeMixTokens = 0;
+  state.totalNegativeMixTokensEarned = 0;
+  state.hasActiveNegativeMixToken = false;
+  state.activeSidebarTab = "words";
+  state.unseenTokenRewards = 0;
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -999,6 +1167,12 @@ function initPlayfieldDropzone() {
   els.playfield.addEventListener("drop", (event) => {
     event.preventDefault();
     els.playfield.dataset.dragOver = "false";
+
+    const tokenType = event.dataTransfer.getData("application/x-negative-token");
+    if (tokenType === "minus-mix") {
+      activateNegativeMixToken();
+      return;
+    }
 
     const word = event.dataTransfer.getData("text/plain");
     if (!word) {
@@ -1048,9 +1222,16 @@ function initEvents() {
     renderWordList();
   });
 
+  els.openWordTabButton.addEventListener("click", () => {
+    setActiveSidebarTab("words");
+  });
+  els.openTokenTabButton.addEventListener("click", () => {
+    setActiveSidebarTab("tokens");
+  });
   els.resetButton.addEventListener("click", resetRun);
   els.clearFieldButton.addEventListener("click", clearField);
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
+  els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);
   els.addCategoryButton.addEventListener("click", () => {
     const name = window.prompt("Category name?");
     if (!name) {
