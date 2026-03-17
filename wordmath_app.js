@@ -917,7 +917,24 @@ function getMatchHistoryKey(wordA, wordB, result, operation) {
   return `${operation}:${first}|${second}=>${result.toLowerCase()}`;
 }
 
-function recordMatch(wordA, wordB, result, operation) {
+function getCandidateHistoryTrail(candidates, selectedWord) {
+  if (!Array.isArray(candidates) || !candidates.length) {
+    return [];
+  }
+
+  const selectedKey = (selectedWord || "").toLowerCase();
+  const selectedIndex = candidates.findIndex((candidate) => {
+    return (candidate.word || "").toLowerCase() === selectedKey
+      || (candidate.normalized || "").toLowerCase() === selectedKey;
+  });
+  const trailStart = selectedIndex >= 0 ? selectedIndex + 1 : 1;
+  return candidates
+    .slice(trailStart, trailStart + 4)
+    .map((candidate) => titleCase(candidate.word || candidate.normalized || ""))
+    .filter(Boolean);
+}
+
+function recordMatch(wordA, wordB, result, operation, candidates = [], selectedWord = result) {
   const key = getMatchHistoryKey(wordA, wordB, result, operation);
   if (state.matchHistoryKeys.has(key)) {
     return;
@@ -929,6 +946,7 @@ function recordMatch(wordA, wordB, result, operation) {
     right: wordB,
     result,
     operation,
+    nextCandidates: getCandidateHistoryTrail(candidates, selectedWord),
   });
   while (state.matchHistory.length > MATCH_HISTORY_LIMIT) {
     const removedMatch = state.matchHistory.pop();
@@ -980,7 +998,10 @@ function renderHistory() {
 
     const main = document.createElement("div");
     main.className = "history-item-main";
-    main.textContent = `${titleCase(match.left)} ${match.operation === "subtract" ? "-" : "+"} ${titleCase(match.right)} = ${titleCase(match.result)}`;
+    const nextCandidatesText = Array.isArray(match.nextCandidates) && match.nextCandidates.length
+      ? ` (${match.nextCandidates.join(", ")})`
+      : "";
+    main.textContent = `${titleCase(match.left)} ${match.operation === "subtract" ? "-" : "+"} ${titleCase(match.right)} = ${titleCase(match.result)}${nextCandidatesText}`;
 
     const meta = document.createElement("div");
     meta.className = "history-item-meta";
@@ -1119,7 +1140,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
-  recordMatch(word, word, canonicalResult, "add");
+  recordMatch(word, word, canonicalResult, "add", mix.candidates, selectedCandidate.word);
   spawnWordOnField(canonicalResult, position);
   const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
     newNegativeMixTokens,
@@ -1150,7 +1171,7 @@ async function handleMix(firstTile, secondTile) {
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
-  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add");
+  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", mix.candidates, selectedCandidate.word);
   spawnResultTile(canonicalResult, firstTile, secondTile);
   const status = getMixOutcomeMessage(
     firstTile.word,
@@ -1272,7 +1293,14 @@ async function runNegativeMix() {
     newBanWordTokens,
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
-  recordMatch(state.negativeMix.a, state.negativeMix.b, canonicalResult, "subtract");
+  recordMatch(
+    state.negativeMix.a,
+    state.negativeMix.b,
+    canonicalResult,
+    "subtract",
+    mix.candidates,
+    selectedCandidate.word,
+  );
   spawnWordOnField(canonicalResult, { x: 340, y: 48 });
   const status = getMixOutcomeMessage(
     state.negativeMix.a,
