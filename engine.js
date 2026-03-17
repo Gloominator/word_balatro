@@ -39,17 +39,57 @@ export function patternToText(pattern) {
   return pattern.length ? pattern.join(" -> ") : "(empty)";
 }
 
-export function findNamedHand(cards) {
-  const pattern = getPattern(cards);
-  return (
-    HANDS.find((hand) => {
-      if (hand.pattern.length !== pattern.length) {
-        return false;
-      }
+function resolvePatternMatch(cards, hand) {
+  const actualPattern = getPattern(cards);
+  if (hand.pattern.length !== actualPattern.length) {
+    return null;
+  }
 
-      return hand.pattern.every((suit, index) => suit === pattern[index]);
-    }) || null
-  );
+  const resolvedPattern = [];
+  const dynamicSuitIndices = [];
+
+  for (let index = 0; index < hand.pattern.length; index += 1) {
+    const expectedSuit = hand.pattern[index];
+    const actualSuit = actualPattern[index];
+
+    if (expectedSuit === actualSuit) {
+      resolvedPattern.push(actualSuit);
+      continue;
+    }
+
+    const canUseNounAsAdj = (
+      expectedSuit === "ADJ"
+      && actualSuit === "NOUN"
+      && hand.pattern[index + 1] === "NOUN"
+      && actualPattern[index + 1] === "NOUN"
+    );
+
+    if (canUseNounAsAdj) {
+      resolvedPattern.push("ADJ");
+      dynamicSuitIndices.push(index);
+      continue;
+    }
+
+    return null;
+  }
+
+  return {
+    resolvedPattern,
+    dynamicSuitIndices,
+  };
+}
+
+export function findNamedHand(cards) {
+  for (const hand of HANDS) {
+    const match = resolvePatternMatch(cards, hand);
+    if (match) {
+      return {
+        hand,
+        ...match,
+      };
+    }
+  }
+  return null;
 }
 
 function getFallbackHand(cards) {
@@ -61,6 +101,8 @@ function getFallbackHand(cards) {
       baseMult: 0,
       description: "Add cards to score a chain.",
       named: false,
+      resolvedPattern: [],
+      dynamicSuitIndices: [],
     };
   }
 
@@ -72,6 +114,8 @@ function getFallbackHand(cards) {
       baseMult: 1,
       description: "A single card scores its own chips.",
       named: false,
+      resolvedPattern: getPattern(cards),
+      dynamicSuitIndices: [],
     };
   }
 
@@ -82,13 +126,20 @@ function getFallbackHand(cards) {
     baseMult: 1,
     description: "No named hand match yet. Semantic links still score.",
     named: false,
+    resolvedPattern: getPattern(cards),
+    dynamicSuitIndices: [],
   };
 }
 
 export function getActiveHand(cards) {
-  const namedHand = findNamedHand(cards);
-  if (namedHand) {
-    return { ...namedHand, named: true };
+  const namedMatch = findNamedHand(cards);
+  if (namedMatch) {
+    return {
+      ...namedMatch.hand,
+      named: true,
+      resolvedPattern: namedMatch.resolvedPattern,
+      dynamicSuitIndices: namedMatch.dynamicSuitIndices,
+    };
   }
   return getFallbackHand(cards);
 }
@@ -124,11 +175,13 @@ export function scoreCards(cards) {
 
   return {
     hand: activeHand,
-    pattern: getPattern(cards),
+    pattern: activeHand.resolvedPattern,
+    actualPattern: getPattern(cards),
     totalChips,
     countedChips,
     highestChipCardId: highestChipCard ? highestChipCard.id : null,
     handMultiplier: activeHand.baseMult,
+    dynamicSuitIndices: activeHand.dynamicSuitIndices,
     links,
     linkProduct,
     finalScore,

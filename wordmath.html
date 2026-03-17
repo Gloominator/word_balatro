@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WordMath Mixer</title>
+    <link rel="stylesheet" href="./wordmath_styles.css">
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="topbar">
+        <div>
+          <h1>WordMath Mixer</h1>
+          <p class="subtitle">Drag words onto the field, drag one word over another to mix them, and fill in the encyclopedia.</p>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" data-action="reset">New Starters</button>
+          <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
+            Encyclopedia
+            <span class="encyclopedia-count" data-encyclopedia-count>0 / 40</span>
+          </button>
+        </div>
+      </header>
+
+      <div class="status-pill" data-status data-state="ok">
+        Drop a word onto the field to start mixing.
+      </div>
+
+      <section class="main-layout">
+        <section class="panel playfield-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Mixing Field</h2>
+              <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
+            </div>
+            <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
+          </div>
+          <div class="playfield" data-playfield>
+            <section class="negative-mix-panel" data-negative-panel>
+              <div class="negative-mix-title">Negative Mixing</div>
+              <p class="negative-mix-text">Drop two words here to create a result using <strong>A - B</strong>.</p>
+              <div class="negative-mix-slots">
+                <div class="negative-slot" data-negative-slot="a">
+                  <span class="negative-slot-label">A</span>
+                  <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+                </div>
+                <div class="negative-slot" data-negative-slot="b">
+                  <span class="negative-slot-label">B</span>
+                  <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                </div>
+              </div>
+              <div class="negative-mix-actions">
+                <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
+                <button type="button" data-action="run-negative">Mix A - B</button>
+              </div>
+            </section>
+            <div class="playfield-empty" data-empty-message>
+              Drag a starter or discovered word here.
+            </div>
+          </div>
+        </section>
+
+        <aside class="panel sidebar">
+          <h2>Word Panel</h2>
+
+          <section class="sidebar-section">
+            <div class="section-title-row">
+              <h3>Starting Words</h3>
+              <span class="section-count" data-starter-count>2</span>
+            </div>
+            <p class="muted">Two random common objects unlock at the start of each run.</p>
+            <div class="chip-grid" data-starter-chips></div>
+          </section>
+
+          <section class="sidebar-section">
+            <div class="section-title-row">
+              <h3>Discovered Words</h3>
+              <span class="section-count" data-discovered-count>0</span>
+            </div>
+            <label class="search-label" for="word-search">Search and select a word</label>
+            <input id="word-search" type="search" autocomplete="off" placeholder="Search starters and discoveries..." data-word-search>
+            <div class="list-summary">
+              <span>Available words</span>
+              <span data-available-count>2</span>
+            </div>
+            <div class="word-list" data-word-list></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" data-encyclopedia-modal hidden>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="encyclopedia-title">Encyclopedia</h2>
+            <p class="muted">Forty hidden words across eight categories.</p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-encyclopedia">Close</button>
+        </div>
+        <div class="encyclopedia-grid" data-encyclopedia-grid></div>
+      </section>
+    </div>
+
+    <script type="module" src="./wordmath_app.js"></script>
+  </body>
+</html>

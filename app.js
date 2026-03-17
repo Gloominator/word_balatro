@@ -115,8 +115,13 @@ function formatCategoryLabel(category) {
 }
 
 function createCardElement(card, options = {}) {
+  const displaySuit = options.displaySuit || card.suit;
   const cardEl = document.createElement("div");
-  cardEl.className = `card suit-${card.suit.toLowerCase()}`;
+  cardEl.className = `card suit-${displaySuit.toLowerCase()}`;
+  if (options.isDynamicSuit) {
+    cardEl.classList.add("card-dynamic-suit");
+    cardEl.dataset.dynamicSuit = "true";
+  }
 
   const wordEl = document.createElement("div");
   wordEl.className = "card-word";
@@ -126,7 +131,7 @@ function createCardElement(card, options = {}) {
   metaEl.className = "card-meta";
   const categories = Array.isArray(card.categories) ? card.categories : ["none"];
   const categoryText = categories.map(formatCategoryLabel).join(", ");
-  metaEl.textContent = `${card.suit} | ${card.chips} chips | ${categoryText}`;
+  metaEl.textContent = `${displaySuit} | ${card.chips} chips | ${categoryText}`;
 
   cardEl.append(wordEl, metaEl);
 
@@ -202,6 +207,8 @@ function renderHand() {
 
 function renderPlayZone() {
   els.playArea.innerHTML = "";
+  const breakdown = scoreCards(state.playZone);
+  const dynamicSuitIndices = new Set(breakdown.dynamicSuitIndices);
 
   if (state.playZone.length === 0) {
     const empty = document.createElement("p");
@@ -231,7 +238,11 @@ function renderPlayZone() {
 
     const wrapper = document.createElement("div");
     wrapper.className = "play-slot";
-    wrapper.append(createCardElement(card, { controls }));
+    wrapper.append(createCardElement(card, {
+      controls,
+      displaySuit: dynamicSuitIndices.has(index) ? "ADJ" : card.suit,
+      isDynamicSuit: dynamicSuitIndices.has(index),
+    }));
 
     if (index < state.playZone.length - 1) {
       const arrow = document.createElement("div");
@@ -289,7 +300,7 @@ function renderDeckViewer() {
 
 function renderScore() {
   const breakdown = scoreCards(state.playZone);
-  const { hand, pattern, links } = breakdown;
+  const { hand, pattern, links, actualPattern, dynamicSuitIndices } = breakdown;
 
   els.handName.textContent = hand.name;
   els.handMeta.textContent = `${hand.named ? "Named hand" : "Fallback"} | x${breakdown.handMultiplier.toFixed(1)}`;
@@ -317,6 +328,12 @@ function renderScore() {
     item.textContent = `${link.from} -> ${link.to} | sim ${link.similarity.toFixed(3)} | x${link.multiplier.toFixed(2)}`;
     els.links.append(item);
   });
+
+  if (dynamicSuitIndices.length > 0) {
+    const item = document.createElement("li");
+    item.textContent = `Dynamic suit rule: ${patternToText(actualPattern)} counts as ${patternToText(pattern)} because a noun before a noun can act as an adjective.`;
+    els.links.append(item);
+  }
 
   if (!hand.named && breakdown.highestChipCardId) {
     const item = document.createElement("li");
