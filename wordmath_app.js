@@ -169,6 +169,8 @@ const els = {
 };
 
 let pendingProgressSave = null;
+let activeFloatingCandidatePreview = null;
+let activeFloatingCandidatePreviewTimeout = null;
 
 function getSafeCount(value, fallback = 0) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
@@ -696,6 +698,62 @@ function resolveCandidateSelection(candidates, tileIds = []) {
 function setStatus(message, stateName = "ok") {
   els.status.textContent = message;
   els.status.dataset.state = stateName;
+}
+
+function clearFloatingCandidatePreview() {
+  if (activeFloatingCandidatePreviewTimeout !== null) {
+    window.clearTimeout(activeFloatingCandidatePreviewTimeout);
+    activeFloatingCandidatePreviewTimeout = null;
+  }
+  if (activeFloatingCandidatePreview) {
+    activeFloatingCandidatePreview.remove();
+    activeFloatingCandidatePreview = null;
+  }
+}
+
+function showFloatingCandidatePreview(candidates, clientPoint = null) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    clearFloatingCandidatePreview();
+    return;
+  }
+
+  clearFloatingCandidatePreview();
+
+  const playfieldRect = els.playfield.getBoundingClientRect();
+  const bounds = getPlayfieldBounds();
+  const preview = document.createElement("div");
+  preview.className = "floating-match-preview";
+
+  const title = document.createElement("div");
+  title.className = "floating-match-preview-title";
+  title.textContent = "Top matches";
+  preview.append(title);
+
+  candidates.slice(0, 5).forEach((candidate, index) => {
+    const line = document.createElement("div");
+    line.className = "floating-match-preview-line";
+    line.textContent = `${index + 1}. ${titleCase(candidate.word || candidate.normalized || "")}`;
+    preview.append(line);
+  });
+
+  const localX = clientPoint
+    ? clientPoint.x - playfieldRect.left
+    : bounds.width / 2;
+  const localY = clientPoint
+    ? clientPoint.y - playfieldRect.top
+    : bounds.height / 2;
+  const previewWidth = 190;
+  const previewHeight = 152;
+  const x = clamp(localX - (previewWidth / 2), 12, Math.max(12, bounds.width - previewWidth - 12));
+  const y = clamp(localY - previewHeight - 26, 12, Math.max(12, bounds.height - previewHeight - 12));
+  preview.style.left = `${x}px`;
+  preview.style.top = `${y}px`;
+
+  els.playfield.append(preview);
+  activeFloatingCandidatePreview = preview;
+  activeFloatingCandidatePreviewTimeout = window.setTimeout(() => {
+    clearFloatingCandidatePreview();
+  }, 2500);
 }
 
 async function getAssociation(wordA, wordB, operation = "add") {
@@ -1630,6 +1688,15 @@ async function runSelfMatch(word, position = null, tileId = null) {
     throw new Error(selection.error || "No valid result remained for that mix.");
   }
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", selection.candidates);
+  if (position) {
+    const playfieldRect = els.playfield.getBoundingClientRect();
+    showFloatingCandidatePreview(selection.candidates, {
+      x: playfieldRect.left + position.x,
+      y: playfieldRect.top + position.y,
+    });
+  } else {
+    showFloatingCandidatePreview(selection.candidates);
+  }
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
@@ -1653,13 +1720,14 @@ async function runSelfMatch(word, position = null, tileId = null) {
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
-async function handleMix(firstTile, secondTile) {
+async function handleMix(firstTile, secondTile, clientPoint = null) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
   const selection = resolveCandidateSelection(mix.candidates, [firstTile.id, secondTile.id]);
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
   }
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
+  showFloatingCandidatePreview(selection.candidates, clientPoint);
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
@@ -1946,7 +2014,10 @@ function startTileDrag(event, tileId) {
     const targetTile = findMixTarget(tile);
     if (targetTile) {
       try {
-        await handleMix(tile, targetTile);
+        await handleMix(tile, targetTile, {
+          x: endEvent.clientX,
+          y: endEvent.clientY,
+        });
       } catch (error) {
         renderTiles();
         setStatus(error.message, "error");
