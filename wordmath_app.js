@@ -161,9 +161,20 @@ function getDiscoveredWords() {
 }
 
 function getAvailableWords() {
-  return [...new Set([...state.starters, ...getDiscoveredWords()])].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const available = new Map();
+
+  state.starters.forEach((word) => {
+    available.set(word, word);
+  });
+
+  state.discovered.forEach((word, normalized) => {
+    const existing = available.get(normalized);
+    if (!existing || isPreferredDiscoveredVariant(word, existing)) {
+      available.set(normalized, word);
+    }
+  });
+
+  return [...available.values()].sort((a, b) => a.localeCompare(b));
 }
 
 function getEncyclopediaDiscoveryCount() {
@@ -324,6 +335,20 @@ function isPreferredDiscoveredVariant(candidate, existing) {
   return candidate.length < existing.length;
 }
 
+function getCanonicalWord(result, normalized = result) {
+  const starterVariant = state.starters.find((word) => word === normalized);
+  if (starterVariant && !isPreferredDiscoveredVariant(result, starterVariant)) {
+    return starterVariant;
+  }
+
+  const discoveredVariant = state.discovered.get(normalized);
+  if (discoveredVariant && !isPreferredDiscoveredVariant(result, discoveredVariant)) {
+    return discoveredVariant;
+  }
+
+  return result;
+}
+
 function setLastMix(label, operation, candidates) {
   state.lastMix = {
     label,
@@ -469,44 +494,45 @@ function spawnResultTile(word, firstTile, secondTile) {
 async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
-  const result = mix.result;
-  const { isInEncyclopedia, wasDiscovered } = rememberResult(result, mix.normalized);
-  recordMatch(firstTile.word, secondTile.word, result, "add");
+  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add");
 
   if (isInEncyclopedia && !wasDiscovered) {
     setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(result)}. It was added to the encyclopedia.`,
+      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
       "success",
     );
   } else if (isInEncyclopedia) {
     setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(result)}. It was already in the encyclopedia, so it only appeared on the field.`,
+      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
       "ok",
     );
   } else {
     setStatus(
-      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(result)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
+      `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
       "ok",
     );
   }
 
-  spawnResultTile(result, firstTile, secondTile);
+  spawnResultTile(canonicalResult, firstTile, secondTile);
 }
 
 function rememberResult(result, normalized = result) {
-  const isInEncyclopedia = ENCYCLOPEDIA_LOOKUP.has(result);
+  const canonicalResult = getCanonicalWord(result, normalized);
+  const isInEncyclopedia = ENCYCLOPEDIA_LOOKUP.has(canonicalResult);
   const existing = state.discovered.get(normalized);
   const wasDiscovered = Boolean(existing);
+  const canonicalIsStarter = state.starters.includes(canonicalResult);
 
-  if (!existing) {
-    state.discovered.set(normalized, result);
+  if (!existing && !canonicalIsStarter) {
+    state.discovered.set(normalized, canonicalResult);
     renderSidebar();
-  } else if (existing !== result && isPreferredDiscoveredVariant(result, existing)) {
-    state.discovered.set(normalized, result);
+  } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing)) {
+    state.discovered.set(normalized, canonicalResult);
     renderSidebar();
   }
 
-  return { isInEncyclopedia, wasDiscovered };
+  return { canonicalResult, isInEncyclopedia, wasDiscovered };
 }
 
 async function runNegativeMix() {
@@ -517,24 +543,23 @@ async function runNegativeMix() {
 
   const mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
   setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", mix.candidates);
-  const result = mix.result;
-  const { isInEncyclopedia, wasDiscovered } = rememberResult(result, mix.normalized);
-  recordMatch(state.negativeMix.a, state.negativeMix.b, result, "subtract");
-  spawnWordOnField(result, { x: 340, y: 48 });
+  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  recordMatch(state.negativeMix.a, state.negativeMix.b, canonicalResult, "subtract");
+  spawnWordOnField(canonicalResult, { x: 340, y: 48 });
 
   if (isInEncyclopedia && !wasDiscovered) {
     setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(result)}. It was added to the encyclopedia.`,
+      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
       "success",
     );
   } else if (isInEncyclopedia) {
     setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(result)}. It was already in the encyclopedia, so it only appeared on the field.`,
+      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
       "ok",
     );
   } else {
     setStatus(
-      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(result)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
+      `${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
       "ok",
     );
   }
