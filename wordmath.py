@@ -1,33 +1,58 @@
 import argparse
 import contextlib
-import json
-import mimetypes
 import os
 import socket
 import threading
-import urllib.parse
 import webbrowser
 from functools import lru_cache
-from http import HTTPStatus
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import numpy as np
 import spacy
+from flask import Flask, jsonify, request, send_from_directory
 
 
-print("Loading spaCy model (this may take a moment)...")
-NLP = spacy.load("en_core_web_lg")
-ALL_VECTORS = NLP.vocab.vectors.data
+APP_ROOT = Path(__file__).resolve().parent
+DEFAULT_SPACY_MODELS = ("en_core_web_lg", "en_core_web_md")
 
-ROW_TO_KEY = [None] * ALL_VECTORS.shape[0]
-for key, row in NLP.vocab.vectors.key2row.items():
-    if 0 <= row < len(ROW_TO_KEY):
-        ROW_TO_KEY[row] = key
 
-NORMS = np.linalg.norm(ALL_VECTORS, axis=1, keepdims=True)
-NORMS = np.where(NORMS == 0, 1, NORMS)
-NORMALIZED_VECTORS = ALL_VECTORS / NORMS
+@lru_cache(maxsize=1)
+def get_language_resources():
+    configured_model = os.environ.get("WORDMATH_SPACY_MODEL", "").strip()
+    candidate_models = (configured_model,) if configured_model else DEFAULT_SPACY_MODELS
+    last_error = None
+
+    for model_name in candidate_models:
+        try:
+            print(f"Loading spaCy model '{model_name}' (this may take a moment)...")
+            nlp = spacy.load(model_name)
+            break
+        except OSError as error:
+            last_error = error
+    else:
+        model_list = ", ".join(candidate_models)
+        raise RuntimeError(
+            f"Could not load a spaCy model. Tried: {model_list}. "
+            "Install 'en_core_web_md' or 'en_core_web_lg', or set WORDMATH_SPACY_MODEL."
+        ) from last_error
+
+    all_vectors = nlp.vocab.vectors.data
+    if all_vectors.size == 0:
+        raise RuntimeError(
+            "The loaded spaCy model has no word vectors. "
+            "Use 'en_core_web_md' or 'en_core_web_lg'."
+        )
+
+    row_to_key = [None] * all_vectors.shape[0]
+    for key, row in nlp.vocab.vectors.key2row.items():
+        if 0 <= row < len(row_to_key):
+            row_to_key[row] = key
+
+    norms = np.linalg.norm(all_vectors, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1, norms)
+    normalized_vectors = all_vectors / norms
+
+    return nlp, all_vectors, row_to_key, normalized_vectors
 
 PROFANITY_BASE_FORMS = {
     "anal",
@@ -75,7 +100,8 @@ PROFANITY_BASE_FORMS = {
 
 @lru_cache(maxsize=4096)
 def normalize_word(word: str) -> str:
-    token = NLP(word.strip().lower())[0]
+    nlp, _, _, _ = get_language_resources()
+    token = nlp(word.strip().lower())[0]
     lemma = token.lemma_.strip().lower()
     return lemma if lemma else token.text.lower()
 
@@ -111,10 +137,11 @@ def get_word_family_forms(word: str) -> frozenset[str]:
 
 
 def get_preferred_root(word: str) -> str:
+    nlp, _, _, _ = get_language_resources()
     forms = get_word_family_forms(word)
     candidates = []
     for form in forms:
-        lexeme = NLP.vocab[form]
+        lexeme = nlp.vocab[form]
         has_vector = 1 if lexeme.has_vector else 0
         suffix_penalty = 0
         if form.endswith("ing"):
@@ -154,6 +181,7 @@ def is_profanity_like(word: str) -> bool:
 
 
 def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: str = "add"):
+    nlp, all_vectors, row_to_key, normalized_vectors = get_language_resources()
     words = [word_a.strip().lower(), word_b.strip().lower()]
     if not all(words):
         raise ValueError("Both words are required.")
@@ -162,10 +190,10 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
 
     input_words = set()
     input_word_forms = set()
-    result_vector = np.zeros(NLP.vocab.vectors.shape[1], dtype=np.float32)
+    result_vector = np.zeros(all_vectors.shape[1], dtype=np.float32)
 
     for index, word in enumerate(words):
-        lexeme = NLP.vocab[word]
+        lexeme = nlp.vocab[word]
         if not lexeme.has_vector:
             raise ValueError(f"'{word}' has no vector in this model.")
         sign = -1 if operation == "subtract" and index == 1 else 1
@@ -178,7 +206,7 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
         raise ValueError("Result vector is zero.")
 
     result_normalized = result_vector / result_norm
-    similarities = NORMALIZED_VECTORS @ result_normalized
+    similarities = normalized_vectors @ result_normalized
     best_indices = np.argsort(similarities)[::-1]
 
     filter_profanity_results = any(is_profanity_like(word) for word in words)
@@ -186,11 +214,11 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
     seen_candidate_forms = set()
 
     for idx in best_indices:
-        word_key = ROW_TO_KEY[idx]
+        word_key = row_to_key[idx]
         if word_key is None:
             continue
 
-        lexeme = NLP.vocab[word_key]
+        lexeme = nlp.vocab[word_key]
         candidate = lexeme.text.lower()
         candidate_form = get_preferred_root(candidate)
         if candidate in input_words:
@@ -219,72 +247,60 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
     return candidates[0], candidates
 
 
-class WordMathRequestHandler(SimpleHTTPRequestHandler):
-    extensions_map = {
-        **SimpleHTTPRequestHandler.extensions_map,
-        ".js": "application/javascript",
-        ".mjs": "application/javascript",
-        ".json": "application/json",
-        ".css": "text/css",
-    }
+app = Flask(__name__, static_folder=None)
 
-    def end_headers(self):
-        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-        self.send_header("Pragma", "no-cache")
-        self.send_header("Expires", "0")
-        super().end_headers()
 
-    def send_json(self, payload, status=HTTPStatus.OK):
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+@app.after_request
+def add_cache_headers(response):
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
-    def do_GET(self):
-        parsed = urllib.parse.urlparse(self.path)
-        if parsed.path == "/api/mix":
-            params = urllib.parse.parse_qs(parsed.query)
-            word_a = params.get("wordA", [""])[0]
-            word_b = params.get("wordB", [""])[0]
-            operation = params.get("operation", ["add"])[0]
 
-            try:
-                top_result, candidates = get_top_association(word_a, word_b, operation=operation)
-            except ValueError as error:
-                self.send_json(
-                    {
-                        "ok": False,
-                        "error": str(error),
-                    },
-                    status=HTTPStatus.BAD_REQUEST,
-                )
-                return
-            except Exception as error:
-                self.send_json(
-                    {
-                        "ok": False,
-                        "error": f"Unexpected mix error: {error}",
-                    },
-                    status=HTTPStatus.INTERNAL_SERVER_ERROR,
-                )
-                return
+@app.route("/")
+def serve_index():
+    return send_from_directory(APP_ROOT, "wordmath.html")
 
-            self.send_json(
-                {
-                    "ok": True,
-                    "result": top_result["word"],
-                    "normalized": top_result["normalized"],
-                    "similarity": top_result["similarity"],
-                    "operation": operation,
-                    "candidates": candidates,
-                },
-            )
-            return
 
-        self.path = parsed.path
-        super().do_GET()
+@app.route("/api/mix")
+def mix_words():
+    word_a = request.args.get("wordA", "")
+    word_b = request.args.get("wordB", "")
+    operation = request.args.get("operation", "add")
+
+    try:
+        top_result, candidates = get_top_association(word_a, word_b, operation=operation)
+    except ValueError as error:
+        return jsonify({
+            "ok": False,
+            "error": str(error),
+        }), 400
+    except Exception as error:
+        return jsonify({
+            "ok": False,
+            "error": f"Unexpected mix error: {error}",
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "result": top_result["word"],
+        "normalized": top_result["normalized"],
+        "similarity": top_result["similarity"],
+        "operation": operation,
+        "candidates": candidates,
+    })
+
+
+@app.route("/<path:filename>")
+def serve_static_asset(filename):
+    if filename.startswith("api/"):
+        return jsonify({
+            "ok": False,
+            "error": "Not found.",
+        }), 404
+
+    return send_from_directory(APP_ROOT, filename)
 
 
 def find_open_port(start=8100, end=8199):
@@ -315,16 +331,10 @@ def parse_args():
 
 def main():
     args = parse_args()
-    script_dir = Path(__file__).resolve().parent
-    os.chdir(script_dir)
-
-    mimetypes.add_type("application/javascript", ".js")
-    mimetypes.add_type("application/javascript", ".mjs")
-    mimetypes.add_type("application/json", ".json")
+    os.chdir(APP_ROOT)
 
     port = args.port if args.port is not None else find_open_port()
-    server = ThreadingHTTPServer(("127.0.0.1", port), WordMathRequestHandler)
-    url = f"http://127.0.0.1:{port}/wordmath.html"
+    url = f"http://127.0.0.1:{port}/"
 
     print(f"Serving WordMath at {url}")
     print("Press Ctrl+C to stop.")
@@ -333,11 +343,9 @@ def main():
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
 
     try:
-        server.serve_forever()
+        app.run(host="127.0.0.1", port=port, debug=False, use_reloader=False)
     except KeyboardInterrupt:
         print("\nStopping server...")
-    finally:
-        server.server_close()
 
 
 if __name__ == "__main__":

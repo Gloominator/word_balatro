@@ -1,2 +1,4 @@
-wordfreq
+flask
+numpy
 spacy>=3.0.0
+wordfreq
