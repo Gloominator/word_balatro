@@ -1,0 +1,1196 @@
+[
+  {
+    "text": "accomplice",
+    "freq": 3.22,
+    "chips": 42,
+    "suit": "NOUN"
+  },
+  {
+    "text": "alleyway",
+    "freq": 2.75,
+    "chips": 47,
+    "suit": "NOUN"
+  },
+  {
+    "text": "audacious",
+    "freq": 2.95,
+    "chips": 45,
+    "suit": "ADJ"
+  },
+  {
+    "text": "audaciously",
+    "freq": 1.87,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "bamboozle",
+    "freq": 2.16,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "barista",
+    "freq": 3.02,
+    "chips": 44,
+    "suit": "NOUN"
+  },
+  {
+    "text": "barter",
+    "freq": 3.05,
+    "chips": 44,
+    "suit": "VERB"
+  },
+  {
+    "text": "begrudgingly",
+    "freq": 2.38,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "beguiling",
+    "freq": 2.55,
+    "chips": 49,
+    "suit": "ADJ"
+  },
+  {
+    "text": "betray",
+    "freq": 3.42,
+    "chips": 40,
+    "suit": "VERB"
+  },
+  {
+    "text": "bistro",
+    "freq": 3.05,
+    "chips": 44,
+    "suit": "NOUN"
+  },
+  {
+    "text": "blackmail",
+    "freq": 3.44,
+    "chips": 40,
+    "suit": "VERB"
+  },
+  {
+    "text": "boisterous",
+    "freq": 2.86,
+    "chips": 46,
+    "suit": "ADJ"
+  },
+  {
+    "text": "boisterously",
+    "freq": 1.73,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "borough",
+    "freq": 3.83,
+    "chips": 36,
+    "suit": "NOUN"
+  },
+  {
+    "text": "brandish",
+    "freq": 2.2,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "brazen",
+    "freq": 3.1,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "brazenly",
+    "freq": 2.53,
+    "chips": 49,
+    "suit": "ADV"
+  },
+  {
+    "text": "bribe",
+    "freq": 3.5,
+    "chips": 40,
+    "suit": "VERB"
+  },
+  {
+    "text": "briefcase",
+    "freq": 3.09,
+    "chips": 44,
+    "suit": "NOUN"
+  },
+  {
+    "text": "brunch",
+    "freq": 3.46,
+    "chips": 40,
+    "suit": "NOUN"
+  },
+  {
+    "text": "busker",
+    "freq": 2.24,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "cabaret",
+    "freq": 3.24,
+    "chips": 42,
+    "suit": "NOUN"
+  },
+  {
+    "text": "cater",
+    "freq": 3.55,
+    "chips": 39,
+    "suit": "VERB"
+  },
+  {
+    "text": "charlatan",
+    "freq": 2.63,
+    "chips": 48,
+    "suit": "NOUN"
+  },
+  {
+    "text": "charming",
+    "freq": 4.07,
+    "chips": 34,
+    "suit": "ADJ"
+  },
+  {
+    "text": "clandestine",
+    "freq": 3.21,
+    "chips": 42,
+    "suit": "ADJ"
+  },
+  {
+    "text": "clandestinely",
+    "freq": 2.34,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "cocktail",
+    "freq": 3.89,
+    "chips": 36,
+    "suit": "NOUN"
+  },
+  {
+    "text": "confidant",
+    "freq": 2.93,
+    "chips": 45,
+    "suit": "NOUN"
+  },
+  {
+    "text": "conspicuously",
+    "freq": 2.88,
+    "chips": 46,
+    "suit": "ADV"
+  },
+  {
+    "text": "contraband",
+    "freq": 3.12,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "crooked",
+    "freq": 3.63,
+    "chips": 38,
+    "suit": "ADJ"
+  },
+  {
+    "text": "cunning",
+    "freq": 3.45,
+    "chips": 40,
+    "suit": "ADJ"
+  },
+  {
+    "text": "cunningly",
+    "freq": 2.35,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "curfew",
+    "freq": 3.37,
+    "chips": 41,
+    "suit": "NOUN"
+  },
+  {
+    "text": "cutthroat",
+    "freq": 2.84,
+    "chips": 46,
+    "suit": "ADJ"
+  },
+  {
+    "text": "dapper",
+    "freq": 2.91,
+    "chips": 45,
+    "suit": "ADJ"
+  },
+  {
+    "text": "dazzle",
+    "freq": 3.02,
+    "chips": 44,
+    "suit": "VERB"
+  },
+  {
+    "text": "deadline",
+    "freq": 4.12,
+    "chips": 33,
+    "suit": "NOUN"
+  },
+  {
+    "text": "debonair",
+    "freq": 2.33,
+    "chips": 50,
+    "suit": "ADJ"
+  },
+  {
+    "text": "decadent",
+    "freq": 3.04,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "decadently",
+    "freq": 1.17,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "delicatessen",
+    "freq": 2.48,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "deviously",
+    "freq": 1.75,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "devour",
+    "freq": 3.17,
+    "chips": 43,
+    "suit": "VERB"
+  },
+  {
+    "text": "discreetly",
+    "freq": 3.04,
+    "chips": 44,
+    "suit": "ADV"
+  },
+  {
+    "text": "disheveled",
+    "freq": 2.54,
+    "chips": 49,
+    "suit": "ADJ"
+  },
+  {
+    "text": "eavesdrop",
+    "freq": 2.48,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "elegantly",
+    "freq": 2.97,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "elusive",
+    "freq": 3.47,
+    "chips": 40,
+    "suit": "ADJ"
+  },
+  {
+    "text": "embellish",
+    "freq": 2.55,
+    "chips": 49,
+    "suit": "VERB"
+  },
+  {
+    "text": "embezzle",
+    "freq": 2.01,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "enigmatic",
+    "freq": 3.11,
+    "chips": 43,
+    "suit": "ADJ"
+  },
+  {
+    "text": "entourage",
+    "freq": 3.19,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "escapade",
+    "freq": 2.52,
+    "chips": 49,
+    "suit": "NOUN"
+  },
+  {
+    "text": "evict",
+    "freq": 2.97,
+    "chips": 45,
+    "suit": "VERB"
+  },
+  {
+    "text": "exquisite",
+    "freq": 3.61,
+    "chips": 38,
+    "suit": "ADJ"
+  },
+  {
+    "text": "extravagantly",
+    "freq": 2.46,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "façade",
+    "freq": 2.96,
+    "chips": 45,
+    "suit": "NOUN"
+  },
+  {
+    "text": "feisty",
+    "freq": 3.07,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "ferociously",
+    "freq": 2.46,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "feverishly",
+    "freq": 2.53,
+    "chips": 49,
+    "suit": "ADV"
+  },
+  {
+    "text": "filch",
+    "freq": 1.97,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "finagle",
+    "freq": 1.76,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "flamboyant",
+    "freq": 3.06,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "flamboyantly",
+    "freq": 1.97,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "flirt",
+    "freq": 3.52,
+    "chips": 39,
+    "suit": "VERB"
+  },
+  {
+    "text": "flirtatiously",
+    "freq": 1.54,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "frantically",
+    "freq": 3.18,
+    "chips": 43,
+    "suit": "ADV"
+  },
+  {
+    "text": "fraternize",
+    "freq": 1.77,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "gallivant",
+    "freq": 1.38,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "garnish",
+    "freq": 3.04,
+    "chips": 44,
+    "suit": "VERB"
+  },
+  {
+    "text": "glamorous",
+    "freq": 3.5,
+    "chips": 40,
+    "suit": "ADJ"
+  },
+  {
+    "text": "glamorously",
+    "freq": 1.48,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "gleefully",
+    "freq": 2.78,
+    "chips": 47,
+    "suit": "ADV"
+  },
+  {
+    "text": "gossip",
+    "freq": 3.88,
+    "chips": 36,
+    "suit": "VERB"
+  },
+  {
+    "text": "graffiti",
+    "freq": 3.65,
+    "chips": 38,
+    "suit": "NOUN"
+  },
+  {
+    "text": "greedily",
+    "freq": 2.39,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "gregarious",
+    "freq": 2.71,
+    "chips": 47,
+    "suit": "ADJ"
+  },
+  {
+    "text": "gritty",
+    "freq": 3.39,
+    "chips": 41,
+    "suit": "ADJ"
+  },
+  {
+    "text": "guzzle",
+    "freq": 2.16,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "haggle",
+    "freq": 2.65,
+    "chips": 48,
+    "suit": "VERB"
+  },
+  {
+    "text": "hastily",
+    "freq": 3.3,
+    "chips": 42,
+    "suit": "ADV"
+  },
+  {
+    "text": "heirloom",
+    "freq": 2.98,
+    "chips": 45,
+    "suit": "NOUN"
+  },
+  {
+    "text": "hoodwink",
+    "freq": 1.96,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "hustle",
+    "freq": 3.7,
+    "chips": 38,
+    "suit": "NOUN"
+  },
+  {
+    "text": "impeccable",
+    "freq": 3.25,
+    "chips": 42,
+    "suit": "ADJ"
+  },
+  {
+    "text": "impeccably",
+    "freq": 2.63,
+    "chips": 48,
+    "suit": "ADV"
+  },
+  {
+    "text": "infamous",
+    "freq": 3.75,
+    "chips": 37,
+    "suit": "ADJ"
+  },
+  {
+    "text": "insatiable",
+    "freq": 3.04,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "insatiably",
+    "freq": 1.54,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "intern",
+    "freq": 3.67,
+    "chips": 38,
+    "suit": "NOUN"
+  },
+  {
+    "text": "jaywalk",
+    "freq": 1.72,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "lavish",
+    "freq": 3.42,
+    "chips": 40,
+    "suit": "ADJ"
+  },
+  {
+    "text": "lavishly",
+    "freq": 2.8,
+    "chips": 47,
+    "suit": "ADV"
+  },
+  {
+    "text": "limousine",
+    "freq": 3.2,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "loiter",
+    "freq": 2.38,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "lurk",
+    "freq": 3.1,
+    "chips": 44,
+    "suit": "VERB"
+  },
+  {
+    "text": "marinate",
+    "freq": 2.59,
+    "chips": 49,
+    "suit": "VERB"
+  },
+  {
+    "text": "marquee",
+    "freq": 3.18,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "mercilessly",
+    "freq": 2.92,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "merger",
+    "freq": 3.97,
+    "chips": 35,
+    "suit": "NOUN"
+  },
+  {
+    "text": "mingle",
+    "freq": 3.21,
+    "chips": 42,
+    "suit": "VERB"
+  },
+  {
+    "text": "mogul",
+    "freq": 3.07,
+    "chips": 44,
+    "suit": "NOUN"
+  },
+  {
+    "text": "monopolize",
+    "freq": 2.47,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "moonshine",
+    "freq": 2.93,
+    "chips": 45,
+    "suit": "NOUN"
+  },
+  {
+    "text": "morsel",
+    "freq": 2.59,
+    "chips": 49,
+    "suit": "NOUN"
+  },
+  {
+    "text": "mouth-watering",
+    "freq": 3.55,
+    "chips": 39,
+    "suit": "ADJ"
+  },
+  {
+    "text": "negotiate",
+    "freq": 3.99,
+    "chips": 35,
+    "suit": "VERB"
+  },
+  {
+    "text": "neon",
+    "freq": 3.64,
+    "chips": 38,
+    "suit": "NOUN"
+  },
+  {
+    "text": "nocturnal",
+    "freq": 3.24,
+    "chips": 42,
+    "suit": "ADJ"
+  },
+  {
+    "text": "nonchalantly",
+    "freq": 2.58,
+    "chips": 49,
+    "suit": "ADV"
+  },
+  {
+    "text": "notorious",
+    "freq": 3.83,
+    "chips": 36,
+    "suit": "ADJ"
+  },
+  {
+    "text": "notoriously",
+    "freq": 3.37,
+    "chips": 41,
+    "suit": "ADV"
+  },
+  {
+    "text": "obliviously",
+    "freq": 1.76,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "obnoxiously",
+    "freq": 2.27,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "opulent",
+    "freq": 2.91,
+    "chips": 45,
+    "suit": "ADJ"
+  },
+  {
+    "text": "pamper",
+    "freq": 2.78,
+    "chips": 47,
+    "suit": "VERB"
+  },
+  {
+    "text": "paramour",
+    "freq": 2.36,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "pavement",
+    "freq": 3.61,
+    "chips": 38,
+    "suit": "NOUN"
+  },
+  {
+    "text": "peculiar",
+    "freq": 3.67,
+    "chips": 38,
+    "suit": "ADJ"
+  },
+  {
+    "text": "peculiarly",
+    "freq": 2.61,
+    "chips": 48,
+    "suit": "ADV"
+  },
+  {
+    "text": "penthouse",
+    "freq": 3.31,
+    "chips": 41,
+    "suit": "NOUN"
+  },
+  {
+    "text": "pompous",
+    "freq": 3.06,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "pompously",
+    "freq": 1.78,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "posh",
+    "freq": 3.4,
+    "chips": 41,
+    "suit": "ADJ"
+  },
+  {
+    "text": "pretentious",
+    "freq": 3.17,
+    "chips": 43,
+    "suit": "ADJ"
+  },
+  {
+    "text": "pretentiously",
+    "freq": 1.66,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "provocatively",
+    "freq": 2.4,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "prowl",
+    "freq": 2.75,
+    "chips": 47,
+    "suit": "VERB"
+  },
+  {
+    "text": "raconteur",
+    "freq": 2.13,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "rancid",
+    "freq": 2.8,
+    "chips": 47,
+    "suit": "ADJ"
+  },
+  {
+    "text": "ransack",
+    "freq": 2.07,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "raunchily",
+    "freq": 0.0,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "ravenous",
+    "freq": 2.76,
+    "chips": 47,
+    "suit": "ADJ"
+  },
+  {
+    "text": "ravenously",
+    "freq": 1.73,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "recklessly",
+    "freq": 2.99,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "relentless",
+    "freq": 3.51,
+    "chips": 39,
+    "suit": "ADJ"
+  },
+  {
+    "text": "relentlessly",
+    "freq": 3.21,
+    "chips": 42,
+    "suit": "ADV"
+  },
+  {
+    "text": "relish",
+    "freq": 3.32,
+    "chips": 41,
+    "suit": "VERB"
+  },
+  {
+    "text": "rendezvous",
+    "freq": 3.32,
+    "chips": 41,
+    "suit": "NOUN"
+  },
+  {
+    "text": "renovate",
+    "freq": 3.05,
+    "chips": 44,
+    "suit": "VERB"
+  },
+  {
+    "text": "rickety",
+    "freq": 2.68,
+    "chips": 48,
+    "suit": "ADJ"
+  },
+  {
+    "text": "rival",
+    "freq": 4.18,
+    "chips": 33,
+    "suit": "NOUN"
+  },
+  {
+    "text": "rooftop",
+    "freq": 3.55,
+    "chips": 39,
+    "suit": "NOUN"
+  },
+  {
+    "text": "ruthless",
+    "freq": 3.65,
+    "chips": 38,
+    "suit": "ADJ"
+  },
+  {
+    "text": "ruthlessly",
+    "freq": 2.9,
+    "chips": 46,
+    "suit": "ADV"
+  },
+  {
+    "text": "sabotage",
+    "freq": 3.62,
+    "chips": 38,
+    "suit": "VERB"
+  },
+  {
+    "text": "saunter",
+    "freq": 2.23,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "savor",
+    "freq": 2.98,
+    "chips": 45,
+    "suit": "VERB"
+  },
+  {
+    "text": "scandal",
+    "freq": 4.17,
+    "chips": 33,
+    "suit": "NOUN"
+  },
+  {
+    "text": "scandalous",
+    "freq": 3.28,
+    "chips": 42,
+    "suit": "ADJ"
+  },
+  {
+    "text": "schmooze",
+    "freq": 1.96,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "scrappy",
+    "freq": 3.06,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "seduce",
+    "freq": 3.24,
+    "chips": 42,
+    "suit": "VERB"
+  },
+  {
+    "text": "seductively",
+    "freq": 2.5,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "seedy",
+    "freq": 2.83,
+    "chips": 46,
+    "suit": "ADJ"
+  },
+  {
+    "text": "serenade",
+    "freq": 2.94,
+    "chips": 45,
+    "suit": "VERB"
+  },
+  {
+    "text": "shady",
+    "freq": 3.71,
+    "chips": 37,
+    "suit": "ADJ"
+  },
+  {
+    "text": "shamelessly",
+    "freq": 2.95,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "shrewdly",
+    "freq": 2.32,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "sizzling",
+    "freq": 3.13,
+    "chips": 43,
+    "suit": "ADJ"
+  },
+  {
+    "text": "skyscraper",
+    "freq": 3.2,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "slyly",
+    "freq": 2.46,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "smother",
+    "freq": 2.85,
+    "chips": 46,
+    "suit": "VERB"
+  },
+  {
+    "text": "smuggle",
+    "freq": 3.11,
+    "chips": 43,
+    "suit": "VERB"
+  },
+  {
+    "text": "smugly",
+    "freq": 2.39,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "socialite",
+    "freq": 2.89,
+    "chips": 46,
+    "suit": "NOUN"
+  },
+  {
+    "text": "sommelier",
+    "freq": 2.48,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "soufflé",
+    "freq": 2.26,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "speakeasy",
+    "freq": 2.58,
+    "chips": 49,
+    "suit": "NOUN"
+  },
+  {
+    "text": "splurge",
+    "freq": 2.94,
+    "chips": 45,
+    "suit": "VERB"
+  },
+  {
+    "text": "stakeout",
+    "freq": 2.05,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "stalk",
+    "freq": 3.46,
+    "chips": 40,
+    "suit": "VERB"
+  },
+  {
+    "text": "stealthily",
+    "freq": 2.56,
+    "chips": 49,
+    "suit": "ADV"
+  },
+  {
+    "text": "stranger",
+    "freq": 4.28,
+    "chips": 32,
+    "suit": "NOUN"
+  },
+  {
+    "text": "stubbornly",
+    "freq": 2.92,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "suave",
+    "freq": 2.9,
+    "chips": 46,
+    "suit": "ADJ"
+  },
+  {
+    "text": "suavely",
+    "freq": 1.49,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "sultry",
+    "freq": 2.99,
+    "chips": 45,
+    "suit": "ADJ"
+  },
+  {
+    "text": "sumptuous",
+    "freq": 3.02,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "suspiciously",
+    "freq": 3.08,
+    "chips": 44,
+    "suit": "ADV"
+  },
+  {
+    "text": "swanky",
+    "freq": 2.65,
+    "chips": 48,
+    "suit": "ADJ"
+  },
+  {
+    "text": "sweetheart",
+    "freq": 3.74,
+    "chips": 37,
+    "suit": "NOUN"
+  },
+  {
+    "text": "swindle",
+    "freq": 2.67,
+    "chips": 48,
+    "suit": "VERB"
+  },
+  {
+    "text": "swindler",
+    "freq": 2.37,
+    "chips": 50,
+    "suit": "NOUN"
+  },
+  {
+    "text": "tantalize",
+    "freq": 1.77,
+    "chips": 50,
+    "suit": "VERB"
+  },
+  {
+    "text": "tipsy",
+    "freq": 2.87,
+    "chips": 46,
+    "suit": "ADJ"
+  },
+  {
+    "text": "toast",
+    "freq": 3.96,
+    "chips": 35,
+    "suit": "VERB"
+  },
+  {
+    "text": "tycoon",
+    "freq": 3.16,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "unapologetically",
+    "freq": 2.61,
+    "chips": 48,
+    "suit": "ADV"
+  },
+  {
+    "text": "unscrupulous",
+    "freq": 3.07,
+    "chips": 44,
+    "suit": "ADJ"
+  },
+  {
+    "text": "vagabond",
+    "freq": 2.78,
+    "chips": 47,
+    "suit": "NOUN"
+  },
+  {
+    "text": "vendetta",
+    "freq": 3.17,
+    "chips": 43,
+    "suit": "NOUN"
+  },
+  {
+    "text": "viciously",
+    "freq": 2.93,
+    "chips": 45,
+    "suit": "ADV"
+  },
+  {
+    "text": "volatile",
+    "freq": 3.72,
+    "chips": 37,
+    "suit": "ADJ"
+  },
+  {
+    "text": "voraciously",
+    "freq": 2.1,
+    "chips": 50,
+    "suit": "ADV"
+  },
+  {
+    "text": "woo",
+    "freq": 3.87,
+    "chips": 36,
+    "suit": "VERB"
+  }
+]

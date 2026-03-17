@@ -1,0 +1,2 @@
+wordfreq
+spacy>=3.0.0

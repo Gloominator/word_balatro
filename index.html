@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WORD BALATRO MVP</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <h1>WORD BALATRO MVP</h1>
+          <p class="subtitle">Deal cards, build a chain, and inspect whether the score feels right.</p>
+        </div>
+        <div class="topbar-actions">
+          <button type="button" data-action="deal">Deal 7 Cards</button>
+          <button type="button" data-action="clear">Clear Chain</button>
+          <select data-category-select>
+            <option value="">Choose category</option>
+          </select>
+          <button type="button" data-action="buy-cards">Buy Cards</button>
+          <details class="help-menu">
+            <summary>?</summary>
+            <div class="help-panel">
+              <h2>Available Hands</h2>
+              <p class="muted">Exact suit order matters in the current MVP.</p>
+              <ul class="help-list" data-hands-list></ul>
+            </div>
+          </details>
+        </div>
+      </header>
+
+      <section class="status-row">
+        <div class="status-pill" data-status data-state="ok">Loading deck...</div>
+        <button type="button" class="count-pill count-button" data-action="toggle-deck" aria-expanded="false">
+          Deck: <span data-deck-count>0</span>
+        </button>
+        <div class="count-pill">Round: <span data-current-round>1</span></div>
+        <div class="count-pill">Target: <span data-round-target>1,000</span></div>
+        <div class="count-pill">Round Score: <span data-round-score>0</span></div>
+        <div class="count-pill">Hands: <span data-hands-remaining>4</span></div>
+        <div class="count-pill">Discards: <span data-discards-remaining>10</span></div>
+        <div class="count-pill">Hand: <span data-hand-count>0</span></div>
+        <div class="count-pill">Chain: <span data-play-count>0</span></div>
+      </section>
+
+      <section class="panel deck-panel" data-deck-panel data-open="false">
+        <h2>Current Deck</h2>
+        <p class="muted">Your owned cards, including starting cards and drafted cards.</p>
+        <div class="hand-area" data-deck-list></div>
+      </section>
+
+      <section class="panel score-panel">
+        <div class="score-main">
+          <div class="label">Final Score</div>
+          <div class="score-value" data-score-value>0</div>
+        </div>
+        <div class="score-grid">
+          <div>
+            <div class="label">Current Hand</div>
+            <div class="value" data-hand-name>Empty</div>
+            <div class="muted" data-hand-meta>Fallback | x0.0</div>
+            <div class="muted" data-hand-description>Add cards to score a chain.</div>
+          </div>
+          <div>
+            <div class="label">Pattern</div>
+            <div class="value" data-pattern>(empty)</div>
+          </div>
+          <div>
+            <div class="label">Scoring Chips</div>
+            <div class="value" data-total-chips>0</div>
+          </div>
+          <div>
+            <div class="label">Hand Mult</div>
+            <div class="value" data-hand-mult>x0.0</div>
+          </div>
+          <div>
+            <div class="label">Link Product</div>
+            <div class="value" data-link-product>x1.00</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Category Booster</h2>
+        <p class="muted">Pick a category, reveal 4 random cards, and choose 1 to add to your deck.</p>
+        <div class="hand-area" data-booster-area></div>
+      </section>
+
+      <section class="panel">
+        <h2>Play Zone</h2>
+        <p class="muted">Click cards from your hand to add them. Use Left/Right to reorder the chain.</p>
+        <div class="hand-banner" data-hand-banner data-active="false">
+          <span class="hand-banner-label">Matched Hand</span>
+          <span class="hand-banner-name" data-hand-banner-name>None yet</span>
+        </div>
+        <div class="play-area" data-play-area></div>
+      </section>
+
+      <section class="panel">
+        <h2>Link Breakdown</h2>
+        <ul class="links-list" data-links></ul>
+        <button type="button" data-action="play-hand">Play Hand</button>
+      </section>
+
+      <section class="panel">
+        <h2>Your Hand</h2>
+        <div class="hand-area" data-hand-area></div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

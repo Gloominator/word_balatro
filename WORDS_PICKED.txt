@@ -1,0 +1,29 @@
+🍽️ FOOD
+Nouns (16): broth, pastry, seasoning, marinade, casserole, appetizer, risotto, garnish, meal, bread, meat, soup, dessert, recipe, flavor, chef
+Verbs (8): simmer, sauté, marinate, roast, cook, eat, bake, taste
+Adjectives (7): savory, tangy, bland, ripe, delicious, spicy, sweet
+Adverbs (7): freshly, thinly, generously, lightly, deliciously, hungrily, greedily
+
+🐾 ANIMALS
+Nouns (15): predator, prey, hatchling, burrow, snout, plumage, whiskers, den, dog, cat, bird, horse, lion, bear, tail
+Verbs (8): prowl, graze, howl, hibernate, bark, hunt, roar, bite
+Adjectives (8): feral, venomous, domesticated, nocturnal, wild, furry, tame, fierce
+Adverbs (6): instinctively, ferociously, tamely, wildly, fiercely, savagely
+
+👗 CLOTHES
+Nouns (16): garment, hem, sleeve, collar, fabric, stitch, bodice, lapel, shirt, dress, jacket, pants, coat, shoe, hat, wardrobe
+Verbs (8): tailor, drape, embroider, unbutton, wear, dress, sew, button
+Adjectives (8): fitted, pleated, frayed, sequined, stylish, casual, formal, tailored
+Adverbs (6): snugly, loosely, fashionably, neatly, elegantly, comfortably
+
+💪 BODY PARTS
+Nouns (16): knuckle, torso, spine, collarbone, ribcage, tendon, forearm, temple, head, hand, eye, arm, leg, foot, face, skin
+Verbs (7): flex, clench, shrug, squint, nod, blink, touch
+Adjectives (7): muscular, bruised, nimble, calloused, physical, bare, facial
+Adverbs (8): firmly, stiffly, limply, gingerly, physically, manually, visually, bodily
+
+💔 FEELINGS
+Nouns (16): anguish, euphoria, dread, serenity, remorse, longing, contempt, bliss, love, anger, joy, fear, sorrow, anxiety, guilt, emotion
+Verbs (8): yearn, resent, cherish, despair, feel, weep, rejoice, panic
+Adjectives (8): wistful, elated, melancholy, resentful, happy, sad, furious, nervous
+Adverbs (7): bitterly, tenderly, anxiously, longingly, happily, tearfully, angrily
