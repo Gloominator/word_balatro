@@ -323,11 +323,6 @@ input {
   cursor: grabbing;
 }
 
-.source-word[data-kind="starter"] {
-  background: #152138;
-  border-color: #37548d;
-}
-
 .source-word[data-kind="discovered"] {
   background: #1f2331;
 }
@@ -360,10 +355,6 @@ input {
   user-select: none;
   cursor: grab;
   touch-action: none;
-}
-
-.tile[data-kind="starter"] {
-  background: linear-gradient(180deg, #355082, #223351);
 }
 
 .tile[data-kind="discovered"] {

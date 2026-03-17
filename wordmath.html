@@ -69,15 +69,6 @@
 
           <section class="sidebar-section">
             <div class="section-title-row">
-              <h3>Starting Words</h3>
-              <span class="section-count" data-starter-count>2</span>
-            </div>
-            <p class="muted">Two random common objects unlock at the start of each run.</p>
-            <div class="chip-grid" data-starter-chips></div>
-          </section>
-
-          <section class="sidebar-section">
-            <div class="section-title-row">
               <h3>Discovered Words</h3>
               <span class="section-count" data-discovered-count>0</span>
             </div>
@@ -113,7 +104,10 @@
             <h2 id="history-title">Match History</h2>
             <p class="muted">Unique mixes only. Repeating the same match does not add another entry.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-history">Close</button>
+          <div class="topbar-actions">
+            <button type="button" class="ghost-button" data-action="toggle-history-sort">Sort by Result</button>
+            <button type="button" class="ghost-button" data-action="close-history">Close</button>
+          </div>
         </div>
         <div class="history-list" data-history-list></div>
       </section>

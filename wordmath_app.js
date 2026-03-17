@@ -69,10 +69,13 @@ const ENCYCLOPEDIA_LOOKUP = new Map(
 
 const TILE_WIDTH = 152;
 const TILE_HEIGHT = 76;
+const DRAG_THRESHOLD = 6;
+const DOUBLE_CLICK_MS = 320;
 
 const state = {
   starters: [],
   discovered: new Map(),
+  selfMatchedWords: new Set(),
   tiles: [],
   search: "",
   negativeMix: {
@@ -86,6 +89,11 @@ const state = {
   },
   matchHistory: [],
   matchHistoryKeys: new Set(),
+  historySort: "recent",
+  clickTracker: {
+    word: null,
+    time: 0,
+  },
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -94,10 +102,8 @@ const els = {
   status: document.querySelector("[data-status]"),
   encyclopediaCount: document.querySelector("[data-encyclopedia-count]"),
   historyCount: document.querySelector("[data-history-count]"),
-  starterCount: document.querySelector("[data-starter-count]"),
   discoveredCount: document.querySelector("[data-discovered-count]"),
   availableCount: document.querySelector("[data-available-count]"),
-  starterChips: document.querySelector("[data-starter-chips]"),
   wordSearch: document.querySelector("[data-word-search]"),
   wordList: document.querySelector("[data-word-list]"),
   playfield: document.querySelector("[data-playfield]"),
@@ -116,6 +122,7 @@ const els = {
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
+  toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
   closeEncyclopediaButton: document.querySelector("[data-action='close-encyclopedia']"),
 };
@@ -150,10 +157,6 @@ function getPlayfieldBounds() {
     maxX: Math.max(0, width - TILE_WIDTH),
     maxY: Math.max(0, height - TILE_HEIGHT),
   };
-}
-
-function getWordKind(word) {
-  return state.starters.includes(word) ? "starter" : "discovered";
 }
 
 function getDiscoveredWords() {
@@ -203,7 +206,6 @@ async function getAssociation(wordA, wordB, operation = "add") {
 }
 
 function updateCounts() {
-  els.starterCount.textContent = state.starters.length.toString();
   els.discoveredCount.textContent = state.discovered.size.toString();
   els.availableCount.textContent = getAvailableWords().length.toString();
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
@@ -214,8 +216,8 @@ function buildSourceButton(word) {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "source-word";
-  button.dataset.kind = getWordKind(word);
-  button.textContent = titleCase(word);
+  button.dataset.kind = "discovered";
+  button.textContent = `${titleCase(word)}${state.selfMatchedWords.has(word.toLowerCase()) ? " ✔️" : ""}`;
   button.draggable = true;
   button.addEventListener("click", () => {
     spawnWordOnField(word);
@@ -226,13 +228,6 @@ function buildSourceButton(word) {
     event.dataTransfer.effectAllowed = "copy";
   });
   return button;
-}
-
-function renderStarters() {
-  els.starterChips.innerHTML = "";
-  state.starters.forEach((word) => {
-    els.starterChips.append(buildSourceButton(word));
-  });
 }
 
 function renderWordList() {
@@ -295,7 +290,6 @@ function renderEncyclopedia() {
 
 function renderSidebar() {
   updateCounts();
-  renderStarters();
   renderWordList();
   renderEncyclopedia();
 }
@@ -313,6 +307,11 @@ function renderNegativeMix() {
   });
 
   els.runNegativeButton.disabled = !(state.negativeMix.a && state.negativeMix.b);
+}
+
+function markWordAsSelfMatched(word) {
+  state.selfMatchedWords.add(word.toLowerCase());
+  renderSidebar();
 }
 
 function describeOperation(operation) {
@@ -385,6 +384,7 @@ function recordMatch(wordA, wordB, result, operation) {
 
 function renderHistory() {
   els.historyList.innerHTML = "";
+  els.toggleHistorySortButton.textContent = state.historySort === "recent" ? "Sort by Result" : "Show Recent";
 
   if (state.matchHistory.length === 0) {
     const empty = document.createElement("p");
@@ -394,7 +394,26 @@ function renderHistory() {
     return;
   }
 
-  state.matchHistory.forEach((match) => {
+  const matches = [...state.matchHistory];
+  if (state.historySort === "result") {
+    matches.sort((a, b) => {
+      const resultCompare = a.result.localeCompare(b.result);
+      if (resultCompare !== 0) {
+        return resultCompare;
+      }
+      const operationCompare = a.operation.localeCompare(b.operation);
+      if (operationCompare !== 0) {
+        return operationCompare;
+      }
+      const leftCompare = a.left.localeCompare(b.left);
+      if (leftCompare !== 0) {
+        return leftCompare;
+      }
+      return a.right.localeCompare(b.right);
+    });
+  }
+
+  matches.forEach((match) => {
     const item = document.createElement("div");
     item.className = "history-item";
 
@@ -491,10 +510,55 @@ function spawnResultTile(word, firstTile, secondTile) {
   spawnWordOnField(word, { x, y });
 }
 
+function handleTileClick(word, position) {
+  const now = Date.now();
+  const sameWord = state.clickTracker.word === word;
+  const withinWindow = now - state.clickTracker.time <= DOUBLE_CLICK_MS;
+
+  if (sameWord && withinWindow) {
+    state.clickTracker.word = null;
+    state.clickTracker.time = 0;
+    return runSelfMatch(word, position);
+  }
+
+  state.clickTracker.word = word;
+  state.clickTracker.time = now;
+  return Promise.resolve();
+}
+
+async function runSelfMatch(word, position = null) {
+  const mix = await getAssociation(word, word, "add");
+  setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", mix.candidates);
+  const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  markWordAsSelfMatched(word);
+  recordMatch(word, word, canonicalResult, "add");
+  spawnWordOnField(canonicalResult, position);
+
+  if (isInEncyclopedia && !wasDiscovered) {
+    setStatus(
+      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`,
+      "success",
+    );
+  } else if (isInEncyclopedia) {
+    setStatus(
+      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`,
+      "ok",
+    );
+  } else {
+    setStatus(
+      `${titleCase(word)} + ${titleCase(word)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`,
+      "ok",
+    );
+  }
+}
+
 async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
   const { canonicalResult, isInEncyclopedia, wasDiscovered } = rememberResult(mix.result, mix.normalized);
+  if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
+    markWordAsSelfMatched(firstTile.word);
+  }
   recordMatch(firstTile.word, secondTile.word, canonicalResult, "add");
 
   if (isInEncyclopedia && !wasDiscovered) {
@@ -582,6 +646,10 @@ function getNegativeSlotAtPoint(clientX, clientY) {
 }
 
 function startTileDrag(event, tileId) {
+  if (event.button !== 0) {
+    return;
+  }
+
   const tile = state.tiles.find((entry) => entry.id === tileId);
   if (!tile) {
     return;
@@ -594,13 +662,27 @@ function startTileDrag(event, tileId) {
   const tileRect = tileElement.getBoundingClientRect();
   const pointerOffsetX = event.clientX - tileRect.left;
   const pointerOffsetY = event.clientY - tileRect.top;
-
-  state.nextZIndex += 1;
-  tile.zIndex = state.nextZIndex;
-  tileElement.classList.add("dragging");
-  tileElement.style.zIndex = String(tile.zIndex);
+  const startClientX = event.clientX;
+  const startClientY = event.clientY;
+  let dragStarted = false;
 
   const move = (moveEvent) => {
+    const deltaX = moveEvent.clientX - startClientX;
+    const deltaY = moveEvent.clientY - startClientY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (!dragStarted) {
+      if (distance < DRAG_THRESHOLD) {
+        return;
+      }
+
+      dragStarted = true;
+      state.nextZIndex += 1;
+      tile.zIndex = state.nextZIndex;
+      tileElement.classList.add("dragging");
+      tileElement.style.zIndex = String(tile.zIndex);
+    }
+
     const bounds = getPlayfieldBounds();
     tile.x = clamp(moveEvent.clientX - fieldRect.left - pointerOffsetX, 0, bounds.maxX);
     tile.y = clamp(moveEvent.clientY - fieldRect.top - pointerOffsetY, 0, bounds.maxY);
@@ -612,6 +694,18 @@ function startTileDrag(event, tileId) {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", end);
     tileElement.classList.remove("dragging");
+
+    if (!dragStarted) {
+      try {
+        await handleTileClick(tile.word, {
+          x: clamp(tile.x + 28, 0, getPlayfieldBounds().maxX),
+          y: clamp(tile.y + 28, 0, getPlayfieldBounds().maxY),
+        });
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+      return;
+    }
 
     const negativeSlotElement = getNegativeSlotAtPoint(endEvent.clientX, endEvent.clientY);
     if (negativeSlotElement) {
@@ -649,7 +743,7 @@ function renderTiles() {
     .forEach((tile) => {
       const tileElement = document.createElement("div");
       tileElement.className = "tile";
-      tileElement.dataset.kind = getWordKind(tile.word);
+      tileElement.dataset.kind = "discovered";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(tile.zIndex);
@@ -666,9 +760,7 @@ function renderTiles() {
 
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
-      metaElement.textContent = getWordKind(tile.word) === "starter" ? "Starter object" : (
-        ENCYCLOPEDIA_LOOKUP.get(tile.word)?.category || "Discovered word"
-      );
+      metaElement.textContent = ENCYCLOPEDIA_LOOKUP.get(tile.word)?.category || "Discovered word";
 
       tileElement.append(wordElement, metaElement);
       els.playfield.append(tileElement);
@@ -699,7 +791,8 @@ function closeHistory() {
 
 function resetRun() {
   state.starters = sampleStarters();
-  state.discovered = new Map();
+  state.discovered = new Map(state.starters.map((word) => [word, word]));
+  state.selfMatchedWords = new Set();
   state.tiles = [];
   state.search = "";
   state.negativeMix.a = null;
@@ -711,6 +804,9 @@ function resetRun() {
   };
   state.matchHistory = [];
   state.matchHistoryKeys = new Set();
+  state.historySort = "recent";
+  state.clickTracker.word = null;
+  state.clickTracker.time = 0;
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -804,6 +900,10 @@ function initEvents() {
   });
   els.openHistoryButton.addEventListener("click", openHistory);
   els.closeHistoryButton.addEventListener("click", closeHistory);
+  els.toggleHistorySortButton.addEventListener("click", () => {
+    state.historySort = state.historySort === "recent" ? "result" : "recent";
+    renderHistory();
+  });
   els.openEncyclopediaButton.addEventListener("click", openEncyclopedia);
   els.closeEncyclopediaButton.addEventListener("click", closeEncyclopedia);
 
