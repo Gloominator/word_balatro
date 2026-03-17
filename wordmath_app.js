@@ -562,8 +562,87 @@ function getCandidateResultKey(candidate) {
   return (candidate.normalized || candidate.word || "").toLowerCase();
 }
 
+function addFamilyForm(forms, value) {
+  if (!value || !/^[a-z]+$/.test(value) || value.length < 2) {
+    return;
+  }
+  forms.add(value);
+}
+
+function getWordFamilyForms(word) {
+  const lowered = (word || "").trim().toLowerCase();
+  const forms = new Set();
+  if (!lowered) {
+    return forms;
+  }
+
+  addFamilyForm(forms, lowered);
+
+  if (lowered.endsWith("ies") && lowered.length > 3) {
+    addFamilyForm(forms, `${lowered.slice(0, -3)}y`);
+  }
+  if (lowered.endsWith("ied") && lowered.length > 3) {
+    addFamilyForm(forms, `${lowered.slice(0, -3)}y`);
+  }
+  if (lowered.endsWith("ing") && lowered.length > 4) {
+    const stem = lowered.slice(0, -3);
+    addFamilyForm(forms, stem);
+    addFamilyForm(forms, `${stem}e`);
+    if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) {
+      addFamilyForm(forms, stem.slice(0, -1));
+    }
+  }
+  if (lowered.endsWith("ed") && lowered.length > 3) {
+    const stem = lowered.slice(0, -2);
+    addFamilyForm(forms, stem);
+    addFamilyForm(forms, `${stem}e`);
+    if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) {
+      addFamilyForm(forms, stem.slice(0, -1));
+    }
+  }
+  if (lowered.endsWith("es") && lowered.length > 3) {
+    addFamilyForm(forms, lowered.slice(0, -2));
+    addFamilyForm(forms, lowered.slice(0, -1));
+  }
+  if (lowered.endsWith("s") && lowered.length > 2 && !lowered.endsWith("ss")) {
+    addFamilyForm(forms, lowered.slice(0, -1));
+  }
+
+  return forms;
+}
+
+function getRemovalKeysForWord(word) {
+  const keys = new Set();
+  const loweredWord = (word || "").trim().toLowerCase();
+  const wordKey = getWordKey(word);
+  [loweredWord, wordKey].forEach((value) => {
+    if (!value) {
+      return;
+    }
+    keys.add(value);
+    getWordFamilyForms(value).forEach((form) => keys.add(form));
+  });
+  return keys;
+}
+
+function isCandidateRemoved(candidate) {
+  const candidateKeys = new Set();
+  const candidateWord = (candidate.word || "").toLowerCase();
+  const candidateNormalized = getCandidateResultKey(candidate);
+
+  [candidateWord, candidateNormalized].forEach((value) => {
+    if (!value) {
+      return;
+    }
+    candidateKeys.add(value);
+    getWordFamilyForms(value).forEach((form) => candidateKeys.add(form));
+  });
+
+  return [...candidateKeys].some((key) => state.removedResultWords.has(key));
+}
+
 function filterRemovedCandidates(candidates) {
-  return candidates.filter((candidate) => !state.removedResultWords.has(getCandidateResultKey(candidate)));
+  return candidates.filter((candidate) => !isCandidateRemoved(candidate));
 }
 
 function getSelectedCandidate(candidates, shift) {
@@ -589,6 +668,7 @@ function resolveCandidateSelection(candidates, tileIds = []) {
       : "";
     return {
       candidate: null,
+      candidates: [],
       usedShift: 0,
       refundedTagCount,
       error: `All valid results for that mix have been permanently removed.${refundSuffix}`,
@@ -605,6 +685,7 @@ function resolveCandidateSelection(candidates, tileIds = []) {
 
   return {
     candidate: getSelectedCandidate(allowedCandidates, canUseShiftedCandidate ? desiredShift : 0),
+    candidates: allowedCandidates,
     usedShift: canUseShiftedCandidate ? desiredShift : 0,
     refundedTagCount,
     error: null,
@@ -975,8 +1056,8 @@ function banTileWordFromResults(tileId) {
     return;
   }
 
-  const wordKey = getWordKey(tile.word);
-  if (state.removedResultWords.has(wordKey)) {
+  const removalKeys = getRemovalKeysForWord(tile.word);
+  if ([...removalKeys].some((key) => state.removedResultWords.has(key))) {
     setStatus(`${titleCase(tile.word)} is already permanently removed from future results.`, "ok");
     return;
   }
@@ -986,7 +1067,10 @@ function banTileWordFromResults(tileId) {
   }
 
   state.availableBanWordTokens -= 1;
-  state.removedResultWords.add(wordKey);
+  removalKeys.forEach((key) => {
+    state.removedResultWords.add(key);
+  });
+  state.lastMix.candidates = filterRemovedCandidates(state.lastMix.candidates);
   renderSidebar();
   queueProgressSave();
   setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
@@ -1482,11 +1566,11 @@ function handleTileClick(word, position, tileId = null) {
 
 async function runSelfMatch(word, position = null, tileId = null) {
   const mix = await getAssociation(word, word, "add");
-  setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", mix.candidates);
   const selection = resolveCandidateSelection(mix.candidates, tileId ? [tileId] : []);
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
   }
+  setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", selection.candidates);
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
@@ -1497,7 +1581,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
-  recordMatch(word, word, canonicalResult, "add", mix.candidates, selectedCandidate.word);
+  recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   spawnWordOnField(canonicalResult, position);
   const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
     newNegativeMixTokens,
@@ -1511,11 +1595,11 @@ async function runSelfMatch(word, position = null, tileId = null) {
 
 async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
-  setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
   const selection = resolveCandidateSelection(mix.candidates, [firstTile.id, secondTile.id]);
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
   }
+  setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
@@ -1528,7 +1612,7 @@ async function handleMix(firstTile, secondTile) {
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
-  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", mix.candidates, selectedCandidate.word);
+  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   spawnResultTile(canonicalResult, firstTile, secondTile);
   const status = getMixOutcomeMessage(
     firstTile.word,
@@ -1633,7 +1717,6 @@ async function runNegativeMix() {
   }
 
   const mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
-  setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", mix.candidates);
   const selection = resolveCandidateSelection(mix.candidates, [
     state.negativeMixSources.a,
     state.negativeMixSources.b,
@@ -1641,6 +1724,7 @@ async function runNegativeMix() {
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
   }
+  setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", selection.candidates);
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
@@ -1655,7 +1739,7 @@ async function runNegativeMix() {
     state.negativeMix.b,
     canonicalResult,
     "subtract",
-    mix.candidates,
+    selection.candidates,
     selectedCandidate.word,
   );
   spawnWordOnField(canonicalResult, { x: 340, y: 48 });
