@@ -14,6 +14,7 @@
           <p class="subtitle">Drag words onto the field, drag one word over another to mix them, and fill in the encyclopedia.</p>
         </div>
         <div class="topbar-actions">
+          <button type="button" class="ghost-button" data-action="open-settings">Settings</button>
           <button type="button" data-action="reset">New Game</button>
           <button type="button" class="encyclopedia-button" data-action="open-history">
             Match History
@@ -162,6 +163,24 @@
           </div>
         </div>
         <div class="history-list" data-history-list></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-settings-modal hidden>
+      <section class="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="settings-title">Settings</h2>
+            <p class="muted">Debug tools for exporting and importing a run save.</p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-settings">Close</button>
+        </div>
+        <div class="settings-actions">
+          <button type="button" data-action="export-save">Debug Export Save JSON</button>
+          <button type="button" class="ghost-button" data-action="import-save">Load Saved Game JSON</button>
+        </div>
+        <p class="muted settings-copy">The exported file includes the full game snapshot, including `discovered`, so discovered words can be extracted from it later.</p>
+        <input type="file" accept="application/json,.json" data-save-file-input hidden>
       </section>
     </div>
 

@@ -721,6 +721,21 @@ input {
   box-shadow: var(--shadow);
 }
 
+.settings-modal-card {
+  width: min(560px, 100%);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.settings-copy {
+  margin-bottom: 0;
+}
+
 .history-list {
   display: grid;
   gap: 0.7rem;

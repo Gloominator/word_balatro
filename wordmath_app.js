@@ -166,6 +166,12 @@ const els = {
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
   closeEncyclopediaButton: document.querySelector("[data-action='close-encyclopedia']"),
+  openSettingsButton: document.querySelector("[data-action='open-settings']"),
+  closeSettingsButton: document.querySelector("[data-action='close-settings']"),
+  exportSaveButton: document.querySelector("[data-action='export-save']"),
+  importSaveButton: document.querySelector("[data-action='import-save']"),
+  settingsModal: document.querySelector("[data-settings-modal]"),
+  saveFileInput: document.querySelector("[data-save-file-input]"),
 };
 
 let pendingProgressSave = null;
@@ -228,6 +234,22 @@ function buildProgressSnapshot() {
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
   };
+}
+
+function downloadProgressSnapshot() {
+  const snapshotJson = JSON.stringify(buildProgressSnapshot(), null, 2);
+  const snapshotBlob = new Blob([snapshotJson], { type: "application/json" });
+  const snapshotUrl = URL.createObjectURL(snapshotBlob);
+  const link = document.createElement("a");
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  link.href = snapshotUrl;
+  link.download = `wordmath-save-${timestamp}.json`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(snapshotUrl);
+  }, 0);
 }
 
 function saveProgress() {
@@ -306,20 +328,7 @@ function normalizeSavedCategories(value) {
   return categories;
 }
 
-function loadProgress() {
-  let snapshot;
-  try {
-    const rawProgress = window.localStorage.getItem(STORAGE_KEY);
-    if (!rawProgress) {
-      return false;
-    }
-    snapshot = JSON.parse(rawProgress);
-  } catch (error) {
-    console.warn("[wordmath] Could not read saved progress.", error);
-    window.localStorage.removeItem(STORAGE_KEY);
-    return false;
-  }
-
+function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
   const starters = getStringList(snapshot?.starters);
   if (starters.length !== 2) {
     return false;
@@ -415,8 +424,26 @@ function loadProgress() {
   renderTiles();
   renderNegativeMix();
   renderHistory();
-  setStatus("Loaded your saved game.", "ok");
+  setStatus(statusMessage, "ok");
+  clearFloatingCandidatePreview();
   return true;
+}
+
+function loadProgress() {
+  let snapshot;
+  try {
+    const rawProgress = window.localStorage.getItem(STORAGE_KEY);
+    if (!rawProgress) {
+      return false;
+    }
+    snapshot = JSON.parse(rawProgress);
+  } catch (error) {
+    console.warn("[wordmath] Could not read saved progress.", error);
+    window.localStorage.removeItem(STORAGE_KEY);
+    return false;
+  }
+
+  return applyProgressSnapshot(snapshot);
 }
 
 function titleCase(word) {
@@ -2134,6 +2161,47 @@ function closeHistory() {
   els.historyModal.hidden = true;
 }
 
+function openSettings() {
+  els.settingsModal.hidden = false;
+}
+
+function closeSettings() {
+  els.settingsModal.hidden = true;
+}
+
+function exportSaveSnapshot() {
+  downloadProgressSnapshot();
+  setStatus("Save JSON exported.", "ok");
+}
+
+function promptSaveImport() {
+  els.saveFileInput.value = "";
+  els.saveFileInput.click();
+}
+
+async function importSaveSnapshotFromFile(file) {
+  if (!file) {
+    return;
+  }
+
+  let snapshot;
+  try {
+    const raw = await file.text();
+    snapshot = JSON.parse(raw);
+  } catch (error) {
+    setStatus("That file is not valid JSON.", "error");
+    return;
+  }
+
+  if (!applyProgressSnapshot(snapshot, { statusMessage: "Imported saved game JSON." })) {
+    setStatus("That save file is missing required game data.", "error");
+    return;
+  }
+
+  saveProgress();
+  closeSettings();
+}
+
 function resetRun() {
   state.starters = sampleStarters();
   state.discovered = new Map(state.starters.map((word) => [word, word]));
@@ -2337,6 +2405,14 @@ function initEvents() {
   });
   els.openHistoryButton.addEventListener("click", openHistory);
   els.closeHistoryButton.addEventListener("click", closeHistory);
+  els.openSettingsButton.addEventListener("click", openSettings);
+  els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
+  els.importSaveButton.addEventListener("click", promptSaveImport);
+  els.saveFileInput.addEventListener("change", async (event) => {
+    const [file] = event.target.files || [];
+    await importSaveSnapshotFromFile(file);
+  });
   els.toggleHistorySortButton.addEventListener("click", () => {
     state.historySort = state.historySort === "recent" ? "result" : "recent";
     renderHistory();
@@ -2355,6 +2431,11 @@ function initEvents() {
       closeHistory();
     }
   });
+  els.settingsModal.addEventListener("click", (event) => {
+    if (event.target === els.settingsModal) {
+      closeSettings();
+    }
+  });
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.historyModal.hidden) {
@@ -2362,6 +2443,9 @@ function initEvents() {
     }
     if (event.key === "Escape" && !els.encyclopediaModal.hidden) {
       closeEncyclopedia();
+    }
+    if (event.key === "Escape" && !els.settingsModal.hidden) {
+      closeSettings();
     }
   });
 
