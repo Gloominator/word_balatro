@@ -105,8 +105,11 @@ const state = {
     word: null,
     time: 0,
   },
+  removedResultWords: new Set(),
   availableNegativeMixTokens: 0,
   totalNegativeMixTokensEarned: 0,
+  availableBanWordTokens: 0,
+  totalBanWordTokensEarned: 0,
   availableSecondResultTokens: 0,
   totalSecondResultTokensEarned: 0,
   hasActiveNegativeMixToken: false,
@@ -237,11 +240,13 @@ function getUnlockedTokenCount() {
 }
 
 function getTotalUsableTokenCount() {
-  return state.availableNegativeMixTokens + state.availableSecondResultTokens;
+  return state.availableNegativeMixTokens + state.availableBanWordTokens + state.availableSecondResultTokens;
 }
 
 function hasUnlockedAnyTokenType() {
-  return state.totalNegativeMixTokensEarned > 0 || state.totalSecondResultTokensEarned > 0;
+  return state.totalNegativeMixTokensEarned > 0
+    || state.totalBanWordTokensEarned > 0
+    || state.totalSecondResultTokensEarned > 0;
 }
 
 function shouldFlashTokenTab() {
@@ -283,6 +288,14 @@ function releaseSecondResultTags(tileIds, { refund = false } = {}) {
   return releasedCount;
 }
 
+function getCandidateResultKey(candidate) {
+  return (candidate.normalized || candidate.word || "").toLowerCase();
+}
+
+function filterRemovedCandidates(candidates) {
+  return candidates.filter((candidate) => !state.removedResultWords.has(getCandidateResultKey(candidate)));
+}
+
 function getSelectedCandidate(candidates, shift) {
   if (!candidates.length) {
     return null;
@@ -294,9 +307,24 @@ function getSelectedCandidate(candidates, shift) {
 }
 
 function resolveCandidateSelection(candidates, tileIds = []) {
+  const allowedCandidates = filterRemovedCandidates(candidates);
   const taggedTileIds = getTaggedTileIds(tileIds);
   const desiredShift = taggedTileIds.length;
-  const canUseShiftedCandidate = desiredShift > 0 && candidates.length > desiredShift;
+  if (!allowedCandidates.length) {
+    const refundedTagCount = taggedTileIds.length > 0
+      ? releaseSecondResultTags(taggedTileIds, { refund: true })
+      : 0;
+    const refundSuffix = refundedTagCount > 0
+      ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
+      : "";
+    return {
+      candidate: null,
+      usedShift: 0,
+      refundedTagCount,
+      error: `All valid results for that mix have been permanently removed.${refundSuffix}`,
+    };
+  }
+  const canUseShiftedCandidate = desiredShift > 0 && allowedCandidates.length > desiredShift;
   const refundedTagCount = desiredShift > 0 && !canUseShiftedCandidate
     ? releaseSecondResultTags(taggedTileIds, { refund: true })
     : 0;
@@ -306,9 +334,10 @@ function resolveCandidateSelection(candidates, tileIds = []) {
   }
 
   return {
-    candidate: getSelectedCandidate(candidates, canUseShiftedCandidate ? desiredShift : 0),
+    candidate: getSelectedCandidate(allowedCandidates, canUseShiftedCandidate ? desiredShift : 0),
     usedShift: canUseShiftedCandidate ? desiredShift : 0,
     refundedTagCount,
+    error: null,
   };
 }
 
@@ -600,6 +629,29 @@ function tagTileWithSecondResultToken(tileId) {
   setStatus(`${titleCase(tile.word)} is tagged to jump to a deeper mix result.`, "ok");
 }
 
+function banTileWordFromResults(tileId) {
+  const tile = getTileById(tileId);
+  if (!tile) {
+    setStatus("Drop that token onto a word on the field.", "error");
+    return;
+  }
+
+  const wordKey = getWordKey(tile.word);
+  if (state.removedResultWords.has(wordKey)) {
+    setStatus(`${titleCase(tile.word)} is already permanently removed from future results.`, "ok");
+    return;
+  }
+  if (state.availableBanWordTokens <= 0) {
+    setStatus("You do not have any ban-word tokens yet.", "error");
+    return;
+  }
+
+  state.availableBanWordTokens -= 1;
+  state.removedResultWords.add(wordKey);
+  renderSidebar();
+  setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
+}
+
 function refundNegativeMixToken() {
   if (!state.hasActiveNegativeMixToken) {
     return;
@@ -678,6 +730,18 @@ function renderTokenPanel() {
       dragType: "minus-mix",
       onClick: () => {
         activateNegativeMixToken();
+      },
+    }));
+  }
+
+  if (state.availableBanWordTokens > 0) {
+    els.tokenList.append(buildTokenButton({
+      title: "Ban Word",
+      description: "Drag onto a field word to permanently remove that word from future mix results.",
+      count: state.availableBanWordTokens,
+      dragType: "ban-word",
+      onClick: () => {
+        setStatus("Drag a Ban Word token onto a word on the field.", "ok");
       },
     }));
   }
@@ -790,6 +854,7 @@ function getMixOutcomeMessage(
   wasDiscovered,
   {
     newNegativeMixTokens = 0,
+    newBanWordTokens = 0,
     newSecondResultTokens = 0,
     usedShift = 0,
     refundedTagCount = 0,
@@ -825,6 +890,10 @@ function getMixOutcomeMessage(
   if (newNegativeMixTokens > 0) {
     const tokenSuffix = newNegativeMixTokens === 1 ? "token" : "tokens";
     rewardParts.push(`${newNegativeMixTokens} minus-mix ${tokenSuffix}`);
+  }
+  if (newBanWordTokens > 0) {
+    const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newBanWordTokens} Ban Word ${tokenSuffix}`);
   }
   if (newSecondResultTokens > 0) {
     const tokenSuffix = newSecondResultTokens === 1 ? "token" : "tokens";
@@ -1037,12 +1106,16 @@ async function runSelfMatch(word, position = null, tileId = null) {
   const mix = await getAssociation(word, word, "add");
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", mix.candidates);
   const selection = resolveCandidateSelection(mix.candidates, tileId ? [tileId] : []);
+  if (!selection.candidate) {
+    throw new Error(selection.error || "No valid result remained for that mix.");
+  }
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
     newNegativeMixTokens,
+    newBanWordTokens,
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
@@ -1050,6 +1123,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
   spawnWordOnField(canonicalResult, position);
   const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
     newNegativeMixTokens,
+    newBanWordTokens,
     newSecondResultTokens,
     usedShift: selection.usedShift,
     refundedTagCount: selection.refundedTagCount,
@@ -1061,12 +1135,16 @@ async function handleMix(firstTile, secondTile) {
   const mix = await getAssociation(firstTile.word, secondTile.word, "add");
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", mix.candidates);
   const selection = resolveCandidateSelection(mix.candidates, [firstTile.id, secondTile.id]);
+  if (!selection.candidate) {
+    throw new Error(selection.error || "No valid result remained for that mix.");
+  }
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
     newNegativeMixTokens,
+    newBanWordTokens,
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
@@ -1083,6 +1161,7 @@ async function handleMix(firstTile, secondTile) {
     wasDiscovered,
     {
       newNegativeMixTokens,
+      newBanWordTokens,
       newSecondResultTokens,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
@@ -1098,6 +1177,7 @@ function rememberResult(result, normalized = result) {
   const wasDiscovered = Boolean(existing);
   const canonicalIsStarter = state.starters.includes(canonicalResult);
   let didDiscoverNewWord = false;
+  let newBanWordTokens = 0;
   let newSecondResultTokens = 0;
 
   if (!existing && !canonicalIsStarter) {
@@ -1115,6 +1195,13 @@ function rememberResult(result, normalized = result) {
     state.unseenTokenRewards += newNegativeMixTokens;
   }
 
+  if (didDiscoverNewWord && isInEncyclopedia) {
+    state.availableBanWordTokens += 1;
+    state.totalBanWordTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    newBanWordTokens = 1;
+  }
+
   if (didDiscoverNewWord && Math.random() < SECOND_RESULT_TOKEN_DROP_RATE) {
     state.availableSecondResultTokens += 1;
     state.totalSecondResultTokensEarned += 1;
@@ -1122,13 +1209,13 @@ function rememberResult(result, normalized = result) {
     newSecondResultTokens = 1;
   }
 
-  if (newNegativeMixTokens > 0 || newSecondResultTokens > 0) {
+  if (newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
     if (state.activeSidebarTab === "tokens") {
       state.unseenTokenRewards = 0;
     }
   }
 
-  if (didDiscoverNewWord || newNegativeMixTokens > 0 || newSecondResultTokens > 0) {
+  if (didDiscoverNewWord || newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
     renderSidebar();
   }
 
@@ -1137,6 +1224,7 @@ function rememberResult(result, normalized = result) {
     isInEncyclopedia,
     wasDiscovered,
     newNegativeMixTokens,
+    newBanWordTokens,
     newSecondResultTokens,
   };
 }
@@ -1153,12 +1241,16 @@ async function runNegativeMix() {
     state.negativeMixSources.a,
     state.negativeMixSources.b,
   ].filter(Boolean));
+  if (!selection.candidate) {
+    throw new Error(selection.error || "No valid result remained for that mix.");
+  }
   const selectedCandidate = selection.candidate;
   const {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
     newNegativeMixTokens,
+    newBanWordTokens,
     newSecondResultTokens,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   recordMatch(state.negativeMix.a, state.negativeMix.b, canonicalResult, "subtract");
@@ -1172,6 +1264,7 @@ async function runNegativeMix() {
     wasDiscovered,
     {
       newNegativeMixTokens,
+      newBanWordTokens,
       newSecondResultTokens,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
@@ -1333,6 +1426,10 @@ function renderTiles() {
           tagTileWithSecondResultToken(tile.id);
           return;
         }
+        if (tokenType === "ban-word") {
+          banTileWordFromResults(tile.id);
+          return;
+        }
         if (tokenType === "minus-mix") {
           activateNegativeMixToken();
         }
@@ -1399,6 +1496,7 @@ function resetRun() {
   state.selfMatchedWords = new Set();
   state.tiles = [];
   state.search = "";
+  state.removedResultWords = new Set();
   state.negativeMix.a = null;
   state.negativeMix.b = null;
   state.negativeMixSources.a = null;
@@ -1418,6 +1516,8 @@ function resetRun() {
   state.clickTracker.time = 0;
   state.availableNegativeMixTokens = 0;
   state.totalNegativeMixTokensEarned = 0;
+  state.availableBanWordTokens = 0;
+  state.totalBanWordTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
   state.hasActiveNegativeMixToken = false;
@@ -1459,6 +1559,10 @@ function initPlayfieldDropzone() {
     const tokenType = event.dataTransfer.getData("application/x-token-type");
     if (tokenType === "minus-mix") {
       activateNegativeMixToken();
+      return;
+    }
+    if (tokenType === "ban-word") {
+      setStatus("Drop a Ban Word token onto a word on the field.", "error");
       return;
     }
     if (tokenType === "second-result") {
