@@ -30,32 +30,46 @@ NORMS = np.where(NORMS == 0, 1, NORMS)
 NORMALIZED_VECTORS = ALL_VECTORS / NORMS
 
 PROFANITY_BASE_FORMS = {
+    "anal",
     "ass",
     "arse",
     "asshole",
     "bastard",
     "bitch",
     "boob",
+    "blowjob",
     "booty",
     "butt",
     "cock",
     "crap",
+    "cumshot",
     "damn",
     "dick",
+    "dildo",
     "dumbass",
     "fuck",
     "fuckin",
     "fucking",
     "fucker",
+    "lick",
     "motherfucker",
+    "porn",
+    "porno",
     "piss",
     "pussy",
+    "sex",
     "shit",
     "slut",
     "suck",
     "tit",
     "cunt",
+    "vibrator",
     "whore",
+    "handjob",
+    "wank",
+    "wanker",
+    "wanking",
+   
 }
 
 
@@ -86,7 +100,7 @@ def get_word_family_forms(word: str) -> frozenset[str]:
     if lowered.endswith("es") and len(lowered) > 3:
         forms.add(lowered[:-2])
         forms.add(lowered[:-1])
-    if lowered.endswith("s") and len(lowered) > 2:
+    if lowered.endswith("s") and len(lowered) > 2 and not lowered.endswith("ss"):
         forms.add(lowered[:-1])
 
     cleaned = {

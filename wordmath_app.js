@@ -1172,8 +1172,10 @@ async function handleMix(firstTile, secondTile) {
 
 function rememberResult(result, normalized = result) {
   const canonicalResult = getCanonicalWord(result, normalized);
-  const isInEncyclopedia = Boolean(getEncyclopediaEntry(canonicalResult, normalized));
-  const existing = state.discovered.get(normalized);
+  const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
+  const isInEncyclopedia = Boolean(encyclopediaEntry);
+  const discoveryKey = encyclopediaEntry?.word ?? normalized;
+  const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
   const wasDiscovered = Boolean(existing);
   const canonicalIsStarter = state.starters.includes(canonicalResult);
   let didDiscoverNewWord = false;
@@ -1181,10 +1183,14 @@ function rememberResult(result, normalized = result) {
   let newSecondResultTokens = 0;
 
   if (!existing && !canonicalIsStarter) {
-    state.discovered.set(normalized, canonicalResult);
+    state.discovered.set(discoveryKey, canonicalResult);
     didDiscoverNewWord = true;
   } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing)) {
-    state.discovered.set(normalized, canonicalResult);
+    state.discovered.set(discoveryKey, canonicalResult);
+  }
+
+  if (discoveryKey !== normalized && state.discovered.has(normalized)) {
+    state.discovered.delete(normalized);
   }
 
   const unlockedTokenCount = getUnlockedTokenCount();
@@ -1200,6 +1206,19 @@ function rememberResult(result, normalized = result) {
     state.totalBanWordTokensEarned += 1;
     state.unseenTokenRewards += 1;
     newBanWordTokens = 1;
+    const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+    if (!discoveredEncyclopediaWords.has(canonicalResult)) {
+      console.warn("[wordmath] Encyclopedia reward mismatch", {
+        result,
+        normalized,
+        canonicalResult,
+        discoveryKey,
+        storedDiscoveredValue: state.discovered.get(discoveryKey) ?? null,
+        encyclopediaEntryByCanonical: getEncyclopediaEntry(canonicalResult, canonicalResult),
+        encyclopediaEntryByNormalized: getEncyclopediaEntry(normalized, normalized),
+        discoveredEncyclopediaKeys: [...discoveredEncyclopediaWords],
+      });
+    }
   }
 
   if (didDiscoverNewWord && Math.random() < SECOND_RESULT_TOKEN_DROP_RATE) {
