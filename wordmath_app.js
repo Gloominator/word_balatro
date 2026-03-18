@@ -138,7 +138,8 @@ const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1.2;
 const STORAGE_KEY = "wordmath-progress-v1";
-const POSITION_TOKEN_DISCOVERY_DROP_CHANCE = 0.05;
+const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
+const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze(["wildcard", 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const POSITION_TOKEN_CONFIG = Object.freeze({
   2: { title: "Second Result", shortLabel: "2nd" },
@@ -185,6 +186,8 @@ const state = {
   progressNegativeMixTokensAwarded: 0,
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
+  availableWildcardTokens: 0,
+  totalWildcardTokensEarned: 0,
   availableSecondResultTokens: 0,
   totalSecondResultTokensEarned: 0,
   availableThirdResultTokens: 0,
@@ -402,6 +405,62 @@ function getPositionTokenRewardCount(rewardSummary) {
   return POSITION_TOKEN_RANKS.reduce((total, rank) => total + getSafeCount(rewardSummary?.[rank]), 0);
 }
 
+function addWildcardTokens(count, { markAsEarned = true } = {}) {
+  const safeCount = getSafeCount(count);
+  if (safeCount <= 0) {
+    return;
+  }
+
+  state.availableWildcardTokens += safeCount;
+  if (markAsEarned) {
+    state.totalWildcardTokensEarned += safeCount;
+  }
+}
+
+function spendWildcardToken() {
+  if (state.availableWildcardTokens <= 0) {
+    return false;
+  }
+
+  state.availableWildcardTokens -= 1;
+  return true;
+}
+
+function getUndiscoveredWildcardWords() {
+  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+  return ENCYCLOPEDIA_WORDS
+    .map((entry) => entry.word)
+    .filter((word) => !discoveredEncyclopediaWords.has(word));
+}
+
+function getDiscoveryDropPool() {
+  return RANDOM_DISCOVERY_TOKEN_POOL.filter((rewardType) => {
+    return rewardType !== "wildcard" || getUndiscoveredWildcardWords().length > 0;
+  });
+}
+
+function awardRandomDiscoveryToken() {
+  const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
+  let newWildcardTokens = 0;
+  const dropPool = getDiscoveryDropPool();
+  if (!dropPool.length || Math.random() >= DISCOVERY_TOKEN_DROP_CHANCE) {
+    return { newWildcardTokens, newPositionTokenRewards };
+  }
+
+  const rewardType = dropPool[Math.floor(Math.random() * dropPool.length)];
+  if (rewardType === "wildcard") {
+    addWildcardTokens(1);
+    state.unseenTokenRewards += 1;
+    newWildcardTokens = 1;
+    return { newWildcardTokens, newPositionTokenRewards };
+  }
+
+  addPositionTokens(rewardType, 1);
+  state.unseenTokenRewards += 1;
+  newPositionTokenRewards[rewardType] += 1;
+  return { newWildcardTokens, newPositionTokenRewards };
+}
+
 function getTileTagRank(tile) {
   if (!tile) {
     return 0;
@@ -461,6 +520,8 @@ function buildProgressSnapshot() {
     progressNegativeMixTokensAwarded: state.progressNegativeMixTokensAwarded,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
+    availableWildcardTokens: state.availableWildcardTokens,
+    totalWildcardTokensEarned: state.totalWildcardTokensEarned,
     availableSecondResultTokens: state.availableSecondResultTokens,
     totalSecondResultTokensEarned: state.totalSecondResultTokensEarned,
     availableThirdResultTokens: state.availableThirdResultTokens,
@@ -645,6 +706,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   );
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
+  state.availableWildcardTokens = getSafeCount(snapshot.availableWildcardTokens);
+  state.totalWildcardTokensEarned = getSafeCount(snapshot.totalWildcardTokensEarned);
   state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
   state.totalSecondResultTokensEarned = getSafeCount(snapshot.totalSecondResultTokensEarned);
   state.availableThirdResultTokens = getSafeCount(snapshot.availableThirdResultTokens);
@@ -1010,15 +1073,18 @@ function getCurrentGarbageTarget() {
 function getTotalUsableTokenCount() {
   return state.availableNegativeMixTokens
     + state.availableBanWordTokens
+    + state.availableWildcardTokens
     + POSITION_TOKEN_RANKS.reduce((total, rank) => total + getAvailablePositionTokenCount(rank), 0);
 }
 
 function hasUnlockedAnyTokenType() {
   return state.availableNegativeMixTokens > 0
     || state.availableBanWordTokens > 0
+    || state.availableWildcardTokens > 0
     || POSITION_TOKEN_RANKS.some((rank) => getAvailablePositionTokenCount(rank) > 0)
     || state.totalNegativeMixTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
+    || state.totalWildcardTokensEarned > 0
     || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
 }
 
@@ -1870,6 +1936,54 @@ function banTileWordFromResults(tileId) {
   setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
 }
 
+function useWildcardToken(position = null) {
+  if (state.availableWildcardTokens <= 0) {
+    setStatus("You do not have any wildcard tokens yet.", "error");
+    return;
+  }
+
+  const undiscoveredWords = getUndiscoveredWildcardWords();
+  if (!undiscoveredWords.length) {
+    setStatus("Every dictionary word is already discovered, so Wildcard has nothing left to reveal.", "error");
+    return;
+  }
+
+  if (!spendWildcardToken()) {
+    setStatus("You do not have any wildcard tokens yet.", "error");
+    return;
+  }
+
+  const randomIndex = Math.floor(Math.random() * undiscoveredWords.length);
+  const selectedWord = undiscoveredWords[randomIndex];
+  const {
+    canonicalResult,
+    isInEncyclopedia,
+    wasDiscovered,
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+    newZonesUnlocked,
+    completedCategories,
+    vocabularyOverflow,
+  } = rememberResult(selectedWord, selectedWord);
+  spawnWordOnField(canonicalResult, position);
+  const status = getWildcardOutcomeMessage(
+    canonicalResult,
+    isInEncyclopedia,
+    wasDiscovered,
+    {
+      newNegativeMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newPositionTokenRewards,
+      newZonesUnlocked,
+      completedCategories,
+    },
+  );
+  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+}
+
 function refundNegativeMixToken() {
   if (!state.hasActiveNegativeMixToken) {
     return;
@@ -1962,6 +2076,18 @@ function renderTokenPanel() {
       dragType: "ban-word",
       onClick: () => {
         setStatus("Drag a Ban Word token onto a word on the field.", "ok");
+      },
+    }));
+  }
+
+  if (state.availableWildcardTokens > 0) {
+    els.tokenList.append(buildTokenButton({
+      title: "Wildcard",
+      description: "Drag onto the field to reveal a random undiscovered dictionary word.",
+      count: state.availableWildcardTokens,
+      dragType: "wildcard",
+      onClick: () => {
+        setStatus("Drag a Wildcard token onto the field.", "ok");
       },
     }));
   }
@@ -2098,6 +2224,7 @@ function getMixOutcomeMessage(
   {
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
+    newWildcardTokens = 0,
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
@@ -2136,6 +2263,32 @@ function getMixOutcomeMessage(
     stateName = "reward";
   }
 
+  const rewardParts = getTokenRewardParts({
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+  });
+  if (rewardParts.length > 0) {
+    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    stateName = "reward";
+  }
+
+  if (newZonesUnlocked > 0) {
+    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
+    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    stateName = "reward";
+  }
+
+  return { message, stateName };
+}
+
+function getTokenRewardParts({
+  newNegativeMixTokens = 0,
+  newBanWordTokens = 0,
+  newWildcardTokens = 0,
+  newPositionTokenRewards = null,
+} = {}) {
   const rewardParts = [];
   if (newNegativeMixTokens > 0) {
     const tokenSuffix = newNegativeMixTokens === 1 ? "token" : "tokens";
@@ -2145,6 +2298,10 @@ function getMixOutcomeMessage(
     const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
     rewardParts.push(`${newBanWordTokens} Ban Word ${tokenSuffix}`);
   }
+  if (newWildcardTokens > 0) {
+    const tokenSuffix = newWildcardTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newWildcardTokens} wildcard ${tokenSuffix}`);
+  }
   POSITION_TOKEN_RANKS.forEach((rank) => {
     const count = getSafeCount(newPositionTokenRewards?.[rank]);
     if (count <= 0) {
@@ -2153,7 +2310,49 @@ function getMixOutcomeMessage(
     const tokenSuffix = count === 1 ? "token" : "tokens";
     rewardParts.push(`${count} ${getPositionTokenDisplayName(rank)} ${tokenSuffix}`);
   });
+  return rewardParts;
+}
 
+function getWildcardOutcomeMessage(
+  canonicalResult,
+  isInEncyclopedia,
+  wasDiscovered,
+  {
+    newNegativeMixTokens = 0,
+    newBanWordTokens = 0,
+    newWildcardTokens = 0,
+    newPositionTokenRewards = null,
+    newZonesUnlocked = 0,
+    completedCategories = [],
+  } = {},
+) {
+  let message;
+  let stateName;
+
+  if (isInEncyclopedia && !wasDiscovered) {
+    message = `Wildcard revealed ${titleCase(canonicalResult)} and added it to your discovered words.`;
+    stateName = "success";
+  } else if (isInEncyclopedia) {
+    message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered, so it only appeared on the field.`;
+    stateName = "ok";
+  } else {
+    message = `Wildcard revealed ${titleCase(canonicalResult)}. It only appeared on the field.`;
+    stateName = "ok";
+  }
+
+  if (completedCategories.length > 0) {
+    const categoryLabel = completedCategories.join(" and ");
+    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
+    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    stateName = "reward";
+  }
+
+  const rewardParts = getTokenRewardParts({
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+  });
   if (rewardParts.length > 0) {
     message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
     stateName = "reward";
@@ -2419,6 +2618,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
+    newWildcardTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -2430,6 +2630,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
   const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
     newNegativeMixTokens,
     newBanWordTokens,
+    newWildcardTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -2465,6 +2666,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
+    newWildcardTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -2485,6 +2687,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     {
       newNegativeMixTokens,
       newBanWordTokens,
+      newWildcardTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -2508,6 +2711,7 @@ function rememberResult(result, normalized = result) {
   let didDiscoverNewWord = false;
   let newNegativeMixTokensFromCompletion = 0;
   let newBanWordTokens = 0;
+  let newWildcardTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
   let completedCategories = [];
 
@@ -2558,13 +2762,10 @@ function rememberResult(result, normalized = result) {
   }
 
   if (didDiscoverNewWord) {
-    [3, 4, 5].forEach((rank) => {
-      if (Math.random() >= POSITION_TOKEN_DISCOVERY_DROP_CHANCE) {
-        return;
-      }
-      addPositionTokens(rank, 1);
-      state.unseenTokenRewards += 1;
-      newPositionTokenRewards[rank] += 1;
+    const randomDiscoveryReward = awardRandomDiscoveryToken();
+    newWildcardTokens += randomDiscoveryReward.newWildcardTokens;
+    POSITION_TOKEN_RANKS.forEach((rank) => {
+      newPositionTokenRewards[rank] += getSafeCount(randomDiscoveryReward.newPositionTokenRewards?.[rank]);
     });
   }
 
@@ -2584,7 +2785,7 @@ function rememberResult(result, normalized = result) {
   const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
   const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
-  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || totalNewPositionTokens > 0) {
+  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
     if (state.activeSidebarTab === "tokens") {
       state.unseenTokenRewards = 0;
     }
@@ -2594,7 +2795,7 @@ function rememberResult(result, normalized = result) {
     ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
     : null;
 
-  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
+  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
     renderSidebar();
   }
 
@@ -2604,6 +2805,7 @@ function rememberResult(result, normalized = result) {
     wasDiscovered,
     newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
+    newWildcardTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -2652,6 +2854,7 @@ async function runNegativeMix() {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
+    newWildcardTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -2676,6 +2879,7 @@ async function runNegativeMix() {
     {
       newNegativeMixTokens,
       newBanWordTokens,
+      newWildcardTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -2914,6 +3118,10 @@ function renderTiles() {
           banTileWordFromResults(tile.id);
           return;
         }
+        if (tokenType === "wildcard") {
+          setStatus("Drop a Wildcard token onto the field, not onto a word.", "error");
+          return;
+        }
         if (tokenType === "minus-mix") {
           activateNegativeMixToken();
         }
@@ -3043,6 +3251,8 @@ function resetRun() {
   state.progressNegativeMixTokensAwarded = 0;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
+  state.availableWildcardTokens = 0;
+  state.totalWildcardTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
   state.availableThirdResultTokens = 0;
@@ -3117,6 +3327,14 @@ function initPlayfieldDropzone() {
       setStatus("Drop a Ban Word token onto a word on the field.", "error");
       return;
     }
+    const bounds = getPlayfieldBounds();
+    const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY, bounds);
+    const x = clamp(point.x - (TILE_WIDTH / 2), bounds.minX, bounds.maxX);
+    const y = clamp(point.y - (TILE_HEIGHT / 2), bounds.minY, bounds.maxY);
+    if (tokenType === "wildcard") {
+      useWildcardToken({ x, y });
+      return;
+    }
     const resultRank = getPositionTokenRankFromDragType(tokenType);
     if (resultRank >= 2) {
       setStatus(`Drop a ${getPositionTokenDisplayName(resultRank)} token onto a word on the field.`, "error");
@@ -3128,10 +3346,6 @@ function initPlayfieldDropzone() {
       return;
     }
 
-    const bounds = getPlayfieldBounds();
-    const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY, bounds);
-    const x = clamp(point.x - (TILE_WIDTH / 2), bounds.minX, bounds.maxX);
-    const y = clamp(point.y - (TILE_HEIGHT / 2), bounds.minY, bounds.maxY);
     spawnWordOnField(word, { x, y });
     setStatus(`${titleCase(word)} was dropped onto the field.`);
   });
