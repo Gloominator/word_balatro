@@ -128,9 +128,10 @@ const MATCH_HISTORY_LIMIT = 100;
 const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
-const GARBAGE_BIN_UNLOCK_WORDS = 30;
+const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
-const AVAILABLE_WORD_WARNING_THRESHOLD = 50;
+const AVAILABLE_WORD_LIMIT = 25;
+const RECENT_DISCOVERED_WORD_LIMIT = 25;
 const PLAYFIELD_WORDS_PER_ZONE_UNLOCK = 50;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
@@ -178,6 +179,7 @@ const state = {
     word: null,
     time: 0,
   },
+  recentDiscoveredWordKeys: [],
   removedResultWords: new Set(),
   hiddenWordPanelWords: new Set(),
   garbageWordsSinceReward: 0,
@@ -516,6 +518,7 @@ function buildProgressSnapshot() {
       collapsed: Boolean(category.collapsed),
     })),
     wordAssignments: [...state.wordAssignments.entries()],
+    recentDiscoveredWordKeys: [...state.recentDiscoveredWordKeys],
     removedResultWords: [...state.removedResultWords],
     hiddenWordPanelWords: [...state.hiddenWordPanelWords],
     garbageWordsSinceReward: state.garbageWordsSinceReward,
@@ -673,6 +676,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
         && validCategoryIds.has(entry[1]))
       : [],
   );
+  const recentDiscoveredWordKeys = getStringList(snapshot.recentDiscoveredWordKeys)
+    .slice(-RECENT_DISCOVERED_WORD_LIMIT);
 
   state.starters = starters;
   state.discovered = discovered;
@@ -697,6 +702,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.historySort = snapshot.historySort === "result" ? "result" : "recent";
   state.wordCategories = categories;
   state.wordAssignments = wordAssignments;
+  state.recentDiscoveredWordKeys = recentDiscoveredWordKeys.filter((wordKey) => discovered.has(wordKey));
   state.googlePickMode = false;
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
@@ -1084,6 +1090,32 @@ function isGarbageBinUnlocked() {
 
 function getCurrentGarbageTarget() {
   return GARBAGE_WORDS_PER_TOKEN_BASE + ((state.garbageRewardLevel * (state.garbageRewardLevel + 1)) / 2);
+}
+
+function trackDiscoveredWord(wordKey) {
+  if (typeof wordKey !== "string" || !wordKey) {
+    return;
+  }
+
+  state.recentDiscoveredWordKeys = state.recentDiscoveredWordKeys
+    .filter((trackedWordKey) => trackedWordKey !== wordKey);
+  state.recentDiscoveredWordKeys.push(wordKey);
+  if (state.recentDiscoveredWordKeys.length > RECENT_DISCOVERED_WORD_LIMIT) {
+    state.recentDiscoveredWordKeys = state.recentDiscoveredWordKeys
+      .slice(-RECENT_DISCOVERED_WORD_LIMIT);
+  }
+}
+
+function replaceTrackedDiscoveredWordKey(previousKey, nextKey) {
+  if (typeof previousKey !== "string" || !previousKey || typeof nextKey !== "string" || !nextKey) {
+    return;
+  }
+
+  state.recentDiscoveredWordKeys = state.recentDiscoveredWordKeys.map((trackedWordKey) =>
+    trackedWordKey === previousKey ? nextKey : trackedWordKey,
+  );
+  state.recentDiscoveredWordKeys = [...new Set(state.recentDiscoveredWordKeys)]
+    .slice(-RECENT_DISCOVERED_WORD_LIMIT);
 }
 
 function getTotalUsableTokenCount() {
@@ -1908,41 +1940,44 @@ function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
   setStatus(result.statusMessage, result.statusState);
 }
 
-function getFirstUncategorizedAvailableEntry() {
-  return getAvailableWordEntries().find((entry) => getCategoryIdForWord(entry.key) === DEFAULT_CATEGORY_ID) || null;
-}
+function getOldestTrackedAvailableEntry() {
+  const availableEntriesByKey = new Map(
+    getAvailableWordEntries().map((entry) => [entry.key, entry]),
+  );
 
-function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCount) {
-  if (previousAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD - 1
-    && currentAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD) {
-    return {
-      message: "You have 50 available words. Clean your vocabulary.",
-      stateName: "error",
-    };
-  }
-
-  if (previousAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD
-    && currentAvailableCount === AVAILABLE_WORD_WARNING_THRESHOLD + 1) {
-    const uncategorizedEntry = getFirstUncategorizedAvailableEntry();
-    if (!uncategorizedEntry) {
-      return {
-        message: "You have more than 50 available words, but nothing in Uncategorized could be auto-binned.",
-        stateName: "error",
-      };
+  for (const wordKey of state.recentDiscoveredWordKeys) {
+    const entry = availableEntriesByKey.get(wordKey);
+    if (entry) {
+      return entry;
     }
-
-    const hideResult = hideWordFromPanel(uncategorizedEntry.word, uncategorizedEntry.key);
-    const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
-      ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
-      : "";
-
-    return {
-      message: `${titleCase(uncategorizedEntry.word)} was automatically binned. Clean your vocabulary.${rewardSuffix}`,
-      stateName: "error",
-    };
   }
 
   return null;
+}
+
+function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCount) {
+  if (previousAvailableCount < AVAILABLE_WORD_LIMIT
+    || currentAvailableCount <= AVAILABLE_WORD_LIMIT) {
+    return null;
+  }
+
+  const oldestTrackedEntry = getOldestTrackedAvailableEntry();
+  if (!oldestTrackedEntry) {
+    return {
+      message: `You have more than ${AVAILABLE_WORD_LIMIT} available words, but none of your last ${RECENT_DISCOVERED_WORD_LIMIT} discovered words could be auto-binned.`,
+      stateName: "error",
+    };
+  }
+
+  const hideResult = hideWordFromPanel(oldestTrackedEntry.word, oldestTrackedEntry.key);
+  const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
+    ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
+    : "";
+
+  return {
+    message: `${titleCase(oldestTrackedEntry.word)} was automatically binned to keep your available words at ${AVAILABLE_WORD_LIMIT}.${rewardSuffix}`,
+    stateName: "error",
+  };
 }
 
 function tagTileWithResultToken(tileId, rank) {
@@ -2819,12 +2854,14 @@ function rememberResult(result, normalized = result) {
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
+    trackDiscoveredWord(discoveryKey);
     didDiscoverNewWord = true;
   } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing)) {
     state.discovered.set(discoveryKey, canonicalResult);
   }
 
   if (discoveryKey !== normalized && state.discovered.has(normalized)) {
+    replaceTrackedDiscoveredWordKey(normalized, discoveryKey);
     state.discovered.delete(normalized);
   }
 
@@ -3374,6 +3411,7 @@ function resetRun() {
   state.historySort = "recent";
   state.wordCategories = createDefaultCategoryState();
   state.wordAssignments = new Map(state.starters.map((word) => [word, DEFAULT_CATEGORY_ID]));
+  state.recentDiscoveredWordKeys = [];
   state.googlePickMode = false;
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
