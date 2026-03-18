@@ -38,32 +38,45 @@
               <h2>Mixing Field</h2>
               <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
             </div>
-            <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
+            <div class="playfield-actions">
+              <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
+                <button type="button" class="ghost-button" data-action="zoom-out" aria-label="Zoom out">-</button>
+                <button type="button" class="ghost-button" data-action="zoom-reset">100%</button>
+                <button type="button" class="ghost-button" data-action="zoom-in" aria-label="Zoom in">+</button>
+              </div>
+              <div class="playfield-zoom-readout">
+                <span class="section-count" data-playfield-zoom-value>100%</span>
+                <span class="muted" data-playfield-zone-value>1 / 1 zones</span>
+              </div>
+              <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
+            </div>
           </div>
           <div class="playfield" data-playfield>
-            <section class="negative-mix-panel" data-negative-panel hidden>
-              <div class="negative-mix-head">
-                <div class="negative-mix-title">Negative Mixing</div>
-                <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Close negative mixing">X</button>
-              </div>
-              <p class="negative-mix-text">Drop two words here to create a result using <strong>A - B</strong>.</p>
-              <div class="negative-mix-slots">
-                <div class="negative-slot" data-negative-slot="a">
-                  <span class="negative-slot-label">A</span>
-                  <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+            <div class="playfield-surface" data-playfield-surface>
+              <section class="negative-mix-panel" data-negative-panel hidden>
+                <div class="negative-mix-head">
+                  <div class="negative-mix-title">Negative Mixing</div>
+                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Close negative mixing">X</button>
                 </div>
-                <div class="negative-slot" data-negative-slot="b">
-                  <span class="negative-slot-label">B</span>
-                  <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                <p class="negative-mix-text">Drop two words here to create a result using <strong>A - B</strong>.</p>
+                <div class="negative-mix-slots">
+                  <div class="negative-slot" data-negative-slot="a">
+                    <span class="negative-slot-label">A</span>
+                    <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+                  </div>
+                  <div class="negative-slot" data-negative-slot="b">
+                    <span class="negative-slot-label">B</span>
+                    <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                  </div>
                 </div>
+                <div class="negative-mix-actions">
+                  <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
+                  <button type="button" data-action="run-negative">Mix A - B</button>
+                </div>
+              </section>
+              <div class="playfield-empty" data-empty-message>
+                Drag a starter or discovered word here.
               </div>
-              <div class="negative-mix-actions">
-                <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
-                <button type="button" data-action="run-negative">Mix A - B</button>
-              </div>
-            </section>
-            <div class="playfield-empty" data-empty-message>
-              Drag a starter or discovered word here.
             </div>
           </div>
           <section class="garbage-panel" data-garbage-panel hidden>

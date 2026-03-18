@@ -1,4 +1,4 @@
 flask
-numpy
-spacy>=3.0.0
+numpy<2
+spacy>=3.8,<3.9
 wordfreq

@@ -1,7 +1,10 @@
 import argparse
 import contextlib
+import mimetypes
 import os
+import re
 import socket
+import sys
 import threading
 import webbrowser
 from functools import lru_cache
@@ -12,8 +15,22 @@ import spacy
 from flask import Flask, jsonify, request, send_from_directory
 
 
-APP_ROOT = Path(__file__).resolve().parent
+def get_app_root() -> Path:
+    if getattr(sys, "frozen", False):
+        bundle_root = getattr(sys, "_MEIPASS", None)
+        if bundle_root:
+            return Path(bundle_root)
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+APP_ROOT = get_app_root()
 DEFAULT_SPACY_MODELS = ("en_core_web_lg", "en_core_web_md")
+
+mimetypes.add_type("application/javascript", ".js")
+mimetypes.add_type("application/javascript", ".mjs")
+mimetypes.add_type("application/json", ".json")
+mimetypes.add_type("text/css", ".css")
 
 
 @lru_cache(maxsize=1)
@@ -247,6 +264,16 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
     return candidates[0], candidates
 
 
+NO_VECTOR_ERROR_PATTERN = re.compile(r"^'(?P<word>.+)' has no vector in this model\.$")
+
+
+def extract_dead_end_word(error_message: str) -> str | None:
+    match = NO_VECTOR_ERROR_PATTERN.match(error_message.strip())
+    if not match:
+        return None
+    return match.group("word").strip().lower() or None
+
+
 app = Flask(__name__, static_folder=None)
 
 
@@ -272,9 +299,11 @@ def mix_words():
     try:
         top_result, candidates = get_top_association(word_a, word_b, operation=operation)
     except ValueError as error:
+        dead_end_word = extract_dead_end_word(str(error))
         return jsonify({
             "ok": False,
             "error": str(error),
+            "deadEndWord": dead_end_word,
         }), 400
     except Exception as error:
         return jsonify({

@@ -75,9 +75,15 @@ const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
 const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
-const GARBAGE_BIN_UNLOCK_WORDS = 50;
+const GARBAGE_BIN_UNLOCK_WORDS = 30;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
 const AVAILABLE_WORD_WARNING_THRESHOLD = 50;
+const PLAYFIELD_WORDS_PER_ZONE_UNLOCK = 50;
+const PLAYFIELD_BASE_WORLD_SCALE = 1.15;
+const PLAYFIELD_ZONE_SCALE_STEP = 0.6;
+const PLAYFIELD_ZOOM_STEP = 0.12;
+const MIN_PLAYFIELD_ZOOM = 0.02;
+const MAX_PLAYFIELD_ZOOM = 1.2;
 const STORAGE_KEY = "wordmath-progress-v1";
 
 const state = {
@@ -123,6 +129,7 @@ const state = {
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
+  playfieldZoom: 1,
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -136,7 +143,13 @@ const els = {
   wordSearch: document.querySelector("[data-word-search]"),
   wordList: document.querySelector("[data-word-list]"),
   playfield: document.querySelector("[data-playfield]"),
+  playfieldSurface: document.querySelector("[data-playfield-surface]"),
   emptyMessage: document.querySelector("[data-empty-message]"),
+  zoomOutButton: document.querySelector("[data-action='zoom-out']"),
+  zoomInButton: document.querySelector("[data-action='zoom-in']"),
+  zoomResetButton: document.querySelector("[data-action='zoom-reset']"),
+  playfieldZoomValue: document.querySelector("[data-playfield-zoom-value]"),
+  playfieldZoneValue: document.querySelector("[data-playfield-zone-value]"),
   garbagePanel: document.querySelector("[data-garbage-panel]"),
   garbageBin: document.querySelector("[data-garbage-bin]"),
   garbageProgress: document.querySelector("[data-garbage-progress]"),
@@ -233,6 +246,7 @@ function buildProgressSnapshot() {
     hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
     activeSidebarTab: state.activeSidebarTab,
     unseenTokenRewards: state.unseenTokenRewards,
+    playfieldZoom: state.playfieldZoom,
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
   };
@@ -410,6 +424,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     ? "tokens"
     : "words";
   state.unseenTokenRewards = getSafeCount(snapshot.unseenTokenRewards);
+  state.playfieldZoom = getNormalizedPlayfieldZoom(snapshot.playfieldZoom);
   state.nextTileId = Math.max(
     getSafeCount(snapshot.nextTileId, 1),
     ...tiles.map((tile) => tile.id + 1),
@@ -429,6 +444,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     state.negativeMixSources.b = null;
   }
 
+  clampTilesToPlayfieldBounds();
+  updatePlayfieldCamera();
   renderSidebar();
   renderTiles();
   renderNegativeMix();
@@ -476,15 +493,151 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function roundTo(value, precision = 1000) {
+  return Math.round(value * precision) / precision;
+}
+
+function getPlayfieldViewportSize() {
+  return {
+    width: els.playfield.clientWidth,
+    height: els.playfield.clientHeight,
+  };
+}
+
+function getUnlockedPlayfieldZoneCount() {
+  return 1 + Math.floor(state.discovered.size / PLAYFIELD_WORDS_PER_ZONE_UNLOCK);
+}
+
+function getNextPlayfieldZoneUnlockWordCount() {
+  return getUnlockedPlayfieldZoneCount() * PLAYFIELD_WORDS_PER_ZONE_UNLOCK;
+}
+
+function getMaxWorldScaleForZoneCount(zoneCount) {
+  return PLAYFIELD_BASE_WORLD_SCALE + ((Math.max(1, zoneCount) - 1) * PLAYFIELD_ZONE_SCALE_STEP);
+}
+
+function getMinimumUnlockedZoom() {
+  return Math.max(MIN_PLAYFIELD_ZOOM, 1 / getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount()));
+}
+
+function getNormalizedPlayfieldZoom(value) {
+  const fallback = 1;
+  const parsed = Number.isFinite(value) ? value : fallback;
+  return clamp(roundTo(parsed), getMinimumUnlockedZoom(), MAX_PLAYFIELD_ZOOM);
+}
+
+function getPlayfieldWorldScale(zoom = state.playfieldZoom) {
+  const safeZoom = clamp(zoom, MIN_PLAYFIELD_ZOOM, MAX_PLAYFIELD_ZOOM);
+  const unlockedScaleCap = getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount());
+  return clamp(1 / safeZoom, 1, unlockedScaleCap);
+}
+
+function getActivePlayfieldZoneCount(zoom = state.playfieldZoom) {
+  const worldScale = getPlayfieldWorldScale(zoom);
+  if (worldScale <= PLAYFIELD_BASE_WORLD_SCALE + 0.001) {
+    return 1;
+  }
+  return Math.min(
+    getUnlockedPlayfieldZoneCount(),
+    1 + Math.ceil((worldScale - PLAYFIELD_BASE_WORLD_SCALE - 0.001) / PLAYFIELD_ZONE_SCALE_STEP),
+  );
+}
+
 function getPlayfieldBounds() {
-  const width = els.playfield.clientWidth;
-  const height = els.playfield.clientHeight;
+  const { width, height } = getPlayfieldViewportSize();
+  const worldScale = getPlayfieldWorldScale();
+  const worldWidth = Math.max(width, Math.round(width * worldScale));
+  const worldHeight = Math.max(height, Math.round(height * worldScale));
+  const offsetX = Math.round((worldWidth - width) / 2);
+  const offsetY = Math.round((worldHeight - height) / 2);
   return {
     width,
     height,
-    maxX: Math.max(0, width - TILE_WIDTH),
-    maxY: Math.max(0, height - TILE_HEIGHT),
+    worldWidth,
+    worldHeight,
+    offsetX,
+    offsetY,
+    minX: -offsetX,
+    minY: -offsetY,
+    maxX: Math.max(-offsetX, width + offsetX - TILE_WIDTH),
+    maxY: Math.max(-offsetY, height + offsetY - TILE_HEIGHT),
   };
+}
+
+function getRenderedPoint(point, bounds = getPlayfieldBounds()) {
+  return {
+    x: point.x + bounds.offsetX,
+    y: point.y + bounds.offsetY,
+  };
+}
+
+function getPlayfieldPointFromClientPoint(clientX, clientY, bounds = getPlayfieldBounds()) {
+  const surfaceRect = els.playfieldSurface.getBoundingClientRect();
+  return {
+    x: ((clientX - surfaceRect.left) / state.playfieldZoom) - bounds.offsetX,
+    y: ((clientY - surfaceRect.top) / state.playfieldZoom) - bounds.offsetY,
+  };
+}
+
+function clampTilesToPlayfieldBounds() {
+  const bounds = getPlayfieldBounds();
+  state.tiles = state.tiles.map((tile) => ({
+    ...tile,
+    x: clamp(tile.x, bounds.minX, bounds.maxX),
+    y: clamp(tile.y, bounds.minY, bounds.maxY),
+  }));
+}
+
+function updatePlayfieldCamera() {
+  const bounds = getPlayfieldBounds();
+  els.playfieldSurface.style.width = `${bounds.worldWidth}px`;
+  els.playfieldSurface.style.height = `${bounds.worldHeight}px`;
+  els.playfieldSurface.style.transform = `scale(${state.playfieldZoom})`;
+
+  const unlockedZones = getUnlockedPlayfieldZoneCount();
+  const visibleZones = getActivePlayfieldZoneCount();
+  const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+
+  els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
+  els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words`;
+  els.zoomOutButton.disabled = state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
+  els.zoomInButton.disabled = state.playfieldZoom >= MAX_PLAYFIELD_ZOOM - 0.001;
+  els.zoomResetButton.disabled = Math.abs(state.playfieldZoom - 1) < 0.001;
+}
+
+function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
+  const minZoom = getMinimumUnlockedZoom();
+  const clampedZoom = clamp(roundTo(nextZoom), minZoom, MAX_PLAYFIELD_ZOOM);
+  const hitLockedFrontier = nextZoom < minZoom - 0.001;
+  if (Math.abs(clampedZoom - state.playfieldZoom) < 0.001) {
+    if (hitLockedFrontier && !silent) {
+      const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+      if (nextUnlockAt) {
+        setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+      }
+    }
+    updatePlayfieldCamera();
+    return false;
+  }
+
+  state.playfieldZoom = clampedZoom;
+  clampTilesToPlayfieldBounds();
+  updatePlayfieldCamera();
+  renderTiles();
+  queueProgressSave();
+
+  if (hitLockedFrontier && !silent) {
+    const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+    if (nextUnlockAt) {
+      setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+    }
+  }
+
+  return true;
+}
+
+function adjustPlayfieldZoom(delta) {
+  setPlayfieldZoom(state.playfieldZoom + delta);
 }
 
 function getDiscoveredWords() {
@@ -673,6 +826,15 @@ function getRemovalKeysForWord(word) {
   return keys;
 }
 
+function setsIntersect(left, right) {
+  for (const value of left) {
+    if (right.has(value)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isCandidateRemoved(candidate) {
   const candidateKeys = new Set();
   const candidateWord = (candidate.word || "").toLowerCase();
@@ -811,7 +973,11 @@ async function getAssociation(wordA, wordB, operation = "add") {
   const payload = await response.json();
 
   if (!response.ok || !payload.ok) {
-    throw new Error(payload.error || "Could not mix those words.");
+    const error = new Error(payload.error || "Could not mix those words.");
+    if (typeof payload.deadEndWord === "string" && payload.deadEndWord) {
+      error.deadEndWord = payload.deadEndWord.trim().toLowerCase();
+    }
+    throw error;
   }
 
   return payload;
@@ -1119,6 +1285,73 @@ function rollGarbageRewardToken() {
   state.availableBanWordTokens += 1;
   state.totalBanWordTokensEarned += 1;
   return "Ban Word";
+}
+
+function retireDeadEndWord(word, explicitWordKey = null, tileIds = []) {
+  const wordKey = explicitWordKey || getWordKey(word);
+  const removalKeys = getRemovalKeysForWord(word);
+  const relatedTileIds = state.tiles
+    .filter((tile) => setsIntersect(getRemovalKeysForWord(tile.word), removalKeys))
+    .map((tile) => tile.id);
+  const allTileIds = [...new Set([
+    ...tileIds.filter((tileId) => Number.isFinite(tileId)),
+    ...relatedTileIds,
+  ])];
+
+  removalKeys.forEach((key) => {
+    state.removedResultWords.add(key);
+  });
+  state.hiddenWordPanelWords.add(wordKey);
+
+  let refundedTagCount = 0;
+  allTileIds.forEach((tileId) => {
+    refundedTagCount += removeTile(tileId);
+  });
+  state.lastMix.candidates = filterRemovedCandidates(state.lastMix.candidates);
+
+  return {
+    refundedTagCount,
+  };
+}
+
+function handleDeadEndMixError(error, sources = []) {
+  const deadEndWord = typeof error?.deadEndWord === "string"
+    ? error.deadEndWord.trim().toLowerCase()
+    : "";
+  if (!deadEndWord) {
+    return false;
+  }
+
+  const matchingSources = sources.filter((source) =>
+    source
+    && typeof source.word === "string"
+    && getRemovalKeysForWord(source.word).has(deadEndWord));
+  const displayWord = matchingSources[0]?.word || deadEndWord;
+  const explicitWordKey = matchingSources[0]?.wordKey || getWordKey(displayWord);
+  const tileIds = matchingSources
+    .map((source) => source.tileId)
+    .filter((tileId) => Number.isFinite(tileId));
+  const { refundedTagCount } = retireDeadEndWord(displayWord, explicitWordKey, tileIds);
+  const rewardedToken = rollGarbageRewardToken();
+
+  state.unseenTokenRewards += 1;
+  if (state.activeSidebarTab === "tokens") {
+    state.unseenTokenRewards = 0;
+  }
+
+  renderSidebar();
+  renderTiles();
+  renderNegativeMix();
+  queueProgressSave();
+
+  const refundSuffix = refundedTagCount > 0
+    ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
+    : "";
+  setStatus(
+    `You found a dead-end word! Here's a ${rewardedToken} token. ${titleCase(displayWord)} was erased from the run.${refundSuffix}`,
+    "reward",
+  );
+  return true;
 }
 
 function rollEqualRandomTokenReward() {
@@ -1454,6 +1687,7 @@ function renderGarbageBin() {
 
 function renderSidebar() {
   updateCounts();
+  updatePlayfieldCamera();
   const tokensUnlocked = hasUnlockedAnyTokenType();
   const isTokenTabActive = state.activeSidebarTab === "tokens";
   els.sidebarTitle.textContent = isTokenTabActive ? "Usable Tokens" : "Word Panel";
@@ -1551,6 +1785,7 @@ function getMixOutcomeMessage(
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
     newSecondResultTokens = 0,
+    newZonesUnlocked = 0,
     completedCategories = [],
     usedShift = 0,
     refundedTagCount = 0,
@@ -1605,6 +1840,12 @@ function getMixOutcomeMessage(
 
   if (rewardParts.length > 0) {
     message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    stateName = "reward";
+  }
+
+  if (newZonesUnlocked > 0) {
+    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
+    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
     stateName = "reward";
   }
 
@@ -1722,21 +1963,21 @@ function makeTile(word, x, y) {
     id: state.nextTileId,
     word,
     secondResultTagged: false,
-    x: clamp(x, 0, bounds.maxX),
-    y: clamp(y, 0, bounds.maxY),
+    x: clamp(x, bounds.minX, bounds.maxX),
+    y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
   };
 }
 
 function getDefaultSpawnPosition() {
   const bounds = getPlayfieldBounds();
-  const centerX = Math.max(0, (bounds.width / 2) - (TILE_WIDTH / 2));
-  const centerY = Math.max(0, (bounds.height / 2) - (TILE_HEIGHT / 2));
+  const centerX = Math.round((bounds.width / 2) - (TILE_WIDTH / 2));
+  const centerY = Math.round((bounds.height / 2) - (TILE_HEIGHT / 2));
   const jitterX = Math.floor((Math.random() * 120) - 60);
   const jitterY = Math.floor((Math.random() * 120) - 60);
   return {
-    x: clamp(centerX + jitterX, 0, bounds.maxX),
-    y: clamp(centerY + jitterY, 0, bounds.maxY),
+    x: clamp(centerX + jitterX, bounds.minX, bounds.maxX),
+    y: clamp(centerY + jitterY, bounds.minY, bounds.maxY),
   };
 }
 
@@ -1803,8 +2044,8 @@ function findMixTarget(sourceTile) {
 
 function spawnResultTile(word, firstTile, secondTile) {
   const bounds = getPlayfieldBounds();
-  const x = clamp(Math.round((firstTile.x + secondTile.x) / 2) + 22, 0, bounds.maxX);
-  const y = clamp(Math.round((firstTile.y + secondTile.y) / 2) + 22, 0, bounds.maxY);
+  const x = clamp(Math.round((firstTile.x + secondTile.x) / 2) + 22, bounds.minX, bounds.maxX);
+  const y = clamp(Math.round((firstTile.y + secondTile.y) / 2) + 22, bounds.minY, bounds.maxY);
   spawnWordOnField(word, { x, y });
 }
 
@@ -1830,7 +2071,15 @@ function handleTileClick(word, position, tileId = null) {
 }
 
 async function runSelfMatch(word, position = null, tileId = null) {
-  const mix = await getAssociation(word, word, "add");
+  let mix;
+  try {
+    mix = await getAssociation(word, word, "add");
+  } catch (error) {
+    if (handleDeadEndMixError(error, [{ word, wordKey: getWordKey(word), tileId }])) {
+      return;
+    }
+    throw error;
+  }
   const selection = resolveCandidateSelection(mix.candidates, tileId ? [tileId] : []);
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
@@ -1838,9 +2087,10 @@ async function runSelfMatch(word, position = null, tileId = null) {
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", selection.candidates);
   if (position) {
     const playfieldRect = els.playfield.getBoundingClientRect();
+    const renderedPosition = getRenderedPoint(position);
     showFloatingCandidatePreview(selection.candidates, {
-      x: playfieldRect.left + position.x,
-      y: playfieldRect.top + position.y,
+      x: playfieldRect.left + (renderedPosition.x * state.playfieldZoom),
+      y: playfieldRect.top + (renderedPosition.y * state.playfieldZoom),
     });
   } else {
     showFloatingCandidatePreview(selection.candidates);
@@ -1853,6 +2103,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
@@ -1863,6 +2114,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    newZonesUnlocked,
     completedCategories,
     usedShift: selection.usedShift,
     refundedTagCount: selection.refundedTagCount,
@@ -1871,7 +2123,18 @@ async function runSelfMatch(word, position = null, tileId = null) {
 }
 
 async function handleMix(firstTile, secondTile, clientPoint = null) {
-  const mix = await getAssociation(firstTile.word, secondTile.word, "add");
+  let mix;
+  try {
+    mix = await getAssociation(firstTile.word, secondTile.word, "add");
+  } catch (error) {
+    if (handleDeadEndMixError(error, [
+      { word: firstTile.word, wordKey: getWordKey(firstTile.word), tileId: firstTile.id },
+      { word: secondTile.word, wordKey: getWordKey(secondTile.word), tileId: secondTile.id },
+    ])) {
+      return;
+    }
+    throw error;
+  }
   const selection = resolveCandidateSelection(mix.candidates, [firstTile.id, secondTile.id]);
   if (!selection.candidate) {
     throw new Error(selection.error || "No valid result remained for that mix.");
@@ -1886,6 +2149,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
@@ -1905,6 +2169,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       newNegativeMixTokens,
       newBanWordTokens,
       newSecondResultTokens,
+      newZonesUnlocked,
       completedCategories,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
@@ -1915,6 +2180,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
 
 function rememberResult(result, normalized = result) {
   const previousAvailableCount = getAvailableWordEntries().length;
+  const previousUnlockedZones = getUnlockedPlayfieldZoneCount();
   const canonicalResult = getCanonicalWord(result, normalized);
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
   const isInEncyclopedia = Boolean(encyclopediaEntry);
@@ -1981,6 +2247,7 @@ function rememberResult(result, normalized = result) {
   }
 
   const totalNewNegativeMixTokens = newNegativeMixTokens + newNegativeMixTokensFromCompletion;
+  const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
 
   if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
     if (state.activeSidebarTab === "tokens") {
@@ -2003,6 +2270,7 @@ function rememberResult(result, normalized = result) {
     newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
   };
@@ -2014,7 +2282,26 @@ async function runNegativeMix() {
     return;
   }
 
-  const mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
+  let mix;
+  try {
+    mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
+  } catch (error) {
+    if (handleDeadEndMixError(error, [
+      {
+        word: state.negativeMix.a,
+        wordKey: getWordKey(state.negativeMix.a),
+        tileId: state.negativeMixSources.a,
+      },
+      {
+        word: state.negativeMix.b,
+        wordKey: getWordKey(state.negativeMix.b),
+        tileId: state.negativeMixSources.b,
+      },
+    ])) {
+      return;
+    }
+    throw error;
+  }
   const selection = resolveCandidateSelection(mix.candidates, [
     state.negativeMixSources.a,
     state.negativeMixSources.b,
@@ -2031,6 +2318,7 @@ async function runNegativeMix() {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
@@ -2054,6 +2342,7 @@ async function runNegativeMix() {
       newNegativeMixTokens,
       newBanWordTokens,
       newSecondResultTokens,
+      newZonesUnlocked,
       completedCategories,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
@@ -2112,10 +2401,9 @@ function startTileDrag(event, tileId) {
   event.preventDefault();
 
   const tileElement = event.currentTarget;
-  const fieldRect = els.playfield.getBoundingClientRect();
   const tileRect = tileElement.getBoundingClientRect();
-  const pointerOffsetX = event.clientX - tileRect.left;
-  const pointerOffsetY = event.clientY - tileRect.top;
+  const pointerOffsetX = (event.clientX - tileRect.left) / state.playfieldZoom;
+  const pointerOffsetY = (event.clientY - tileRect.top) / state.playfieldZoom;
   const startClientX = event.clientX;
   const startClientY = event.clientY;
   let dragStarted = false;
@@ -2138,10 +2426,12 @@ function startTileDrag(event, tileId) {
     }
 
     const bounds = getPlayfieldBounds();
-    tile.x = clamp(moveEvent.clientX - fieldRect.left - pointerOffsetX, 0, bounds.maxX);
-    tile.y = clamp(moveEvent.clientY - fieldRect.top - pointerOffsetY, 0, bounds.maxY);
-    tileElement.style.left = `${tile.x}px`;
-    tileElement.style.top = `${tile.y}px`;
+    const localPoint = getPlayfieldPointFromClientPoint(moveEvent.clientX, moveEvent.clientY, bounds);
+    tile.x = clamp(localPoint.x - pointerOffsetX, bounds.minX, bounds.maxX);
+    tile.y = clamp(localPoint.y - pointerOffsetY, bounds.minY, bounds.maxY);
+    const renderedPoint = getRenderedPoint(tile, bounds);
+    tileElement.style.left = `${renderedPoint.x}px`;
+    tileElement.style.top = `${renderedPoint.y}px`;
   };
 
   const end = async (endEvent) => {
@@ -2151,9 +2441,10 @@ function startTileDrag(event, tileId) {
 
     if (!dragStarted) {
       try {
+        const bounds = getPlayfieldBounds();
         await handleTileClick(tile.word, {
-          x: clamp(tile.x + 28, 0, getPlayfieldBounds().maxX),
-          y: clamp(tile.y + 28, 0, getPlayfieldBounds().maxY),
+          x: clamp(tile.x + 28, bounds.minX, bounds.maxX),
+          y: clamp(tile.y + 28, bounds.minY, bounds.maxY),
         }, tile.id);
       } catch (error) {
         setStatus(error.message, "error");
@@ -2200,17 +2491,20 @@ function startTileDrag(event, tileId) {
 function renderTiles() {
   els.playfield.querySelectorAll(".tile").forEach((tile) => tile.remove());
   els.emptyMessage.hidden = state.tiles.length > 0;
+  updatePlayfieldCamera();
+  const bounds = getPlayfieldBounds();
 
   [...state.tiles]
     .sort((a, b) => a.zIndex - b.zIndex)
     .forEach((tile) => {
+      const renderedPoint = getRenderedPoint(tile, bounds);
       const tileElement = document.createElement("div");
       tileElement.className = "tile";
       tileElement.dataset.kind = "discovered";
       tileElement.dataset.tileId = String(tile.id);
       tileElement.dataset.tagged = tile.secondResultTagged ? "true" : "false";
-      tileElement.style.left = `${tile.x}px`;
-      tileElement.style.top = `${tile.y}px`;
+      tileElement.style.left = `${renderedPoint.x}px`;
+      tileElement.style.top = `${renderedPoint.y}px`;
       tileElement.style.zIndex = String(tile.zIndex);
       tileElement.addEventListener("pointerdown", (event) => startTileDrag(event, tile.id));
       tileElement.addEventListener("dragover", (event) => {
@@ -2267,7 +2561,7 @@ function renderTiles() {
       metaElement.hidden = !categoryName;
 
       tileElement.append(tagElement, wordElement, metaElement);
-      els.playfield.append(tileElement);
+      els.playfieldSurface.append(tileElement);
     });
 }
 
@@ -2377,10 +2671,12 @@ function resetRun() {
   state.hasActiveNegativeMixToken = false;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
+  state.playfieldZoom = 1;
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
 
+  updatePlayfieldCamera();
   renderSidebar();
   renderTiles();
   renderNegativeMix();
@@ -2430,10 +2726,10 @@ function initPlayfieldDropzone() {
       return;
     }
 
-    const fieldRect = els.playfield.getBoundingClientRect();
     const bounds = getPlayfieldBounds();
-    const x = clamp(event.clientX - fieldRect.left - (TILE_WIDTH / 2), 0, bounds.maxX);
-    const y = clamp(event.clientY - fieldRect.top - (TILE_HEIGHT / 2), 0, bounds.maxY);
+    const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY, bounds);
+    const x = clamp(point.x - (TILE_WIDTH / 2), bounds.minX, bounds.maxX);
+    const y = clamp(point.y - (TILE_HEIGHT / 2), bounds.minY, bounds.maxY);
     spawnWordOnField(word, { x, y });
     setStatus(`${titleCase(word)} was dropped onto the field.`);
   });
@@ -2507,6 +2803,15 @@ function initEvents() {
   });
   els.resetButton.addEventListener("click", resetRun);
   els.clearFieldButton.addEventListener("click", clearField);
+  els.zoomOutButton.addEventListener("click", () => {
+    adjustPlayfieldZoom(-PLAYFIELD_ZOOM_STEP);
+  });
+  els.zoomInButton.addEventListener("click", () => {
+    adjustPlayfieldZoom(PLAYFIELD_ZOOM_STEP);
+  });
+  els.zoomResetButton.addEventListener("click", () => {
+    setPlayfieldZoom(1, { silent: true });
+  });
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
   els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);
   els.addCategoryButton.addEventListener("click", () => {
@@ -2576,6 +2881,12 @@ function initEvents() {
     }
   });
 
+  els.playfield.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    const direction = event.deltaY > 0 ? -1 : 1;
+    adjustPlayfieldZoom(direction * PLAYFIELD_ZOOM_STEP);
+  }, { passive: false });
+
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.historyModal.hidden) {
       closeHistory();
@@ -2589,12 +2900,8 @@ function initEvents() {
   });
 
   window.addEventListener("resize", () => {
-    const bounds = getPlayfieldBounds();
-    state.tiles = state.tiles.map((tile) => ({
-      ...tile,
-      x: clamp(tile.x, 0, bounds.maxX),
-      y: clamp(tile.y, 0, bounds.maxY),
-    }));
+    clampTilesToPlayfieldBounds();
+    updatePlayfieldCamera();
     renderTiles();
     queueProgressSave();
   });
