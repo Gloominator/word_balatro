@@ -2,43 +2,43 @@ const STARTER_POOL = [
   "book",
   "chair",
   "cup",
-  "spoon",
-  "phone",
   "key",
   "lamp",
-  "shoe",
-  "bag",
-  "clock",
-  "plate",
-  "brush",
-  "pillow",
-  "bottle",
-  "coin",
-  "rope",
-  "pencil",
-  "mirror",
-  "blanket",
-  "fork",
-  "wallet",
-  "towel",
-  "notebook",
-  "helmet",
-  "camera",
-  "guitar",
-  "button",
-  "bucket",
-  "magnet",
-  "ticket",
-  "pocket",
-  "jacket",
-  "drawer",
-  "candle",
-  "bracelet",
-  "whistle",
-  "faucet",
-  "suitcase",
-  "kettle",
-  "ladle",
+  "sun",
+  "moon",
+  "star",
+  "flame",
+  "ocean",
+  "beach",
+  "island",
+  "desert",
+  "cave",
+  "village",
+  "baby",
+  "king",
+  "queen",
+  "friend",
+  "crowd",
+  "song",
+  "movie",
+  "story",
+  "joke",
+  "dream",
+  "money",
+  "party",
+  "game",
+  "team",
+  "prize",
+  "castle",
+  "planet",
+  "angel",
+  "monster",
+  "robot",
+  "wolf",
+  "mouse",
+  "snake",
+  "bee",
+  "seed",
 ];
 
 const ENCYCLOPEDIA_CATEGORIES = [
@@ -402,7 +402,7 @@ function normalizeSavedCategories(value) {
 
 function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
   const starters = getStringList(snapshot?.starters);
-  if (starters.length !== 2) {
+  if (starters.length < 2) {
     return false;
   }
 
@@ -546,7 +546,7 @@ function shuffle(array) {
 }
 
 function sampleStarters() {
-  return shuffle(STARTER_POOL).slice(0, 2).sort((a, b) => a.localeCompare(b));
+  return shuffle(STARTER_POOL).slice(0, 3).sort((a, b) => a.localeCompare(b));
 }
 
 function clamp(value, min, max) {
@@ -2834,12 +2834,22 @@ function resetRun() {
   const bounds = getPlayfieldBounds();
   const centerX = Math.round((bounds.worldWidth / 2) - (TILE_WIDTH / 2));
   const centerY = Math.round((bounds.worldHeight / 2) - (TILE_HEIGHT / 2));
-  spawnWordOnField(state.starters[0], { x: clamp(centerX - 120, bounds.minX, bounds.maxX), y: clamp(centerY, bounds.minY, bounds.maxY) });
-  spawnWordOnField(state.starters[1], { x: clamp(centerX + 120, bounds.minX, bounds.maxX), y: clamp(centerY, bounds.minY, bounds.maxY) });
+  const starterOffsets = [-180, 0, 180];
+  state.starters.forEach((word, index) => {
+    const offset = starterOffsets[index] ?? ((index - 1) * 180);
+    spawnWordOnField(word, {
+      x: clamp(centerX + offset, bounds.minX, bounds.maxX),
+      y: clamp(centerY, bounds.minY, bounds.maxY),
+    });
+  });
   queueProgressSave();
 
+  const starterNames = state.starters.map((word) => titleCase(word));
+  const starterSummary = starterNames.length > 1
+    ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
+    : starterNames[0];
   setStatus(
-    `New game started with ${titleCase(state.starters[0])} and ${titleCase(state.starters[1])}. Mix them to discover new words.`,
+    `New game started with ${starterSummary}. Mix them to discover new words.`,
     "ok",
   );
 }
