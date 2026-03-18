@@ -74,6 +74,38 @@ const ENCYCLOPEDIA_CATEGORIES = [
     name: "Transport",
     words: ["boat", "train", "bicycle", "truck", "airplane"],
   },
+  {
+    name: "Fashion",
+    words: ["shirt", "dress", "hat", "garment", "couture"],
+  },
+  {
+    name: "Fabrics",
+    words: ["wool", "silk", "cotton", "denim", "polyester"],
+  },
+  {
+    name: "Colors",
+    words: ["red", "blue", "green", "crimson", "turquoise"],
+  },
+  {
+    name: "Anatomy",
+    words: ["hand", "bone", "tooth", "artery", "retina"],
+  },
+  {
+    name: "Gestures",
+    words: ["wave", "nod", "clap", "beckon", "salute"],
+  },
+  {
+    name: "Illness",
+    words: ["cold", "cough", "fever", "migraine", "infection"],
+  },
+  {
+    name: "Technology",
+    words: ["screen", "cable", "battery", "algorithm", "database"],
+  },
+  {
+    name: "Filler Words",
+    words: ["very", "just", "really", "perhaps", "somehow"],
+  },
 ];
 
 const ENCYCLOPEDIA_WORDS = ENCYCLOPEDIA_CATEGORIES.flatMap((category) =>
@@ -93,7 +125,7 @@ const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
-const WORDS_PER_NEGATIVE_MIX_TOKEN = 20;
+const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
 const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
 const GARBAGE_BIN_UNLOCK_WORDS = 30;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
@@ -149,7 +181,7 @@ const state = {
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
-  playfieldZoom: 0.5,
+  playfieldZoom: 1,
   playfieldCamera: {
     x: 0,
     y: 0,
@@ -171,7 +203,6 @@ const els = {
   emptyMessage: document.querySelector("[data-empty-message]"),
   zoomOutButton: document.querySelector("[data-action='zoom-out']"),
   zoomInButton: document.querySelector("[data-action='zoom-in']"),
-  zoomResetButton: document.querySelector("[data-action='zoom-reset']"),
   playfieldZoomValue: document.querySelector("[data-playfield-zoom-value]"),
   playfieldZoneValue: document.querySelector("[data-playfield-zone-value]"),
   garbagePanel: document.querySelector("[data-garbage-panel]"),
@@ -550,7 +581,7 @@ function getMinimumUnlockedZoom() {
 }
 
 function getNormalizedPlayfieldZoom(value) {
-  const fallback = 0.5;
+  const fallback = 1;
   const parsed = Number.isFinite(value) ? value : fallback;
   return clamp(roundTo(parsed), getMinimumUnlockedZoom(), MAX_PLAYFIELD_ZOOM);
 }
@@ -665,7 +696,6 @@ function updatePlayfieldCamera() {
   els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words`;
   els.zoomOutButton.disabled = state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
   els.zoomInButton.disabled = state.playfieldZoom >= MAX_PLAYFIELD_ZOOM - 0.001;
-  els.zoomResetButton.disabled = Math.abs(state.playfieldZoom - 1) < 0.001;
 }
 
 function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
@@ -1873,7 +1903,7 @@ function getMixOutcomeMessage(
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`;
     stateName = "ok";
   } else {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It is not one of the 40 encyclopedia words, so it only appeared on the field.`;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, so it only appeared on the field.`;
     stateName = "ok";
   }
 
@@ -2789,8 +2819,8 @@ function resetRun() {
   state.hasActiveNegativeMixToken = false;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
-  state.playfieldZoom = 0.5;
-  state.playfieldCamera = getDefaultPlayfieldCamera(0.5);
+  state.playfieldZoom = 1;
+  state.playfieldCamera = getDefaultPlayfieldCamera(1);
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -2929,9 +2959,6 @@ function initEvents() {
   });
   els.zoomInButton.addEventListener("click", () => {
     adjustPlayfieldZoom(PLAYFIELD_ZOOM_STEP);
-  });
-  els.zoomResetButton.addEventListener("click", () => {
-    setPlayfieldZoom(0.5, { silent: true });
   });
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
   els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);

@@ -22,7 +22,7 @@
           </button>
           <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
             Encyclopedia
-            <span class="encyclopedia-count" data-encyclopedia-count>0 / 40</span>
+            <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
           </button>
         </div>
       </header>
@@ -41,11 +41,10 @@
             <div class="playfield-actions">
               <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
                 <button type="button" class="ghost-button" data-action="zoom-out" aria-label="Zoom out">-</button>
-                <button type="button" class="ghost-button" data-action="zoom-reset">50%</button>
+                <span class="section-count playfield-zoom-pill" data-playfield-zoom-value>100%</span>
                 <button type="button" class="ghost-button" data-action="zoom-in" aria-label="Zoom in">+</button>
               </div>
               <div class="playfield-zoom-readout">
-                <span class="section-count" data-playfield-zoom-value>100%</span>
                 <span class="muted" data-playfield-zone-value>1 / 1 zones</span>
               </div>
               <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
@@ -141,7 +140,7 @@
               <h3>Usable Tokens</h3>
               <span class="section-count" data-token-panel-count>0</span>
             </div>
-            <p class="muted token-panel-copy">Encyclopedia discoveries earn Ban Word tokens. Every 20 unique words discovered also earns a minus-mix token.</p>
+            <p class="muted token-panel-copy">Encyclopedia discoveries earn Ban Word tokens. Every 15 unique words discovered also earns a minus-mix token.</p>
             <div class="token-list" data-token-list>
               <p class="source-word-empty">No tokens yet.</p>
             </div>
@@ -155,7 +154,7 @@
         <div class="modal-head">
           <div>
             <h2 id="encyclopedia-title">Encyclopedia</h2>
-            <p class="muted">Forty hidden words across eight categories.</p>
+            <p class="muted">Eighty hidden words across sixteen categories.</p>
           </div>
           <button type="button" class="ghost-button" data-action="close-encyclopedia">Close</button>
         </div>

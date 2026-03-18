@@ -172,12 +172,18 @@ input {
 
 .playfield-zoom-controls {
   display: inline-flex;
+  align-items: center;
   gap: 0.45rem;
 }
 
 .playfield-zoom-controls button {
   min-width: 3rem;
   padding-inline: 0.85rem;
+}
+
+.playfield-zoom-pill {
+  min-width: 4.2rem;
+  pointer-events: none;
 }
 
 .playfield-zoom-readout {
