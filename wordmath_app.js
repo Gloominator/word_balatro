@@ -152,6 +152,7 @@ const state = {
   starters: [],
   discovered: new Map(),
   selfMatchedWords: new Set(),
+  spawnExistingWords: false,
   tiles: [],
   search: "",
   negativeMix: {
@@ -261,11 +262,14 @@ const els = {
   importSaveButton: document.querySelector("[data-action='import-save']"),
   settingsModal: document.querySelector("[data-settings-modal]"),
   saveFileInput: document.querySelector("[data-save-file-input]"),
+  spawnExistingWordsToggle: document.querySelector("[data-setting='spawn-existing-words']"),
 };
 
 let pendingProgressSave = null;
 let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
+let activeFloatingWordNotice = null;
+let activeFloatingWordNoticeTimeout = null;
 
 function getSafeCount(value, fallback = 0) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
@@ -484,6 +488,7 @@ function buildProgressSnapshot() {
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     selfMatchedWords: [...state.selfMatchedWords],
+    spawnExistingWords: state.spawnExistingWords,
     tiles: state.tiles.map((tile) => ({
       id: tile.id,
       word: tile.word,
@@ -672,6 +677,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.starters = starters;
   state.discovered = discovered;
   state.selfMatchedWords = new Set(getStringList(snapshot.selfMatchedWords));
+  state.spawnExistingWords = Boolean(snapshot.spawnExistingWords);
   state.tiles = tiles;
   state.search = "";
   state.negativeMix.a = typeof snapshot.negativeMix?.a === "string" ? snapshot.negativeMix.a : null;
@@ -762,8 +768,10 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   renderTiles();
   renderNegativeMix();
   renderHistory();
+  renderSettings();
   setStatus(statusMessage, "ok");
   clearFloatingCandidatePreview();
+  clearFloatingWordNotice();
   return true;
 }
 
@@ -1028,6 +1036,14 @@ function getAvailableWords() {
   return getAvailableWordEntries().map((entry) => entry.word);
 }
 
+function getAvailableEntryForWord(word, normalized = word) {
+  const canonicalWord = getCanonicalWord(word, normalized);
+  return getAvailableWordEntries().find((entry) =>
+    entry.key === normalized
+    || entry.key === canonicalWord.toLowerCase()
+    || entry.word === canonicalWord) || null;
+}
+
 function getEncyclopediaEntry(word, normalized = word) {
   return ENCYCLOPEDIA_LOOKUP.get(normalized) || ENCYCLOPEDIA_LOOKUP.get(word.toLowerCase()) || null;
 }
@@ -1283,6 +1299,54 @@ function clearFloatingCandidatePreview() {
     activeFloatingCandidatePreview.remove();
     activeFloatingCandidatePreview = null;
   }
+}
+
+function clearFloatingWordNotice() {
+  if (activeFloatingWordNoticeTimeout !== null) {
+    window.clearTimeout(activeFloatingWordNoticeTimeout);
+    activeFloatingWordNoticeTimeout = null;
+  }
+  if (activeFloatingWordNotice) {
+    activeFloatingWordNotice.remove();
+    activeFloatingWordNotice = null;
+  }
+}
+
+function showFloatingWordNotice(message, tone = "success", clientPoint = null) {
+  clearFloatingWordNotice();
+
+  const playfieldRect = els.playfield.getBoundingClientRect();
+  const notice = document.createElement("div");
+  notice.className = "floating-word-notice";
+  notice.dataset.tone = tone;
+  notice.textContent = message;
+
+  const localX = clientPoint
+    ? clientPoint.x - playfieldRect.left
+    : els.playfield.clientWidth / 2;
+  const localY = clientPoint
+    ? clientPoint.y - playfieldRect.top
+    : els.playfield.clientHeight / 2;
+  notice.style.left = `${localX + 14}px`;
+  notice.style.top = `${localY - 16}px`;
+
+  els.playfield.append(notice);
+  activeFloatingWordNotice = notice;
+  activeFloatingWordNoticeTimeout = window.setTimeout(() => {
+    clearFloatingWordNotice();
+  }, 300);
+}
+
+function getClientPointForWorldPosition(position) {
+  if (!position) {
+    return null;
+  }
+  const playfieldRect = els.playfield.getBoundingClientRect();
+  const renderedPosition = getRenderedPoint(position);
+  return {
+    x: playfieldRect.left + renderedPosition.x,
+    y: playfieldRect.top + renderedPosition.y,
+  };
 }
 
 function showFloatingCandidatePreview(candidates, clientPoint = null) {
@@ -2565,7 +2629,7 @@ function spawnResultTile(word, firstTile, secondTile) {
   spawnWordOnField(word, { x, y });
 }
 
-function handleTileClick(word, position, tileId = null) {
+function handleTileClick(word, position, tileId = null, clientPoint = null) {
   if (state.googlePickMode) {
     openGoogleMeaning(word);
     return Promise.resolve();
@@ -2578,7 +2642,7 @@ function handleTileClick(word, position, tileId = null) {
   if (sameWord && withinWindow) {
     state.clickTracker.word = null;
     state.clickTracker.time = 0;
-    return runSelfMatch(word, position, tileId);
+    return runSelfMatch(word, position, tileId, clientPoint);
   }
 
   state.clickTracker.word = word;
@@ -2586,7 +2650,7 @@ function handleTileClick(word, position, tileId = null) {
   return Promise.resolve();
 }
 
-async function runSelfMatch(word, position = null, tileId = null) {
+async function runSelfMatch(word, position = null, tileId = null, clientPoint = null) {
   let mix;
   try {
     mix = await getAssociation(word, word, "add");
@@ -2602,16 +2666,14 @@ async function runSelfMatch(word, position = null, tileId = null) {
   }
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", selection.candidates);
   if (position) {
-    const playfieldRect = els.playfield.getBoundingClientRect();
-    const renderedPosition = getRenderedPoint(position);
     showFloatingCandidatePreview(selection.candidates, {
-      x: playfieldRect.left + renderedPosition.x,
-      y: playfieldRect.top + renderedPosition.y,
+      ...getClientPointForWorldPosition(position),
     });
   } else {
     showFloatingCandidatePreview(selection.candidates);
   }
   const selectedCandidate = selection.candidate;
+  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2626,17 +2688,37 @@ async function runSelfMatch(word, position = null, tileId = null) {
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  spawnWordOnField(canonicalResult, position);
-  const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
-    newNegativeMixTokens,
-    newBanWordTokens,
-    newWildcardTokens,
-    newPositionTokenRewards,
-    newZonesUnlocked,
-    completedCategories,
-    usedShift: selection.usedShift,
-    refundedTagCount: selection.refundedTagCount,
-  });
+  const noticePoint = clientPoint || getClientPointForWorldPosition(position);
+  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  if (shouldBlockSpawn) {
+    showFloatingWordNotice("❌", "error", noticePoint);
+  } else {
+    spawnWordOnField(canonicalResult, position);
+    if (!state.spawnExistingWords) {
+      showFloatingWordNotice("💡", "success", noticePoint);
+    }
+  }
+  let status;
+  if (shouldBlockSpawn) {
+    status = {
+      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
+      stateName: "ok",
+    };
+  } else {
+    status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
+      newNegativeMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newPositionTokenRewards,
+      newZonesUnlocked,
+      completedCategories,
+      usedShift: selection.usedShift,
+      refundedTagCount: selection.refundedTagCount,
+    });
+    if (!state.spawnExistingWords) {
+      status.stateName = "success";
+    }
+  }
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
@@ -2660,6 +2742,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
   showFloatingCandidatePreview(selection.candidates, clientPoint);
   const selectedCandidate = selection.candidate;
+  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2676,25 +2759,44 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     markWordAsSelfMatched(firstTile.word);
   }
   recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  spawnResultTile(canonicalResult, firstTile, secondTile);
-  const status = getMixOutcomeMessage(
-    firstTile.word,
-    secondTile.word,
-    canonicalResult,
-    "add",
-    isInEncyclopedia,
-    wasDiscovered,
-    {
-      newNegativeMixTokens,
-      newBanWordTokens,
-      newWildcardTokens,
-      newPositionTokenRewards,
-      newZonesUnlocked,
-      completedCategories,
-      usedShift: selection.usedShift,
-      refundedTagCount: selection.refundedTagCount,
-    },
-  );
+  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  if (shouldBlockSpawn) {
+    showFloatingWordNotice("❌", "error", clientPoint);
+  } else {
+    spawnResultTile(canonicalResult, firstTile, secondTile);
+    if (!state.spawnExistingWords) {
+      showFloatingWordNotice("💡", "success", clientPoint);
+    }
+  }
+  let status;
+  if (shouldBlockSpawn) {
+    status = {
+      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
+      stateName: "ok",
+    };
+  } else {
+    status = getMixOutcomeMessage(
+      firstTile.word,
+      secondTile.word,
+      canonicalResult,
+      "add",
+      isInEncyclopedia,
+      wasDiscovered,
+      {
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        usedShift: selection.usedShift,
+        refundedTagCount: selection.refundedTagCount,
+      },
+    );
+    if (!state.spawnExistingWords) {
+      status.stateName = "success";
+    }
+  }
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
@@ -2813,7 +2915,7 @@ function rememberResult(result, normalized = result) {
   };
 }
 
-async function runNegativeMix() {
+async function runNegativeMix(clientPoint = null) {
   if (!(state.negativeMix.a && state.negativeMix.b)) {
     setStatus("Negative mixing needs both A and B.", "error");
     return;
@@ -2848,6 +2950,7 @@ async function runNegativeMix() {
   }
   setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", selection.candidates);
   const selectedCandidate = selection.candidate;
+  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2868,25 +2971,44 @@ async function runNegativeMix() {
     selection.candidates,
     selectedCandidate.word,
   );
-  spawnWordOnField(canonicalResult, { x: 340, y: 48 });
-  const status = getMixOutcomeMessage(
-    state.negativeMix.a,
-    state.negativeMix.b,
-    canonicalResult,
-    "subtract",
-    isInEncyclopedia,
-    wasDiscovered,
-    {
-      newNegativeMixTokens,
-      newBanWordTokens,
-      newWildcardTokens,
-      newPositionTokenRewards,
-      newZonesUnlocked,
-      completedCategories,
-      usedShift: selection.usedShift,
-      refundedTagCount: selection.refundedTagCount,
-    },
-  );
+  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  if (shouldBlockSpawn) {
+    showFloatingWordNotice("❌", "error", clientPoint);
+  } else {
+    spawnWordOnField(canonicalResult, { x: 340, y: 48 });
+    if (!state.spawnExistingWords) {
+      showFloatingWordNotice("💡", "success", clientPoint);
+    }
+  }
+  let status;
+  if (shouldBlockSpawn) {
+    status = {
+      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
+      stateName: "ok",
+    };
+  } else {
+    status = getMixOutcomeMessage(
+      state.negativeMix.a,
+      state.negativeMix.b,
+      canonicalResult,
+      "subtract",
+      isInEncyclopedia,
+      wasDiscovered,
+      {
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        usedShift: selection.usedShift,
+        refundedTagCount: selection.refundedTagCount,
+      },
+    );
+    if (!state.spawnExistingWords) {
+      status.stateName = "success";
+    }
+  }
   hideNegativeMixAfterUse();
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
@@ -3032,7 +3154,10 @@ function startTileDrag(event, tileId) {
         await handleTileClick(tile.word, {
           x: clamp(tile.x + 28, bounds.minX, bounds.maxX),
           y: clamp(tile.y + 28, bounds.minY, bounds.maxY),
-        }, tile.id);
+        }, tile.id, {
+          x: endEvent.clientX,
+          y: endEvent.clientY,
+        });
       } catch (error) {
         setStatus(error.message, "error");
       }
@@ -3182,11 +3307,16 @@ function closeHistory() {
 }
 
 function openSettings() {
+  renderSettings();
   els.settingsModal.hidden = false;
 }
 
 function closeSettings() {
   els.settingsModal.hidden = true;
+}
+
+function renderSettings() {
+  els.spawnExistingWordsToggle.checked = state.spawnExistingWords;
 }
 
 function exportSaveSnapshot() {
@@ -3226,6 +3356,7 @@ function resetRun() {
   state.starters = sampleStarters();
   state.discovered = new Map(state.starters.map((word) => [word, word]));
   state.selfMatchedWords = new Set();
+  state.spawnExistingWords = false;
   state.tiles = [];
   state.search = "";
   state.removedResultWords = new Set();
@@ -3280,6 +3411,8 @@ function resetRun() {
   renderTiles();
   renderNegativeMix();
   renderHistory();
+  renderSettings();
+  clearFloatingWordNotice();
 
   const bounds = getPlayfieldBounds();
   const centerX = Math.round((bounds.worldWidth / 2) - (TILE_WIDTH / 2));
@@ -3453,9 +3586,12 @@ function initEvents() {
       ? "Google mode is on. Click a field word or available word to search its meaning."
       : "Google mode is off.");
   });
-  els.runNegativeButton.addEventListener("click", async () => {
+  els.runNegativeButton.addEventListener("click", async (event) => {
     try {
-      await runNegativeMix();
+      await runNegativeMix({
+        x: event.clientX,
+        y: event.clientY,
+      });
     } catch (error) {
       setStatus(error.message, "error");
     }
@@ -3466,6 +3602,16 @@ function initEvents() {
   els.closeSettingsButton.addEventListener("click", closeSettings);
   els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
   els.importSaveButton.addEventListener("click", promptSaveImport);
+  els.spawnExistingWordsToggle.addEventListener("change", () => {
+    state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
+    queueProgressSave();
+    setStatus(
+      state.spawnExistingWords
+        ? "Spawn existing words is on."
+        : "Spawn existing words is off. Matches will skip words already in Available Words.",
+      "ok",
+    );
+  });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     await importSaveSnapshotFromFile(file);
