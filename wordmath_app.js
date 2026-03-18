@@ -119,6 +119,7 @@ const state = {
   totalBanWordTokensEarned: 0,
   availableSecondResultTokens: 0,
   totalSecondResultTokensEarned: 0,
+  completedEncyclopediaCategories: new Set(),
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
@@ -228,6 +229,7 @@ function buildProgressSnapshot() {
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableSecondResultTokens: state.availableSecondResultTokens,
     totalSecondResultTokensEarned: state.totalSecondResultTokensEarned,
+    completedEncyclopediaCategories: [...state.completedEncyclopediaCategories],
     hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
     activeSidebarTab: state.activeSidebarTab,
     unseenTokenRewards: state.unseenTokenRewards,
@@ -396,6 +398,13 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
   state.totalSecondResultTokensEarned = getSafeCount(snapshot.totalSecondResultTokensEarned);
+  state.completedEncyclopediaCategories = new Set(
+    getStringList(snapshot.completedEncyclopediaCategories).length > 0
+      ? getStringList(snapshot.completedEncyclopediaCategories)
+      : getCompletedEncyclopediaCategoryNames(new Set(
+        [...discovered.keys()].filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)),
+      )),
+  );
   state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
   state.activeSidebarTab = snapshot.activeSidebarTab === "tokens" && hasUnlockedAnyTokenType()
     ? "tokens"
@@ -523,6 +532,12 @@ function getDiscoveredEncyclopediaWords() {
   );
 }
 
+function getCompletedEncyclopediaCategoryNames(discoveredWords = getDiscoveredEncyclopediaWords()) {
+  return ENCYCLOPEDIA_CATEGORIES
+    .filter((category) => category.words.every((word) => discoveredWords.has(word)))
+    .map((category) => category.name);
+}
+
 function getEncyclopediaDiscoveryCount() {
   return getDiscoveredEncyclopediaWords().size;
 }
@@ -544,7 +559,10 @@ function getTotalUsableTokenCount() {
 }
 
 function hasUnlockedAnyTokenType() {
-  return state.totalNegativeMixTokensEarned > 0
+  return state.availableNegativeMixTokens > 0
+    || state.availableBanWordTokens > 0
+    || state.availableSecondResultTokens > 0
+    || state.totalNegativeMixTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
     || state.totalSecondResultTokensEarned > 0;
 }
@@ -1103,6 +1121,64 @@ function rollGarbageRewardToken() {
   return "Ban Word";
 }
 
+function rollEqualRandomTokenReward() {
+  const rewardIndex = Math.floor(Math.random() * 3);
+  if (rewardIndex === 0) {
+    state.availableNegativeMixTokens += 1;
+    return "minus";
+  }
+  if (rewardIndex === 1) {
+    state.availableBanWordTokens += 1;
+    state.totalBanWordTokensEarned += 1;
+    return "ban";
+  }
+  state.availableSecondResultTokens += 1;
+  state.totalSecondResultTokensEarned += 1;
+  return "second";
+}
+
+function rewardCompletedEncyclopediaCategories() {
+  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+  const newlyCompletedCategories = getCompletedEncyclopediaCategoryNames(discoveredEncyclopediaWords)
+    .filter((categoryName) => !state.completedEncyclopediaCategories.has(categoryName));
+
+  if (!newlyCompletedCategories.length) {
+    return {
+      completedCategories: [],
+      newNegativeMixTokens: 0,
+      newBanWordTokens: 0,
+      newSecondResultTokens: 0,
+    };
+  }
+
+  let newNegativeMixTokens = 0;
+  let newBanWordTokens = 0;
+  let newSecondResultTokens = 0;
+  newlyCompletedCategories.forEach((categoryName) => {
+    state.completedEncyclopediaCategories.add(categoryName);
+    for (let rewardIndex = 0; rewardIndex < 5; rewardIndex += 1) {
+      const rewardType = rollEqualRandomTokenReward();
+      if (rewardType === "minus") {
+        newNegativeMixTokens += 1;
+      } else if (rewardType === "ban") {
+        newBanWordTokens += 1;
+      } else {
+        newSecondResultTokens += 1;
+      }
+    }
+  });
+
+  const totalNewTokens = newNegativeMixTokens + newBanWordTokens + newSecondResultTokens;
+  state.unseenTokenRewards += totalNewTokens;
+
+  return {
+    completedCategories: newlyCompletedCategories,
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newSecondResultTokens,
+  };
+}
+
 function hideWordFromPanel(word, explicitWordKey = null, tileId = null) {
   if (typeof word !== "string" || !word) {
     return { ok: false, alreadyHidden: false, refundedTagCount: 0 };
@@ -1475,6 +1551,7 @@ function getMixOutcomeMessage(
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
     newSecondResultTokens = 0,
+    completedCategories = [],
     usedShift = 0,
     refundedTagCount = 0,
   } = {},
@@ -1502,6 +1579,13 @@ function getMixOutcomeMessage(
   if (refundedTagCount > 0) {
     const tokenSuffix = refundedTagCount === 1 ? "token was" : "tokens were";
     message = `${message} There was no deep enough candidate, so ${refundedTagCount} Second Result ${tokenSuffix} refunded.`;
+    stateName = "reward";
+  }
+
+  if (completedCategories.length > 0) {
+    const categoryLabel = completedCategories.join(" and ");
+    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
+    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
     stateName = "reward";
   }
 
@@ -1769,6 +1853,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
@@ -1778,6 +1863,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    completedCategories,
     usedShift: selection.usedShift,
     refundedTagCount: selection.refundedTagCount,
   });
@@ -1800,6 +1886,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
@@ -1818,6 +1905,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       newNegativeMixTokens,
       newBanWordTokens,
       newSecondResultTokens,
+      completedCategories,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
     },
@@ -1835,8 +1923,10 @@ function rememberResult(result, normalized = result) {
   const wasDiscovered = Boolean(existing);
   const canonicalIsStarter = state.starters.includes(canonicalResult);
   let didDiscoverNewWord = false;
+  let newNegativeMixTokensFromCompletion = 0;
   let newBanWordTokens = 0;
   let newSecondResultTokens = 0;
+  let completedCategories = [];
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -1875,16 +1965,24 @@ function rememberResult(result, normalized = result) {
         discoveredEncyclopediaKeys: [...discoveredEncyclopediaWords],
       });
     }
+
+    const completionRewards = rewardCompletedEncyclopediaCategories();
+    completedCategories = completionRewards.completedCategories;
+    newNegativeMixTokensFromCompletion += completionRewards.newNegativeMixTokens;
+    newBanWordTokens += completionRewards.newBanWordTokens;
+    newSecondResultTokens += completionRewards.newSecondResultTokens;
   }
 
   if (didDiscoverNewWord && Math.random() < SECOND_RESULT_TOKEN_DROP_RATE) {
     state.availableSecondResultTokens += 1;
     state.totalSecondResultTokensEarned += 1;
     state.unseenTokenRewards += 1;
-    newSecondResultTokens = 1;
+    newSecondResultTokens += 1;
   }
 
-  if (newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
+  const totalNewNegativeMixTokens = newNegativeMixTokens + newNegativeMixTokensFromCompletion;
+
+  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
     if (state.activeSidebarTab === "tokens") {
       state.unseenTokenRewards = 0;
     }
@@ -1894,7 +1992,7 @@ function rememberResult(result, normalized = result) {
     ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
     : null;
 
-  if (didDiscoverNewWord || newNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0 || vocabularyOverflow) {
+  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0 || vocabularyOverflow) {
     renderSidebar();
   }
 
@@ -1902,9 +2000,10 @@ function rememberResult(result, normalized = result) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
-    newNegativeMixTokens,
+    newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    completedCategories,
     vocabularyOverflow,
   };
 }
@@ -1932,6 +2031,7 @@ async function runNegativeMix() {
     newNegativeMixTokens,
     newBanWordTokens,
     newSecondResultTokens,
+    completedCategories,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   recordMatch(
@@ -1954,6 +2054,7 @@ async function runNegativeMix() {
       newNegativeMixTokens,
       newBanWordTokens,
       newSecondResultTokens,
+      completedCategories,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
     },
@@ -2269,6 +2370,7 @@ function resetRun() {
   state.totalBanWordTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
+  state.completedEncyclopediaCategories = new Set();
   state.hiddenWordPanelWords = new Set();
   state.garbageWordsSinceReward = 0;
   state.garbageRewardLevel = 0;
