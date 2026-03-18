@@ -140,7 +140,7 @@ const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1.2;
 const STORAGE_KEY = "wordmath-progress-v1";
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
-const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze(["wildcard", 3, 4, 5]);
+const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const POSITION_TOKEN_CONFIG = Object.freeze({
   2: { title: "Second Result", shortLabel: "2nd" },
@@ -432,17 +432,8 @@ function spendWildcardToken() {
   return true;
 }
 
-function getUndiscoveredWildcardWords() {
-  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
-  return ENCYCLOPEDIA_WORDS
-    .map((entry) => entry.word)
-    .filter((word) => !discoveredEncyclopediaWords.has(word));
-}
-
 function getDiscoveryDropPool() {
-  return RANDOM_DISCOVERY_TOKEN_POOL.filter((rewardType) => {
-    return rewardType !== "wildcard" || getUndiscoveredWildcardWords().length > 0;
-  });
+  return RANDOM_DISCOVERY_TOKEN_POOL;
 }
 
 function awardRandomDiscoveryToken() {
@@ -843,7 +834,7 @@ function getMaxWorldScaleForZoneCount(zoneCount) {
 }
 
 function getMinimumUnlockedZoom() {
-  return Math.max(MIN_PLAYFIELD_ZOOM, 1 / getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount()));
+  return Math.max(MIN_PLAYFIELD_ZOOM, 1 / getUnlockedPlayfieldZoneCount());
 }
 
 function getNormalizedPlayfieldZoom(value) {
@@ -1446,6 +1437,23 @@ async function getAssociation(wordA, wordB, operation = "add") {
   return payload;
 }
 
+async function getRandomWildcardWord() {
+  const response = await fetch("./api/random-word");
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "Could not reveal a random word.");
+  }
+
+  const word = typeof payload.word === "string" ? payload.word.trim().toLowerCase() : "";
+  const normalized = typeof payload.normalized === "string" ? payload.normalized.trim().toLowerCase() : "";
+  if (!word || !normalized) {
+    throw new Error("Random word payload was incomplete.");
+  }
+
+  return { word, normalized };
+}
+
 function updateCounts() {
   els.discoveredCount.textContent = state.discovered.size.toString();
   els.availableCount.textContent = getAvailableWordEntries().length.toString();
@@ -1873,13 +1881,24 @@ function rewardCompletedEncyclopediaCategories() {
   };
 }
 
-function hideWordFromPanel(word, explicitWordKey = null, tileId = null) {
+function getRelatedTileIdsForWord(word) {
+  const removalKeys = getRemovalKeysForWord(word);
+  return state.tiles
+    .filter((tile) => setsIntersect(getRemovalKeysForWord(tile.word), removalKeys))
+    .map((tile) => tile.id);
+}
+
+function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null) {
   if (typeof word !== "string" || !word) {
     return { ok: false, alreadyHidden: false, refundedTagCount: 0 };
   }
 
   const wordKey = explicitWordKey || getWordKey(word);
-  const refundedTagCount = tileId === null ? 0 : removeTile(tileId);
+  const tileIds = tileIdsOrTileId === null
+    ? []
+    : (Array.isArray(tileIdsOrTileId) ? tileIdsOrTileId : [tileIdsOrTileId]);
+  const refundedTagCount = [...new Set(tileIds.filter((tileId) => Number.isFinite(tileId)))]
+    .reduce((count, tileId) => count + removeTile(tileId), 0);
   const refundMessage = refundedTagCount > 0
     ? getTaggedTokenRefundMessage(refundedTagCount)
     : "";
@@ -1969,7 +1988,11 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
     };
   }
 
-  const hideResult = hideWordFromPanel(oldestTrackedEntry.word, oldestTrackedEntry.key);
+  const hideResult = hideWordFromPanel(
+    oldestTrackedEntry.word,
+    oldestTrackedEntry.key,
+    getRelatedTileIdsForWord(oldestTrackedEntry.word),
+  );
   const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
     ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
     : "";
@@ -2035,15 +2058,17 @@ function banTileWordFromResults(tileId) {
   setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
 }
 
-function useWildcardToken(position = null) {
+async function useWildcardToken(position = null) {
   if (state.availableWildcardTokens <= 0) {
     setStatus("You do not have any wildcard tokens yet.", "error");
     return;
   }
 
-  const undiscoveredWords = getUndiscoveredWildcardWords();
-  if (!undiscoveredWords.length) {
-    setStatus("Every dictionary word is already discovered, so Wildcard has nothing left to reveal.", "error");
+  let randomWord;
+  try {
+    randomWord = await getRandomWildcardWord();
+  } catch (error) {
+    setStatus(error.message || "Could not reveal a random word.", "error");
     return;
   }
 
@@ -2052,8 +2077,6 @@ function useWildcardToken(position = null) {
     return;
   }
 
-  const randomIndex = Math.floor(Math.random() * undiscoveredWords.length);
-  const selectedWord = undiscoveredWords[randomIndex];
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2065,7 +2088,7 @@ function useWildcardToken(position = null) {
     newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
-  } = rememberResult(selectedWord, selectedWord);
+  } = rememberResult(randomWord.word, randomWord.normalized);
   spawnWordOnField(canonicalResult, position);
   const status = getWildcardOutcomeMessage(
     canonicalResult,
@@ -2182,7 +2205,7 @@ function renderTokenPanel() {
   if (state.availableWildcardTokens > 0) {
     els.tokenList.append(buildTokenButton({
       title: "Wildcard",
-      description: "Drag onto the field to reveal a random undiscovered dictionary word.",
+      description: "Drag onto the field to reveal a random dictionary word.",
       count: state.availableWildcardTokens,
       dragType: "wildcard",
       onClick: () => {
@@ -2434,8 +2457,11 @@ function getWildcardOutcomeMessage(
   } else if (isInEncyclopedia) {
     message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered, so it only appeared on the field.`;
     stateName = "ok";
+  } else if (!wasDiscovered) {
+    message = `${titleCase(canonicalResult)} is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, but Wildcard added it to your discovered words.`;
+    stateName = "success";
   } else {
-    message = `Wildcard revealed ${titleCase(canonicalResult)}. It only appeared on the field.`;
+    message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered and is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, so it only appeared on the field.`;
     stateName = "ok";
   }
 

@@ -264,6 +264,36 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
     return candidates[0], candidates
 
 
+def get_random_word_candidate() -> dict[str, str]:
+    """Pick a random point in embedding space, return the closest vocabulary word."""
+    nlp, _, row_to_key, normalized_vectors = get_language_resources()
+    dim = normalized_vectors.shape[1]
+
+    for _ in range(50):  # Retry if we hit invalid words
+        random_vector = np.random.randn(dim).astype(np.float32)
+        norm = np.linalg.norm(random_vector)
+        if norm < 1e-8:
+            continue
+        random_vector /= norm
+        similarities = normalized_vectors @ random_vector
+        best_indices = np.argsort(similarities)[::-1]
+
+        for idx in best_indices[:500]:
+            word_key = row_to_key[idx]
+            if word_key is None:
+                continue
+            lexeme = nlp.vocab[word_key]
+            candidate = lexeme.text.lower()
+            if not candidate.isalpha() or len(candidate) < 2:
+                continue
+            if is_profanity_like(candidate):
+                continue
+            candidate_form = get_preferred_root(candidate)
+            return {"word": candidate, "normalized": candidate_form}
+
+    raise ValueError("No suitable random words found.")
+
+
 NO_VECTOR_ERROR_PATTERN = re.compile(r"^'(?P<word>.+)' has no vector in this model\.$")
 
 
@@ -321,8 +351,32 @@ def mix_words():
     })
 
 
+@app.route("/api/random-word")
+def random_word():
+    try:
+        candidate = get_random_word_candidate()
+    except ValueError as error:
+        return jsonify({
+            "ok": False,
+            "error": str(error),
+        }), 400
+    except Exception as error:
+        return jsonify({
+            "ok": False,
+            "error": f"Unexpected random word error: {error}",
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "word": candidate["word"],
+        "normalized": candidate["normalized"],
+    })
+
+
 @app.route("/<path:filename>")
 def serve_static_asset(filename):
+    if filename == "api/random-word":
+        return random_word()
     if filename.startswith("api/"):
         return jsonify({
             "ok": False,
@@ -355,12 +409,33 @@ def parse_args():
         action="store_true",
         help="Serve the game without opening a browser tab automatically.",
     )
+    parser.add_argument(
+        "--export-random-words",
+        action="store_true",
+        help="Export random word pool to random_words.json and exit.",
+    )
     return parser.parse_args()
+
+
+def export_random_words():
+    """Write random_words.json for client-side wildcard (no API needed)."""
+    import json
+    os.chdir(APP_ROOT)
+    candidates = get_random_word_candidates()
+    out = [{"word": c["word"], "normalized": c["normalized"]} for c in candidates]
+    path = APP_ROOT / "random_words.json"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
+    print(f"Exported {len(out)} words to {path}")
 
 
 def main():
     args = parse_args()
     os.chdir(APP_ROOT)
+
+    if args.export_random_words:
+        export_random_words()
+        return
 
     port = args.port if args.port is not None else find_open_port()
     url = f"http://127.0.0.1:{port}/"
