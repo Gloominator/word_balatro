@@ -125,8 +125,9 @@ const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
+const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
-const SECOND_RESULT_TOKEN_DROP_RATE = 0.05;
+const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 30;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
 const AVAILABLE_WORD_WARNING_THRESHOLD = 50;
@@ -173,10 +174,12 @@ const state = {
   garbageRewardLevel: 0,
   availableNegativeMixTokens: 0,
   totalNegativeMixTokensEarned: 0,
+  progressNegativeMixTokensAwarded: 0,
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableSecondResultTokens: 0,
   totalSecondResultTokensEarned: 0,
+  progressSecondResultTokensAwarded: 0,
   completedEncyclopediaCategories: new Set(),
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
@@ -293,10 +296,12 @@ function buildProgressSnapshot() {
     garbageRewardLevel: state.garbageRewardLevel,
     availableNegativeMixTokens: state.availableNegativeMixTokens,
     totalNegativeMixTokensEarned: state.totalNegativeMixTokensEarned,
+    progressNegativeMixTokensAwarded: state.progressNegativeMixTokensAwarded,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableSecondResultTokens: state.availableSecondResultTokens,
     totalSecondResultTokensEarned: state.totalSecondResultTokensEarned,
+    progressSecondResultTokensAwarded: state.progressSecondResultTokensAwarded,
     completedEncyclopediaCategories: [...state.completedEncyclopediaCategories],
     hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
     activeSidebarTab: state.activeSidebarTab,
@@ -464,10 +469,18 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.garbageWordsSinceReward = getSafeCount(snapshot.garbageWordsSinceReward) % getCurrentGarbageTarget();
   state.availableNegativeMixTokens = getSafeCount(snapshot.availableNegativeMixTokens);
   state.totalNegativeMixTokensEarned = getSafeCount(snapshot.totalNegativeMixTokensEarned);
+  state.progressNegativeMixTokensAwarded = Math.min(
+    getUnlockedNegativeMixTokenCount(discovered.size),
+    getSafeCount(snapshot.progressNegativeMixTokensAwarded, getUnlockedNegativeMixTokenCount(discovered.size)),
+  );
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
   state.totalSecondResultTokensEarned = getSafeCount(snapshot.totalSecondResultTokensEarned);
+  state.progressSecondResultTokensAwarded = Math.min(
+    getUnlockedSecondResultTokenCount(discovered.size),
+    getSafeCount(snapshot.progressSecondResultTokensAwarded, getUnlockedSecondResultTokenCount(discovered.size)),
+  );
   state.completedEncyclopediaCategories = new Set(
     getStringList(snapshot.completedEncyclopediaCategories).length > 0
       ? getStringList(snapshot.completedEncyclopediaCategories)
@@ -546,7 +559,7 @@ function shuffle(array) {
 }
 
 function sampleStarters() {
-  return shuffle(STARTER_POOL).slice(0, 3).sort((a, b) => a.localeCompare(b));
+  return shuffle(STARTER_POOL).slice(0, 2).sort((a, b) => a.localeCompare(b));
 }
 
 function clamp(value, min, max) {
@@ -796,8 +809,18 @@ function getEncyclopediaDiscoveryCount() {
   return getDiscoveredEncyclopediaWords().size;
 }
 
-function getUnlockedTokenCount() {
-  return Math.floor(state.discovered.size / WORDS_PER_NEGATIVE_MIX_TOKEN);
+function getUnlockedNegativeMixTokenCount(discoveredCount = state.discovered.size) {
+  if (discoveredCount < NEGATIVE_MIX_FIRST_UNLOCK_WORDS) {
+    return 0;
+  }
+  if (discoveredCount < WORDS_PER_NEGATIVE_MIX_TOKEN) {
+    return 1;
+  }
+  return 2 + Math.floor((discoveredCount - WORDS_PER_NEGATIVE_MIX_TOKEN) / WORDS_PER_NEGATIVE_MIX_TOKEN);
+}
+
+function getUnlockedSecondResultTokenCount(discoveredCount = state.discovered.size) {
+  return discoveredCount >= SECOND_RESULT_FIRST_UNLOCK_WORDS ? 1 : 0;
 }
 
 function isGarbageBinUnlocked() {
@@ -2307,11 +2330,12 @@ function rememberResult(result, normalized = result) {
     state.discovered.delete(normalized);
   }
 
-  const unlockedTokenCount = getUnlockedTokenCount();
-  const newNegativeMixTokens = Math.max(0, unlockedTokenCount - state.totalNegativeMixTokensEarned);
+  const unlockedNegativeMixTokenCount = getUnlockedNegativeMixTokenCount();
+  const newNegativeMixTokens = Math.max(0, unlockedNegativeMixTokenCount - state.progressNegativeMixTokensAwarded);
   if (newNegativeMixTokens > 0) {
-    state.totalNegativeMixTokensEarned = unlockedTokenCount;
+    state.progressNegativeMixTokensAwarded = unlockedNegativeMixTokenCount;
     state.availableNegativeMixTokens += newNegativeMixTokens;
+    state.totalNegativeMixTokensEarned += newNegativeMixTokens;
     state.unseenTokenRewards += newNegativeMixTokens;
   }
 
@@ -2341,11 +2365,17 @@ function rememberResult(result, normalized = result) {
     newSecondResultTokens += completionRewards.newSecondResultTokens;
   }
 
-  if (didDiscoverNewWord && Math.random() < SECOND_RESULT_TOKEN_DROP_RATE) {
-    state.availableSecondResultTokens += 1;
-    state.totalSecondResultTokensEarned += 1;
-    state.unseenTokenRewards += 1;
-    newSecondResultTokens += 1;
+  const unlockedSecondResultTokenCount = getUnlockedSecondResultTokenCount();
+  const guaranteedSecondResultTokens = Math.max(
+    0,
+    unlockedSecondResultTokenCount - state.progressSecondResultTokensAwarded,
+  );
+  if (guaranteedSecondResultTokens > 0) {
+    state.progressSecondResultTokensAwarded = unlockedSecondResultTokenCount;
+    state.availableSecondResultTokens += guaranteedSecondResultTokens;
+    state.totalSecondResultTokensEarned += guaranteedSecondResultTokens;
+    state.unseenTokenRewards += guaranteedSecondResultTokens;
+    newSecondResultTokens += guaranteedSecondResultTokens;
   }
 
   const totalNewNegativeMixTokens = newNegativeMixTokens + newNegativeMixTokensFromCompletion;
@@ -2808,10 +2838,12 @@ function resetRun() {
   state.clickTracker.time = 0;
   state.availableNegativeMixTokens = 0;
   state.totalNegativeMixTokensEarned = 0;
+  state.progressNegativeMixTokensAwarded = 0;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
+  state.progressSecondResultTokensAwarded = 0;
   state.completedEncyclopediaCategories = new Set();
   state.hiddenWordPanelWords = new Set();
   state.garbageWordsSinceReward = 0;
@@ -2834,7 +2866,7 @@ function resetRun() {
   const bounds = getPlayfieldBounds();
   const centerX = Math.round((bounds.worldWidth / 2) - (TILE_WIDTH / 2));
   const centerY = Math.round((bounds.worldHeight / 2) - (TILE_HEIGHT / 2));
-  const starterOffsets = [-180, 0, 180];
+  const starterOffsets = [-120, 120];
   state.starters.forEach((word, index) => {
     const offset = starterOffsets[index] ?? ((index - 1) * 180);
     spawnWordOnField(word, {

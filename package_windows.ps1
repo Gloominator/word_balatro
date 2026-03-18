@@ -9,8 +9,8 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$ZipPath = Join-Path $ReleaseDir "WordMath-windows.zip"
 $DistDir = Join-Path $ProjectRoot "dist\WordMath"
+$ReleaseAppDir = Join-Path $ReleaseDir "WordMath-windows"
 
 Push-Location $ProjectRoot
 try {
@@ -33,14 +33,14 @@ try {
         Remove-Item $ReleaseDir -Recurse -Force
     }
 
-    New-Item -ItemType Directory -Path $ReleaseDir | Out-Null
+    New-Item -ItemType Directory -Path $ReleaseAppDir -Force | Out-Null
 
-    Compress-Archive -Path "$DistDir\*" -DestinationPath $ZipPath -Force
+    Copy-Item -Path "$DistDir\*" -Destination $ReleaseAppDir -Recurse -Force
 
     Write-Host ""
-    Write-Host "Package complete."
-    Write-Host "Share: $ZipPath"
-    Write-Host "Users can extract it and run WordMath.exe without installing Python or spaCy."
+    Write-Host "Package staging complete."
+    Write-Host "Share folder: $ReleaseAppDir"
+    Write-Host "Users can run WordMath.exe from that folder without installing Python or spaCy."
 } finally {
     Pop-Location
 }

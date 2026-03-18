@@ -42,9 +42,9 @@ After a successful build, launch:
 
 Ship the whole `dist\WordMath\` folder, not only the `.exe`.
 
-## Ready-to-share package
+## Ready-to-share folder
 
-To create a ZIP for distribution:
+To stage a distributable app folder:
 
 ```powershell
 .\package_windows.ps1 -Python "C:\Path\To\Python311\python.exe"
@@ -53,9 +53,9 @@ To create a ZIP for distribution:
 By default this creates a windowless app build and writes:
 
 ```text
-release\WordMath-windows.zip
+release\WordMath-windows\
 ```
 
-Users can unpack that ZIP and run `WordMath.exe` directly with no extra installations.
+Users can run `WordMath.exe` directly from that folder with no extra installations.
 
-If `dist\WordMath\` already exists, the packaging script reuses that build by default and just creates the ZIP. Use `-Rebuild` if you want to force a fresh build first.
+If `dist\WordMath\` already exists, the packaging script reuses that build by default and copies it into the release folder. Use `-Rebuild` if you want to force a fresh build first.
