@@ -138,6 +138,14 @@ const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1.2;
 const STORAGE_KEY = "wordmath-progress-v1";
+const POSITION_TOKEN_DISCOVERY_DROP_CHANCE = 0.05;
+const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
+const POSITION_TOKEN_CONFIG = Object.freeze({
+  2: { title: "Second Result", shortLabel: "2nd" },
+  3: { title: "Third Result", shortLabel: "3rd" },
+  4: { title: "Fourth Result", shortLabel: "4th" },
+  5: { title: "Fifth Result", shortLabel: "5th" },
+});
 
 const state = {
   starters: [],
@@ -179,6 +187,12 @@ const state = {
   totalBanWordTokensEarned: 0,
   availableSecondResultTokens: 0,
   totalSecondResultTokensEarned: 0,
+  availableThirdResultTokens: 0,
+  totalThirdResultTokensEarned: 0,
+  availableFourthResultTokens: 0,
+  totalFourthResultTokensEarned: 0,
+  availableFifthResultTokens: 0,
+  totalFifthResultTokensEarned: 0,
   progressSecondResultTokensAwarded: 0,
   completedEncyclopediaCategories: new Set(),
   hasActiveNegativeMixToken: false,
@@ -258,6 +272,153 @@ function getStringList(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
 }
 
+function getOrdinalLabel(rank) {
+  const ones = rank % 10;
+  const tens = Math.floor((rank % 100) / 10);
+  if (tens === 1) {
+    return `${rank}th`;
+  }
+  if (ones === 1) {
+    return `${rank}st`;
+  }
+  if (ones === 2) {
+    return `${rank}nd`;
+  }
+  if (ones === 3) {
+    return `${rank}rd`;
+  }
+  return `${rank}th`;
+}
+
+function getPositionTokenDisplayName(rank) {
+  return POSITION_TOKEN_CONFIG[rank]?.title || `${getOrdinalLabel(rank)} Result`;
+}
+
+function getPositionTokenShortLabel(rank) {
+  return POSITION_TOKEN_CONFIG[rank]?.shortLabel || getOrdinalLabel(rank);
+}
+
+function getPositionTokenDragType(rank) {
+  return `result-rank-${rank}`;
+}
+
+function getPositionTokenRankFromDragType(dragType) {
+  const match = /^result-rank-(\d+)$/.exec(dragType || "");
+  return match ? getSafeCount(Number(match[1])) : 0;
+}
+
+function getAvailablePositionTokenCount(rank) {
+  if (rank === 2) {
+    return state.availableSecondResultTokens;
+  }
+  if (rank === 3) {
+    return state.availableThirdResultTokens;
+  }
+  if (rank === 4) {
+    return state.availableFourthResultTokens;
+  }
+  if (rank === 5) {
+    return state.availableFifthResultTokens;
+  }
+  return 0;
+}
+
+function getTotalEarnedPositionTokenCount(rank) {
+  if (rank === 2) {
+    return state.totalSecondResultTokensEarned;
+  }
+  if (rank === 3) {
+    return state.totalThirdResultTokensEarned;
+  }
+  if (rank === 4) {
+    return state.totalFourthResultTokensEarned;
+  }
+  if (rank === 5) {
+    return state.totalFifthResultTokensEarned;
+  }
+  return 0;
+}
+
+function addPositionTokens(rank, count, { markAsEarned = true } = {}) {
+  const safeCount = getSafeCount(count);
+  if (safeCount <= 0) {
+    return;
+  }
+
+  if (rank === 2) {
+    state.availableSecondResultTokens += safeCount;
+    if (markAsEarned) {
+      state.totalSecondResultTokensEarned += safeCount;
+    }
+    return;
+  }
+  if (rank === 3) {
+    state.availableThirdResultTokens += safeCount;
+    if (markAsEarned) {
+      state.totalThirdResultTokensEarned += safeCount;
+    }
+    return;
+  }
+  if (rank === 4) {
+    state.availableFourthResultTokens += safeCount;
+    if (markAsEarned) {
+      state.totalFourthResultTokensEarned += safeCount;
+    }
+    return;
+  }
+  if (rank === 5) {
+    state.availableFifthResultTokens += safeCount;
+    if (markAsEarned) {
+      state.totalFifthResultTokensEarned += safeCount;
+    }
+  }
+}
+
+function spendPositionToken(rank) {
+  if (getAvailablePositionTokenCount(rank) <= 0) {
+    return false;
+  }
+
+  if (rank === 2) {
+    state.availableSecondResultTokens -= 1;
+  } else if (rank === 3) {
+    state.availableThirdResultTokens -= 1;
+  } else if (rank === 4) {
+    state.availableFourthResultTokens -= 1;
+  } else if (rank === 5) {
+    state.availableFifthResultTokens -= 1;
+  } else {
+    return false;
+  }
+
+  return true;
+}
+
+function createEmptyPositionTokenRewardSummary() {
+  return Object.fromEntries(POSITION_TOKEN_RANKS.map((rank) => [rank, 0]));
+}
+
+function getPositionTokenRewardCount(rewardSummary) {
+  return POSITION_TOKEN_RANKS.reduce((total, rank) => total + getSafeCount(rewardSummary?.[rank]), 0);
+}
+
+function getTileTagRank(tile) {
+  if (!tile) {
+    return 0;
+  }
+  if (Number.isFinite(tile.resultTagRank)) {
+    return getSafeCount(tile.resultTagRank);
+  }
+  return tile.secondResultTagged ? 2 : 0;
+}
+
+function getTaggedTokenRefundMessage(refundedTagCount) {
+  if (refundedTagCount <= 0) {
+    return "";
+  }
+  return ` ${refundedTagCount} tagged-result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`;
+}
+
 function buildProgressSnapshot() {
   return {
     version: 1,
@@ -267,7 +428,8 @@ function buildProgressSnapshot() {
     tiles: state.tiles.map((tile) => ({
       id: tile.id,
       word: tile.word,
-      secondResultTagged: Boolean(tile.secondResultTagged),
+      secondResultTagged: getTileTagRank(tile) === 2,
+      resultTagRank: getTileTagRank(tile),
       x: tile.x,
       y: tile.y,
       zIndex: tile.zIndex,
@@ -301,6 +463,12 @@ function buildProgressSnapshot() {
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableSecondResultTokens: state.availableSecondResultTokens,
     totalSecondResultTokensEarned: state.totalSecondResultTokensEarned,
+    availableThirdResultTokens: state.availableThirdResultTokens,
+    totalThirdResultTokensEarned: state.totalThirdResultTokensEarned,
+    availableFourthResultTokens: state.availableFourthResultTokens,
+    totalFourthResultTokensEarned: state.totalFourthResultTokensEarned,
+    availableFifthResultTokens: state.availableFifthResultTokens,
+    totalFifthResultTokensEarned: state.totalFifthResultTokensEarned,
     progressSecondResultTokensAwarded: state.progressSecondResultTokensAwarded,
     completedEncyclopediaCategories: [...state.completedEncyclopediaCategories],
     hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
@@ -356,7 +524,9 @@ function normalizeSavedTiles(value) {
     .map((tile) => ({
       id: getSafeCount(tile.id, 0),
       word: tile.word,
-      secondResultTagged: Boolean(tile.secondResultTagged),
+      resultTagRank: Number.isFinite(tile.resultTagRank)
+        ? getSafeCount(tile.resultTagRank)
+        : (tile.secondResultTagged ? 2 : 0),
       x: Number.isFinite(tile.x) ? tile.x : 0,
       y: Number.isFinite(tile.y) ? tile.y : 0,
       zIndex: getSafeCount(tile.zIndex, 1),
@@ -477,6 +647,12 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
   state.totalSecondResultTokensEarned = getSafeCount(snapshot.totalSecondResultTokensEarned);
+  state.availableThirdResultTokens = getSafeCount(snapshot.availableThirdResultTokens);
+  state.totalThirdResultTokensEarned = getSafeCount(snapshot.totalThirdResultTokensEarned);
+  state.availableFourthResultTokens = getSafeCount(snapshot.availableFourthResultTokens);
+  state.totalFourthResultTokensEarned = getSafeCount(snapshot.totalFourthResultTokensEarned);
+  state.availableFifthResultTokens = getSafeCount(snapshot.availableFifthResultTokens);
+  state.totalFifthResultTokensEarned = getSafeCount(snapshot.totalFifthResultTokensEarned);
   state.progressSecondResultTokensAwarded = Math.min(
     getUnlockedSecondResultTokenCount(discovered.size),
     getSafeCount(snapshot.progressSecondResultTokensAwarded, getUnlockedSecondResultTokenCount(discovered.size)),
@@ -832,16 +1008,18 @@ function getCurrentGarbageTarget() {
 }
 
 function getTotalUsableTokenCount() {
-  return state.availableNegativeMixTokens + state.availableBanWordTokens + state.availableSecondResultTokens;
+  return state.availableNegativeMixTokens
+    + state.availableBanWordTokens
+    + POSITION_TOKEN_RANKS.reduce((total, rank) => total + getAvailablePositionTokenCount(rank), 0);
 }
 
 function hasUnlockedAnyTokenType() {
   return state.availableNegativeMixTokens > 0
     || state.availableBanWordTokens > 0
-    || state.availableSecondResultTokens > 0
+    || POSITION_TOKEN_RANKS.some((rank) => getAvailablePositionTokenCount(rank) > 0)
     || state.totalNegativeMixTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
-    || state.totalSecondResultTokensEarned > 0;
+    || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
 }
 
 function shouldFlashTokenTab() {
@@ -852,29 +1030,25 @@ function getTileById(tileId) {
   return state.tiles.find((tile) => tile.id === tileId) || null;
 }
 
-function getTaggedTileIds(tileIds) {
-  return [...new Set(
-    tileIds.filter((tileId) => {
-      const tile = getTileById(tileId);
-      return Boolean(tile?.secondResultTagged);
-    }),
-  )];
+function getTaggedTiles(tileIds) {
+  return [...new Set(tileIds)]
+    .map((tileId) => getTileById(tileId))
+    .filter((tile) => getTileTagRank(tile) >= 2);
 }
 
-function releaseSecondResultTags(tileIds, { refund = false } = {}) {
+function releaseTaggedResultTokens(tileIds, { refund = false } = {}) {
   let releasedCount = 0;
-  getTaggedTileIds(tileIds).forEach((tileId) => {
-    const tile = getTileById(tileId);
-    if (!tile || !tile.secondResultTagged) {
+  getTaggedTiles(tileIds).forEach((tile) => {
+    const rank = getTileTagRank(tile);
+    if (!tile || rank < 2) {
       return;
     }
-    tile.secondResultTagged = false;
+    tile.resultTagRank = 0;
     releasedCount += 1;
+    if (refund) {
+      addPositionTokens(rank, 1, { markAsEarned: false });
+    }
   });
-
-  if (refund && releasedCount > 0) {
-    state.availableSecondResultTokens += releasedCount;
-  }
 
   if (releasedCount > 0) {
     renderSidebar();
@@ -991,30 +1165,33 @@ function getSelectedCandidate(candidates, shift) {
 
 function resolveCandidateSelection(candidates, tileIds = []) {
   const allowedCandidates = filterRemovedCandidates(candidates);
-  const taggedTileIds = getTaggedTileIds(tileIds);
-  const desiredShift = taggedTileIds.length;
+  const taggedTiles = getTaggedTiles(tileIds);
+  const taggedRanks = taggedTiles.map((tile) => getTileTagRank(tile));
+  const desiredResultRank = taggedRanks.length <= 0
+    ? 1
+    : taggedRanks.length === 1
+      ? taggedRanks[0]
+      : Math.max(...taggedRanks) + 1;
+  const desiredShift = Math.max(0, desiredResultRank - 1);
   if (!allowedCandidates.length) {
-    const refundedTagCount = taggedTileIds.length > 0
-      ? releaseSecondResultTags(taggedTileIds, { refund: true })
+    const refundedTagCount = taggedTiles.length > 0
+      ? releaseTaggedResultTokens(tileIds, { refund: true })
       : 0;
-    const refundSuffix = refundedTagCount > 0
-      ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
-      : "";
     return {
       candidate: null,
       candidates: [],
       usedShift: 0,
       refundedTagCount,
-      error: `All valid results for that mix have been permanently removed.${refundSuffix}`,
+      error: `All valid results for that mix have been permanently removed.${getTaggedTokenRefundMessage(refundedTagCount)}`,
     };
   }
   const canUseShiftedCandidate = desiredShift > 0 && allowedCandidates.length > desiredShift;
   const refundedTagCount = desiredShift > 0 && !canUseShiftedCandidate
-    ? releaseSecondResultTags(taggedTileIds, { refund: true })
+    ? releaseTaggedResultTokens(tileIds, { refund: true })
     : 0;
 
   if (desiredShift > 0 && canUseShiftedCandidate) {
-    releaseSecondResultTags(taggedTileIds);
+    releaseTaggedResultTokens(tileIds);
   }
 
   return {
@@ -1397,8 +1574,7 @@ function activateNegativeMixToken() {
 function rollGarbageRewardToken() {
   const roll = Math.random();
   if (roll < 0.65) {
-    state.availableSecondResultTokens += 1;
-    state.totalSecondResultTokensEarned += 1;
+    addPositionTokens(2, 1);
     return "Second Result";
   }
   if (roll < 0.9) {
@@ -1469,7 +1645,7 @@ function handleDeadEndMixError(error, sources = []) {
   queueProgressSave();
 
   const refundSuffix = refundedTagCount > 0
-    ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
+    ? getTaggedTokenRefundMessage(refundedTagCount)
     : "";
   setStatus(
     `You found a dead-end word! Here's a ${rewardedToken} token. ${titleCase(displayWord)} was erased from the run.${refundSuffix}`,
@@ -1489,8 +1665,7 @@ function rollEqualRandomTokenReward() {
     state.totalBanWordTokensEarned += 1;
     return "ban";
   }
-  state.availableSecondResultTokens += 1;
-  state.totalSecondResultTokensEarned += 1;
+  addPositionTokens(2, 1);
   return "second";
 }
 
@@ -1544,7 +1719,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileId = null) {
   const wordKey = explicitWordKey || getWordKey(word);
   const refundedTagCount = tileId === null ? 0 : removeTile(tileId);
   const refundMessage = refundedTagCount > 0
-    ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
+    ? getTaggedTokenRefundMessage(refundedTagCount)
     : "";
 
   if (state.hiddenWordPanelWords.has(wordKey)) {
@@ -1640,27 +1815,32 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
   return null;
 }
 
-function tagTileWithSecondResultToken(tileId) {
+function tagTileWithResultToken(tileId, rank) {
   const tile = getTileById(tileId);
   if (!tile) {
     setStatus("Drop that token onto a word on the field.", "error");
     return;
   }
-  if (tile.secondResultTagged) {
-    setStatus(`${titleCase(tile.word)} is already tagged.`, "ok");
+  const existingRank = getTileTagRank(tile);
+  if (existingRank >= 2) {
+    setStatus(`${titleCase(tile.word)} already has a ${getPositionTokenDisplayName(existingRank)} token on it.`, "ok");
     return;
   }
-  if (state.availableSecondResultTokens <= 0) {
-    setStatus("You do not have any second-result tokens yet.", "error");
+  if (getAvailablePositionTokenCount(rank) <= 0) {
+    setStatus(`You do not have any ${getPositionTokenDisplayName(rank).toLowerCase()} tokens yet.`, "error");
     return;
   }
 
-  state.availableSecondResultTokens -= 1;
-  tile.secondResultTagged = true;
+  if (!spendPositionToken(rank)) {
+    setStatus(`You do not have any ${getPositionTokenDisplayName(rank).toLowerCase()} tokens yet.`, "error");
+    return;
+  }
+
+  tile.resultTagRank = rank;
   renderSidebar();
   renderTiles();
   queueProgressSave();
-  setStatus(`${titleCase(tile.word)} is tagged to jump to a deeper mix result.`, "ok");
+  setStatus(`${titleCase(tile.word)} is tagged to jump to the ${getOrdinalLabel(rank)} valid mix result.`, "ok");
 }
 
 function banTileWordFromResults(tileId) {
@@ -1786,17 +1966,27 @@ function renderTokenPanel() {
     }));
   }
 
-  if (state.availableSecondResultTokens > 0) {
+  POSITION_TOKEN_RANKS.forEach((rank) => {
+    const count = getAvailablePositionTokenCount(rank);
+    if (count <= 0) {
+      return;
+    }
+
+    const title = getPositionTokenDisplayName(rank);
+    const description = rank === 5
+      ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
+      : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
+
     els.tokenList.append(buildTokenButton({
-      title: "Second Result",
-      description: "Drag onto a field word to tag it. Tagged mixes jump to the next valid result.",
-      count: state.availableSecondResultTokens,
-      dragType: "second-result",
+      title,
+      description,
+      count,
+      dragType: getPositionTokenDragType(rank),
       onClick: () => {
-        setStatus("Drag a Second Result token onto a word on the field.", "ok");
+        setStatus(`Drag a ${title} token onto a word on the field.`, "ok");
       },
     }));
-  }
+  });
 }
 
 function renderGarbageBin() {
@@ -1908,7 +2098,7 @@ function getMixOutcomeMessage(
   {
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
-    newSecondResultTokens = 0,
+    newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
     usedShift = 0,
@@ -1931,13 +2121,11 @@ function getMixOutcomeMessage(
   }
 
   if (usedShift > 0) {
-    const candidateLabel = usedShift === 1 ? "second" : "third";
-    message = `${message} A tagged word pushed this mix to the ${candidateLabel} valid result.`;
+    message = `${message} Tagged words pushed this mix to the ${getOrdinalLabel(usedShift + 1)} valid result.`;
   }
 
   if (refundedTagCount > 0) {
-    const tokenSuffix = refundedTagCount === 1 ? "token was" : "tokens were";
-    message = `${message} There was no deep enough candidate, so ${refundedTagCount} Second Result ${tokenSuffix} refunded.`;
+    message = `${message} There was no deep enough candidate, so${getTaggedTokenRefundMessage(refundedTagCount)}`;
     stateName = "reward";
   }
 
@@ -1957,10 +2145,14 @@ function getMixOutcomeMessage(
     const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
     rewardParts.push(`${newBanWordTokens} Ban Word ${tokenSuffix}`);
   }
-  if (newSecondResultTokens > 0) {
-    const tokenSuffix = newSecondResultTokens === 1 ? "token" : "tokens";
-    rewardParts.push(`${newSecondResultTokens} Second Result ${tokenSuffix}`);
-  }
+  POSITION_TOKEN_RANKS.forEach((rank) => {
+    const count = getSafeCount(newPositionTokenRewards?.[rank]);
+    if (count <= 0) {
+      return;
+    }
+    const tokenSuffix = count === 1 ? "token" : "tokens";
+    rewardParts.push(`${count} ${getPositionTokenDisplayName(rank)} ${tokenSuffix}`);
+  });
 
   if (rewardParts.length > 0) {
     message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
@@ -2086,7 +2278,7 @@ function makeTile(word, x, y) {
   return {
     id: state.nextTileId,
     word,
-    secondResultTagged: false,
+    resultTagRank: 0,
     x: clamp(x, bounds.minX, bounds.maxX),
     y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
@@ -2117,7 +2309,7 @@ function spawnWordOnField(word, position = null) {
 }
 
 function removeTile(tileId) {
-  const refundedTagCount = releaseSecondResultTags([tileId], { refund: true });
+  const refundedTagCount = releaseTaggedResultTokens([tileId], { refund: true });
   state.tiles = state.tiles.filter((tile) => tile.id !== tileId);
   Object.keys(state.negativeMixSources).forEach((slot) => {
     if (state.negativeMixSources[slot] === tileId) {
@@ -2227,7 +2419,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
-    newSecondResultTokens,
+    newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
@@ -2238,7 +2430,7 @@ async function runSelfMatch(word, position = null, tileId = null) {
   const status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
     newNegativeMixTokens,
     newBanWordTokens,
-    newSecondResultTokens,
+    newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
     usedShift: selection.usedShift,
@@ -2273,7 +2465,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
-    newSecondResultTokens,
+    newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
@@ -2293,7 +2485,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     {
       newNegativeMixTokens,
       newBanWordTokens,
-      newSecondResultTokens,
+      newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
       usedShift: selection.usedShift,
@@ -2316,7 +2508,7 @@ function rememberResult(result, normalized = result) {
   let didDiscoverNewWord = false;
   let newNegativeMixTokensFromCompletion = 0;
   let newBanWordTokens = 0;
-  let newSecondResultTokens = 0;
+  const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
   let completedCategories = [];
 
   if (!existing && !canonicalIsStarter) {
@@ -2362,7 +2554,18 @@ function rememberResult(result, normalized = result) {
     completedCategories = completionRewards.completedCategories;
     newNegativeMixTokensFromCompletion += completionRewards.newNegativeMixTokens;
     newBanWordTokens += completionRewards.newBanWordTokens;
-    newSecondResultTokens += completionRewards.newSecondResultTokens;
+    newPositionTokenRewards[2] += completionRewards.newSecondResultTokens;
+  }
+
+  if (didDiscoverNewWord) {
+    [3, 4, 5].forEach((rank) => {
+      if (Math.random() >= POSITION_TOKEN_DISCOVERY_DROP_CHANCE) {
+        return;
+      }
+      addPositionTokens(rank, 1);
+      state.unseenTokenRewards += 1;
+      newPositionTokenRewards[rank] += 1;
+    });
   }
 
   const unlockedSecondResultTokenCount = getUnlockedSecondResultTokenCount();
@@ -2372,16 +2575,16 @@ function rememberResult(result, normalized = result) {
   );
   if (guaranteedSecondResultTokens > 0) {
     state.progressSecondResultTokensAwarded = unlockedSecondResultTokenCount;
-    state.availableSecondResultTokens += guaranteedSecondResultTokens;
-    state.totalSecondResultTokensEarned += guaranteedSecondResultTokens;
+    addPositionTokens(2, guaranteedSecondResultTokens);
     state.unseenTokenRewards += guaranteedSecondResultTokens;
-    newSecondResultTokens += guaranteedSecondResultTokens;
+    newPositionTokenRewards[2] += guaranteedSecondResultTokens;
   }
 
   const totalNewNegativeMixTokens = newNegativeMixTokens + newNegativeMixTokensFromCompletion;
   const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
+  const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
-  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0) {
+  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || totalNewPositionTokens > 0) {
     if (state.activeSidebarTab === "tokens") {
       state.unseenTokenRewards = 0;
     }
@@ -2391,7 +2594,7 @@ function rememberResult(result, normalized = result) {
     ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
     : null;
 
-  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newSecondResultTokens > 0 || vocabularyOverflow) {
+  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
     renderSidebar();
   }
 
@@ -2401,7 +2604,7 @@ function rememberResult(result, normalized = result) {
     wasDiscovered,
     newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
-    newSecondResultTokens,
+    newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
@@ -2449,7 +2652,7 @@ async function runNegativeMix() {
     wasDiscovered,
     newNegativeMixTokens,
     newBanWordTokens,
-    newSecondResultTokens,
+    newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
     vocabularyOverflow,
@@ -2473,7 +2676,7 @@ async function runNegativeMix() {
     {
       newNegativeMixTokens,
       newBanWordTokens,
-      newSecondResultTokens,
+      newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
       usedShift: selection.usedShift,
@@ -2680,7 +2883,7 @@ function renderTiles() {
       tileElement.className = "tile";
       tileElement.dataset.kind = "discovered";
       tileElement.dataset.tileId = String(tile.id);
-      tileElement.dataset.tagged = tile.secondResultTagged ? "true" : "false";
+      tileElement.dataset.tagged = getTileTagRank(tile) >= 2 ? "true" : "false";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(tile.zIndex);
@@ -2702,8 +2905,9 @@ function renderTiles() {
         }
         event.preventDefault();
         event.stopPropagation();
-        if (tokenType === "second-result") {
-          tagTileWithSecondResultToken(tile.id);
+        const resultRank = getPositionTokenRankFromDragType(tokenType);
+        if (resultRank >= 2) {
+          tagTileWithResultToken(tile.id, resultRank);
           return;
         }
         if (tokenType === "ban-word") {
@@ -2718,7 +2922,7 @@ function renderTiles() {
         event.preventDefault();
         const refundedTagCount = removeTile(tile.id);
         const refundMessage = refundedTagCount > 0
-          ? ` Second Result token refunded.`
+          ? getTaggedTokenRefundMessage(refundedTagCount)
           : "";
         setStatus(`${titleCase(tile.word)} was removed from the field.${refundMessage}`);
       });
@@ -2729,8 +2933,8 @@ function renderTiles() {
 
       const tagElement = document.createElement("div");
       tagElement.className = "tile-tag";
-      tagElement.textContent = "2nd";
-      tagElement.hidden = !tile.secondResultTagged;
+      tagElement.textContent = getPositionTokenShortLabel(getTileTagRank(tile));
+      tagElement.hidden = getTileTagRank(tile) < 2;
 
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
@@ -2744,14 +2948,12 @@ function renderTiles() {
 }
 
 function clearField() {
-  const refundedTagCount = releaseSecondResultTags(state.tiles.map((tile) => tile.id), { refund: true });
+  const refundedTagCount = releaseTaggedResultTokens(state.tiles.map((tile) => tile.id), { refund: true });
   state.tiles = [];
   clearNegativeMix();
   renderTiles();
   queueProgressSave();
-  const refundMessage = refundedTagCount > 0
-    ? ` ${refundedTagCount} Second Result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`
-    : "";
+  const refundMessage = getTaggedTokenRefundMessage(refundedTagCount);
   setStatus(`The field was cleared.${refundMessage}`);
 }
 
@@ -2843,6 +3045,12 @@ function resetRun() {
   state.totalBanWordTokensEarned = 0;
   state.availableSecondResultTokens = 0;
   state.totalSecondResultTokensEarned = 0;
+  state.availableThirdResultTokens = 0;
+  state.totalThirdResultTokensEarned = 0;
+  state.availableFourthResultTokens = 0;
+  state.totalFourthResultTokensEarned = 0;
+  state.availableFifthResultTokens = 0;
+  state.totalFifthResultTokensEarned = 0;
   state.progressSecondResultTokensAwarded = 0;
   state.completedEncyclopediaCategories = new Set();
   state.hiddenWordPanelWords = new Set();
@@ -2909,8 +3117,9 @@ function initPlayfieldDropzone() {
       setStatus("Drop a Ban Word token onto a word on the field.", "error");
       return;
     }
-    if (tokenType === "second-result") {
-      setStatus("Drop a Second Result token onto a word on the field.", "error");
+    const resultRank = getPositionTokenRankFromDragType(tokenType);
+    if (resultRank >= 2) {
+      setStatus(`Drop a ${getPositionTokenDisplayName(resultRank)} token onto a word on the field.`, "error");
       return;
     }
 
