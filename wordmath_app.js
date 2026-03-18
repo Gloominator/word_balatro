@@ -19,6 +19,26 @@ const STARTER_POOL = [
   "mirror",
   "blanket",
   "fork",
+  "wallet",
+  "towel",
+  "notebook",
+  "helmet",
+  "camera",
+  "guitar",
+  "button",
+  "bucket",
+  "magnet",
+  "ticket",
+  "pocket",
+  "jacket",
+  "drawer",
+  "candle",
+  "bracelet",
+  "whistle",
+  "faucet",
+  "suitcase",
+  "kettle",
+  "ladle",
 ];
 
 const ENCYCLOPEDIA_CATEGORIES = [
@@ -79,8 +99,8 @@ const GARBAGE_BIN_UNLOCK_WORDS = 30;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
 const AVAILABLE_WORD_WARNING_THRESHOLD = 50;
 const PLAYFIELD_WORDS_PER_ZONE_UNLOCK = 50;
-const PLAYFIELD_BASE_WORLD_SCALE = 1.15;
-const PLAYFIELD_ZONE_SCALE_STEP = 0.6;
+const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
+const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
 const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1.2;
@@ -129,7 +149,11 @@ const state = {
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
-  playfieldZoom: 1,
+  playfieldZoom: 0.5,
+  playfieldCamera: {
+    x: 0,
+    y: 0,
+  },
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -247,6 +271,7 @@ function buildProgressSnapshot() {
     activeSidebarTab: state.activeSidebarTab,
     unseenTokenRewards: state.unseenTokenRewards,
     playfieldZoom: state.playfieldZoom,
+    playfieldCamera: { ...state.playfieldCamera },
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
   };
@@ -425,6 +450,10 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     : "words";
   state.unseenTokenRewards = getSafeCount(snapshot.unseenTokenRewards);
   state.playfieldZoom = getNormalizedPlayfieldZoom(snapshot.playfieldZoom);
+  state.playfieldCamera = clampPlayfieldCamera({
+    x: Number.isFinite(snapshot.playfieldCamera?.x) ? snapshot.playfieldCamera.x : getDefaultPlayfieldCamera(state.playfieldZoom).x,
+    y: Number.isFinite(snapshot.playfieldCamera?.y) ? snapshot.playfieldCamera.y : getDefaultPlayfieldCamera(state.playfieldZoom).y,
+  }, state.playfieldZoom);
   state.nextTileId = Math.max(
     getSafeCount(snapshot.nextTileId, 1),
     ...tiles.map((tile) => tile.id + 1),
@@ -521,61 +550,94 @@ function getMinimumUnlockedZoom() {
 }
 
 function getNormalizedPlayfieldZoom(value) {
-  const fallback = 1;
+  const fallback = 0.5;
   const parsed = Number.isFinite(value) ? value : fallback;
   return clamp(roundTo(parsed), getMinimumUnlockedZoom(), MAX_PLAYFIELD_ZOOM);
 }
 
-function getPlayfieldWorldScale(zoom = state.playfieldZoom) {
+function getPlayfieldWorldSize() {
+  const { width, height } = getPlayfieldViewportSize();
+  const unlockedScale = getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount());
+  return {
+    width: Math.max(width, Math.round(width * unlockedScale)),
+    height: Math.max(height, Math.round(height * unlockedScale)),
+  };
+}
+
+function getPlayfieldVisibleWorldSize(zoom = state.playfieldZoom) {
+  const { width, height } = getPlayfieldViewportSize();
   const safeZoom = clamp(zoom, MIN_PLAYFIELD_ZOOM, MAX_PLAYFIELD_ZOOM);
-  const unlockedScaleCap = getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount());
-  return clamp(1 / safeZoom, 1, unlockedScaleCap);
+  return {
+    width: width / safeZoom,
+    height: height / safeZoom,
+  };
+}
+
+function getDefaultPlayfieldCamera(zoom = state.playfieldZoom) {
+  const world = getPlayfieldWorldSize();
+  const visible = getPlayfieldVisibleWorldSize(zoom);
+  return {
+    x: Math.max(0, (world.width - visible.width) / 2),
+    y: Math.max(0, (world.height - visible.height) / 2),
+  };
+}
+
+function clampPlayfieldCamera(camera = state.playfieldCamera, zoom = state.playfieldZoom) {
+  const world = getPlayfieldWorldSize();
+  const visible = getPlayfieldVisibleWorldSize(zoom);
+  return {
+    x: clamp(roundTo(camera.x), 0, Math.max(0, world.width - visible.width)),
+    y: clamp(roundTo(camera.y), 0, Math.max(0, world.height - visible.height)),
+  };
+}
+
+function setPlayfieldCamera(nextCamera, { queueSave = false } = {}) {
+  state.playfieldCamera = clampPlayfieldCamera(nextCamera);
+  updatePlayfieldCamera();
+  renderTiles();
+  if (queueSave) {
+    queueProgressSave();
+  }
 }
 
 function getActivePlayfieldZoneCount(zoom = state.playfieldZoom) {
-  const worldScale = getPlayfieldWorldScale(zoom);
-  if (worldScale <= PLAYFIELD_BASE_WORLD_SCALE + 0.001) {
+  const visibleScale = 1 / clamp(zoom, MIN_PLAYFIELD_ZOOM, MAX_PLAYFIELD_ZOOM);
+  if (visibleScale <= 1.01) {
     return 1;
   }
   return Math.min(
     getUnlockedPlayfieldZoneCount(),
-    1 + Math.ceil((worldScale - PLAYFIELD_BASE_WORLD_SCALE - 0.001) / PLAYFIELD_ZONE_SCALE_STEP),
+    1 + Math.ceil((visibleScale - 1.001) / PLAYFIELD_ZONE_SCALE_STEP),
   );
 }
 
 function getPlayfieldBounds() {
   const { width, height } = getPlayfieldViewportSize();
-  const worldScale = getPlayfieldWorldScale();
-  const worldWidth = Math.max(width, Math.round(width * worldScale));
-  const worldHeight = Math.max(height, Math.round(height * worldScale));
-  const offsetX = Math.round((worldWidth - width) / 2);
-  const offsetY = Math.round((worldHeight - height) / 2);
+  const world = getPlayfieldWorldSize();
   return {
     width,
     height,
-    worldWidth,
-    worldHeight,
-    offsetX,
-    offsetY,
-    minX: -offsetX,
-    minY: -offsetY,
-    maxX: Math.max(-offsetX, width + offsetX - TILE_WIDTH),
-    maxY: Math.max(-offsetY, height + offsetY - TILE_HEIGHT),
+    worldWidth: world.width,
+    worldHeight: world.height,
+    minX: 0,
+    minY: 0,
+    maxX: Math.max(0, world.width - TILE_WIDTH),
+    maxY: Math.max(0, world.height - TILE_HEIGHT),
   };
 }
 
-function getRenderedPoint(point, bounds = getPlayfieldBounds()) {
+function getRenderedPoint(point) {
   return {
-    x: point.x + bounds.offsetX,
-    y: point.y + bounds.offsetY,
+    x: (point.x - state.playfieldCamera.x) * state.playfieldZoom,
+    y: (point.y - state.playfieldCamera.y) * state.playfieldZoom,
   };
 }
 
 function getPlayfieldPointFromClientPoint(clientX, clientY, bounds = getPlayfieldBounds()) {
-  const surfaceRect = els.playfieldSurface.getBoundingClientRect();
+  const playfieldRect = els.playfield.getBoundingClientRect();
   return {
-    x: ((clientX - surfaceRect.left) / state.playfieldZoom) - bounds.offsetX,
-    y: ((clientY - surfaceRect.top) / state.playfieldZoom) - bounds.offsetY,
+    x: clamp(state.playfieldCamera.x + ((clientX - playfieldRect.left) / state.playfieldZoom), bounds.minX, bounds.maxX),
+    y: clamp(state.playfieldCamera.y + ((clientY - playfieldRect.top) / state.playfieldZoom), bounds.minY, bounds.maxY),
   };
 }
 
@@ -592,7 +654,8 @@ function updatePlayfieldCamera() {
   const bounds = getPlayfieldBounds();
   els.playfieldSurface.style.width = `${bounds.worldWidth}px`;
   els.playfieldSurface.style.height = `${bounds.worldHeight}px`;
-  els.playfieldSurface.style.transform = `scale(${state.playfieldZoom})`;
+  state.playfieldCamera = clampPlayfieldCamera(state.playfieldCamera);
+  els.playfieldSurface.style.transform = `translate(${-state.playfieldCamera.x * state.playfieldZoom}px, ${-state.playfieldCamera.y * state.playfieldZoom}px) scale(${state.playfieldZoom})`;
 
   const unlockedZones = getUnlockedPlayfieldZoneCount();
   const visibleZones = getActivePlayfieldZoneCount();
@@ -620,7 +683,15 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
     return false;
   }
 
+  const visibleBefore = getPlayfieldVisibleWorldSize(state.playfieldZoom);
+  const centerX = state.playfieldCamera.x + (visibleBefore.width / 2);
+  const centerY = state.playfieldCamera.y + (visibleBefore.height / 2);
   state.playfieldZoom = clampedZoom;
+  const visibleAfter = getPlayfieldVisibleWorldSize(clampedZoom);
+  state.playfieldCamera = clampPlayfieldCamera({
+    x: centerX - (visibleAfter.width / 2),
+    y: centerY - (visibleAfter.height / 2),
+  }, clampedZoom);
   clampTilesToPlayfieldBounds();
   updatePlayfieldCamera();
   renderTiles();
@@ -1971,8 +2042,9 @@ function makeTile(word, x, y) {
 
 function getDefaultSpawnPosition() {
   const bounds = getPlayfieldBounds();
-  const centerX = Math.round((bounds.width / 2) - (TILE_WIDTH / 2));
-  const centerY = Math.round((bounds.height / 2) - (TILE_HEIGHT / 2));
+  const visible = getPlayfieldVisibleWorldSize();
+  const centerX = Math.round(state.playfieldCamera.x + (visible.width / 2) - (TILE_WIDTH / 2));
+  const centerY = Math.round(state.playfieldCamera.y + (visible.height / 2) - (TILE_HEIGHT / 2));
   const jitterX = Math.floor((Math.random() * 120) - 60);
   const jitterY = Math.floor((Math.random() * 120) - 60);
   return {
@@ -2089,8 +2161,8 @@ async function runSelfMatch(word, position = null, tileId = null) {
     const playfieldRect = els.playfield.getBoundingClientRect();
     const renderedPosition = getRenderedPoint(position);
     showFloatingCandidatePreview(selection.candidates, {
-      x: playfieldRect.left + (renderedPosition.x * state.playfieldZoom),
-      y: playfieldRect.top + (renderedPosition.y * state.playfieldZoom),
+      x: playfieldRect.left + renderedPosition.x,
+      y: playfieldRect.top + renderedPosition.y,
     });
   } else {
     showFloatingCandidatePreview(selection.candidates);
@@ -2388,6 +2460,54 @@ function getGarbageBinAtPoint(clientX, clientY) {
   return element ? element.closest("[data-garbage-bin]") : null;
 }
 
+function startPlayfieldPan(event) {
+  if (event.button !== 0) {
+    return;
+  }
+  if (event.target.closest(".tile, .negative-mix-panel")) {
+    return;
+  }
+
+  const startClientX = event.clientX;
+  const startClientY = event.clientY;
+  const startCamera = { ...state.playfieldCamera };
+  let panStarted = false;
+
+  const move = (moveEvent) => {
+    const deltaX = moveEvent.clientX - startClientX;
+    const deltaY = moveEvent.clientY - startClientY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (!panStarted) {
+      if (distance < DRAG_THRESHOLD) {
+        return;
+      }
+      panStarted = true;
+      els.playfield.dataset.panning = "true";
+    }
+
+    state.playfieldCamera = clampPlayfieldCamera({
+      x: startCamera.x - (deltaX / state.playfieldZoom),
+      y: startCamera.y - (deltaY / state.playfieldZoom),
+    });
+    updatePlayfieldCamera();
+  };
+
+  const end = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    delete els.playfield.dataset.panning;
+
+    if (panStarted) {
+      renderTiles();
+      queueProgressSave();
+    }
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end, { once: true });
+}
+
 function startTileDrag(event, tileId) {
   if (event.button !== 0) {
     return;
@@ -2399,6 +2519,7 @@ function startTileDrag(event, tileId) {
   }
 
   event.preventDefault();
+  event.stopPropagation();
 
   const tileElement = event.currentTarget;
   const tileRect = tileElement.getBoundingClientRect();
@@ -2429,9 +2550,8 @@ function startTileDrag(event, tileId) {
     const localPoint = getPlayfieldPointFromClientPoint(moveEvent.clientX, moveEvent.clientY, bounds);
     tile.x = clamp(localPoint.x - pointerOffsetX, bounds.minX, bounds.maxX);
     tile.y = clamp(localPoint.y - pointerOffsetY, bounds.minY, bounds.maxY);
-    const renderedPoint = getRenderedPoint(tile, bounds);
-    tileElement.style.left = `${renderedPoint.x}px`;
-    tileElement.style.top = `${renderedPoint.y}px`;
+    tileElement.style.left = `${tile.x}px`;
+    tileElement.style.top = `${tile.y}px`;
   };
 
   const end = async (endEvent) => {
@@ -2489,22 +2609,20 @@ function startTileDrag(event, tileId) {
 }
 
 function renderTiles() {
-  els.playfield.querySelectorAll(".tile").forEach((tile) => tile.remove());
+  els.playfieldSurface.querySelectorAll(".tile").forEach((tile) => tile.remove());
   els.emptyMessage.hidden = state.tiles.length > 0;
   updatePlayfieldCamera();
-  const bounds = getPlayfieldBounds();
 
   [...state.tiles]
     .sort((a, b) => a.zIndex - b.zIndex)
     .forEach((tile) => {
-      const renderedPoint = getRenderedPoint(tile, bounds);
       const tileElement = document.createElement("div");
       tileElement.className = "tile";
       tileElement.dataset.kind = "discovered";
       tileElement.dataset.tileId = String(tile.id);
       tileElement.dataset.tagged = tile.secondResultTagged ? "true" : "false";
-      tileElement.style.left = `${renderedPoint.x}px`;
-      tileElement.style.top = `${renderedPoint.y}px`;
+      tileElement.style.left = `${tile.x}px`;
+      tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(tile.zIndex);
       tileElement.addEventListener("pointerdown", (event) => startTileDrag(event, tile.id));
       tileElement.addEventListener("dragover", (event) => {
@@ -2671,7 +2789,8 @@ function resetRun() {
   state.hasActiveNegativeMixToken = false;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
-  state.playfieldZoom = 1;
+  state.playfieldZoom = 0.5;
+  state.playfieldCamera = getDefaultPlayfieldCamera(0.5);
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -2683,8 +2802,10 @@ function resetRun() {
   renderHistory();
 
   const bounds = getPlayfieldBounds();
-  spawnWordOnField(state.starters[0], { x: Math.round(bounds.width * 0.18), y: Math.round(bounds.height * 0.35) });
-  spawnWordOnField(state.starters[1], { x: Math.round(bounds.width * 0.58), y: Math.round(bounds.height * 0.35) });
+  const centerX = Math.round((bounds.worldWidth / 2) - (TILE_WIDTH / 2));
+  const centerY = Math.round((bounds.worldHeight / 2) - (TILE_HEIGHT / 2));
+  spawnWordOnField(state.starters[0], { x: clamp(centerX - 120, bounds.minX, bounds.maxX), y: clamp(centerY, bounds.minY, bounds.maxY) });
+  spawnWordOnField(state.starters[1], { x: clamp(centerX + 120, bounds.minX, bounds.maxX), y: clamp(centerY, bounds.minY, bounds.maxY) });
   queueProgressSave();
 
   setStatus(
@@ -2810,7 +2931,7 @@ function initEvents() {
     adjustPlayfieldZoom(PLAYFIELD_ZOOM_STEP);
   });
   els.zoomResetButton.addEventListener("click", () => {
-    setPlayfieldZoom(1, { silent: true });
+    setPlayfieldZoom(0.5, { silent: true });
   });
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
   els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);
@@ -2886,6 +3007,7 @@ function initEvents() {
     const direction = event.deltaY > 0 ? -1 : 1;
     adjustPlayfieldZoom(direction * PLAYFIELD_ZOOM_STEP);
   }, { passive: false });
+  els.playfield.addEventListener("pointerdown", startPlayfieldPan);
 
   window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !els.historyModal.hidden) {

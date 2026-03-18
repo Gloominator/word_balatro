@@ -357,6 +357,7 @@ input {
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     #0f1520;
   background-size: 32px 32px;
+  cursor: grab;
 }
 
 .playfield-surface {
@@ -365,6 +366,10 @@ input {
   left: 0;
   transform-origin: top left;
   will-change: transform;
+}
+
+.playfield[data-panning="true"] {
+  cursor: grabbing;
 }
 
 .playfield[data-drag-over="true"] {
