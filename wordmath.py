@@ -428,6 +428,34 @@ def spawn_word():
     })
 
 
+@app.route("/api/normalize-words", methods=["POST"])
+def normalize_words():
+    payload = request.get_json(silent=True) or {}
+    raw_words = payload.get("words")
+    if not isinstance(raw_words, list):
+        return jsonify({
+            "ok": False,
+            "error": "Expected a JSON body with a 'words' array.",
+        }), 400
+
+    results = []
+    for item in raw_words:
+        if not isinstance(item, str):
+            continue
+        cleaned = item.strip().lower()
+        if not cleaned:
+            continue
+        results.append({
+            "word": cleaned,
+            "normalized": normalize_word(cleaned),
+        })
+
+    return jsonify({
+        "ok": True,
+        "words": results,
+    })
+
+
 @app.route("/<path:filename>")
 def serve_static_asset(filename):
     if filename == "api/random-word":

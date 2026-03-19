@@ -1,6 +1,6 @@
 param(
     [string]$Python = "python",
-    [string]$SpaCyModel = "en_core_web_lg",
+    [string]$SpaCyModel = "ru_core_news_lg",
     [switch]$Windowed
 )
 
@@ -20,7 +20,7 @@ $StaticFiles = @(
     "wordmath_styles.css",
     "deck.json",
     "category_pool.json",
-    "mostcommonwords.json",
+    "russianmostcommon.json",
     "index.html",
     "app.js",
     "engine.js",

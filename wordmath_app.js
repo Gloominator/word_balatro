@@ -129,6 +129,16 @@ const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const FLOATING_MATCH_PREVIEW_WIDTH = 190;
 const FLOATING_MATCH_PREVIEW_HEIGHT = 152;
+const QUEST_COMPLETION_NOTICE_MS = 3600;
+const QUEST_COMPLETION_FIREWORK_BURSTS = 5;
+const QUEST_COMPLETION_FIREWORK_PARTICLES = 12;
+const QUEST_COMPLETION_FIREWORK_COLORS = [
+  "#ffd86b",
+  "#9af0ad",
+  "#7aa4ff",
+  "#f5a6ff",
+  "#ff9cab",
+];
 const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
@@ -438,8 +448,12 @@ let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
 let activeFloatingWordNotice = null;
 let activeFloatingWordNoticeTimeout = null;
+let activeQuestCompletionNotice = null;
+let activeQuestCompletionNoticeTimeout = null;
+let activeQuestStripCelebrationTimeout = null;
 let cachedShopWordBoosterPool = null;
 let shopWordBoosterPoolPromise = null;
+const wordNormalizationCache = new Map();
 const associationPreviewCache = new Map();
 const dragMixPreviewState = {
   pairKey: null,
@@ -1895,6 +1909,152 @@ function setStatus(message, stateName = "ok") {
   els.status.dataset.state = stateName;
 }
 
+function clearQuestCompletionNotice() {
+  if (activeQuestCompletionNoticeTimeout !== null) {
+    window.clearTimeout(activeQuestCompletionNoticeTimeout);
+    activeQuestCompletionNoticeTimeout = null;
+  }
+  if (activeQuestCompletionNotice) {
+    activeQuestCompletionNotice.remove();
+    activeQuestCompletionNotice = null;
+  }
+}
+
+function triggerQuestStripCelebration() {
+  if (!els.questStrip) {
+    return;
+  }
+  if (activeQuestStripCelebrationTimeout !== null) {
+    window.clearTimeout(activeQuestStripCelebrationTimeout);
+    activeQuestStripCelebrationTimeout = null;
+  }
+  els.questStrip.classList.remove("quest-strip-celebrating");
+  void els.questStrip.offsetWidth;
+  els.questStrip.classList.add("quest-strip-celebrating");
+  activeQuestStripCelebrationTimeout = window.setTimeout(() => {
+    els.questStrip?.classList.remove("quest-strip-celebrating");
+    activeQuestStripCelebrationTimeout = null;
+  }, 1200);
+}
+
+function showQuestCompletionNotice(questResult, overflowMessage = "") {
+  if (!questResult?.completedQuest) {
+    return;
+  }
+
+  clearQuestCompletionNotice();
+
+  const notice = document.createElement("section");
+  notice.className = "quest-complete-toast";
+  notice.setAttribute("role", "status");
+  notice.setAttribute("aria-live", "polite");
+
+  const title = document.createElement("div");
+  title.className = "quest-complete-toast-title";
+  title.textContent = "Квест выполнен!";
+
+  const body = document.createElement("div");
+  body.className = "quest-complete-toast-body";
+  body.textContent = `${titleCase(questResult.completedTargetWord)} найдено. +${questResult.questTotalCoins} монет.`;
+
+  const next = document.createElement("div");
+  next.className = "quest-complete-toast-next";
+  next.textContent = `Следующая цель: ${titleCase(questResult.nextTargetWord)}.`;
+
+  notice.append(title, body, next);
+
+  if (overflowMessage) {
+    const extra = document.createElement("div");
+    extra.className = "quest-complete-toast-extra";
+    extra.textContent = overflowMessage;
+    notice.append(extra);
+  }
+
+  document.body.append(notice);
+  activeQuestCompletionNotice = notice;
+  window.requestAnimationFrame(() => {
+    notice.dataset.visible = "true";
+  });
+  activeQuestCompletionNoticeTimeout = window.setTimeout(() => {
+    clearQuestCompletionNotice();
+  }, QUEST_COMPLETION_NOTICE_MS);
+}
+
+function showQuestCompletionFireworks() {
+  const layer = document.createElement("div");
+  layer.className = "quest-fireworks-layer";
+
+  for (let burstIndex = 0; burstIndex < QUEST_COMPLETION_FIREWORK_BURSTS; burstIndex += 1) {
+    const burst = document.createElement("div");
+    burst.className = "quest-firework-burst";
+    burst.style.left = `${16 + (burstIndex * 17) + ((Math.random() * 6) - 3)}%`;
+    burst.style.top = `${18 + ((burstIndex + 1) % 2) * 10 + (Math.random() * 7)}%`;
+    burst.style.setProperty("--particle-delay", `${burstIndex * 90}ms`);
+
+    for (let particleIndex = 0; particleIndex < QUEST_COMPLETION_FIREWORK_PARTICLES; particleIndex += 1) {
+      const particle = document.createElement("span");
+      particle.className = "quest-firework-particle";
+      particle.style.setProperty(
+        "--angle",
+        `${((360 / QUEST_COMPLETION_FIREWORK_PARTICLES) * particleIndex) + ((Math.random() * 12) - 6)}deg`,
+      );
+      particle.style.setProperty("--distance", `${54 + Math.random() * 34}px`);
+      particle.style.setProperty("--particle-delay", `${burstIndex * 90}ms`);
+      particle.style.setProperty("--particle-duration", `${760 + Math.random() * 240}ms`);
+      particle.style.setProperty(
+        "--particle-color",
+        QUEST_COMPLETION_FIREWORK_COLORS[(particleIndex + burstIndex) % QUEST_COMPLETION_FIREWORK_COLORS.length],
+      );
+      burst.append(particle);
+    }
+
+    layer.append(burst);
+  }
+
+  document.body.append(layer);
+  window.setTimeout(() => {
+    layer.remove();
+  }, 1800);
+}
+
+function resolveOutcomeStatus(status, { vocabularyOverflow = null, questResult = null } = {}) {
+  if (!vocabularyOverflow) {
+    return {
+      message: status.message,
+      stateName: status.stateName,
+      overflowMessage: "",
+    };
+  }
+
+  if (questResult?.completedQuest) {
+    return {
+      message: `${status.message} ${vocabularyOverflow.message}`.trim(),
+      stateName: "reward",
+      overflowMessage: vocabularyOverflow.message,
+    };
+  }
+
+  return {
+    message: vocabularyOverflow.message,
+    stateName: vocabularyOverflow.stateName || status.stateName,
+    overflowMessage: "",
+  };
+}
+
+function applyOutcomeStatus(status, { vocabularyOverflow = null, questResult = null } = {}) {
+  const resolvedStatus = resolveOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+  });
+  setStatus(resolvedStatus.message, resolvedStatus.stateName);
+
+  if (questResult?.completedQuest) {
+    triggerQuestStripCelebration();
+    showQuestCompletionNotice(questResult, resolvedStatus.overflowMessage);
+    showQuestCompletionFireworks();
+  }
+}
+
 function clearFloatingCandidatePreview() {
   if (activeFloatingCandidatePreviewTimeout !== null) {
     window.clearTimeout(activeFloatingCandidatePreviewTimeout);
@@ -2154,6 +2314,122 @@ async function getSpawnWordCandidate(word) {
     normalized,
     zipf: Number.isFinite(payload.zipf) ? payload.zipf : null,
   };
+}
+
+async function normalizeWords(words) {
+  const pendingWords = [...new Set(
+    words
+      .map((word) => (typeof word === "string" ? word.trim().toLowerCase() : ""))
+      .filter(Boolean),
+  )].filter((word) => !wordNormalizationCache.has(word));
+
+  if (!pendingWords.length) {
+    return wordNormalizationCache;
+  }
+
+  const response = await fetch("./api/normalize-words", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ words: pendingWords }),
+  });
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok || !Array.isArray(payload.words)) {
+    throw new Error(payload.error || "Could not normalize words.");
+  }
+
+  payload.words.forEach((entry) => {
+    const word = typeof entry.word === "string" ? entry.word.trim().toLowerCase() : "";
+    const normalized = typeof entry.normalized === "string" ? entry.normalized.trim().toLowerCase() : word;
+    if (word) {
+      wordNormalizationCache.set(word, normalized || word);
+    }
+  });
+  pendingWords.forEach((word) => {
+    if (!wordNormalizationCache.has(word)) {
+      wordNormalizationCache.set(word, word);
+    }
+  });
+
+  return wordNormalizationCache;
+}
+
+async function getNormalizedWord(word) {
+  const cleanedWord = typeof word === "string" ? word.trim().toLowerCase() : "";
+  if (!cleanedWord) {
+    return "";
+  }
+  await normalizeWords([cleanedWord]);
+  return wordNormalizationCache.get(cleanedWord) || cleanedWord;
+}
+
+async function migrateDiscoveredWordsToCanonicalForms() {
+  const wordsToNormalize = [...new Set([
+    ...state.discovered.keys(),
+    ...state.discovered.values(),
+    ...state.hiddenWordPanelWords,
+    ...state.recentDiscoveredWordKeys,
+  ].map((word) => (typeof word === "string" ? word.trim().toLowerCase() : ""))
+    .filter(Boolean)
+    .filter((word) => !ENCYCLOPEDIA_LOOKUP.has(word)))];
+
+  if (!wordsToNormalize.length) {
+    return false;
+  }
+
+  await normalizeWords(wordsToNormalize);
+
+  const migratedDiscovered = new Map();
+  const rewrittenKeys = new Map();
+  let didChange = false;
+
+  state.discovered.forEach((storedWord, wordKey) => {
+    const loweredKey = wordKey.trim().toLowerCase();
+    const loweredWord = storedWord.trim().toLowerCase();
+    const normalizedKey = wordNormalizationCache.get(loweredKey) || loweredKey;
+    const normalizedWord = wordNormalizationCache.get(loweredWord) || loweredWord;
+    const encyclopediaEntry = getEncyclopediaEntry(normalizedWord, normalizedKey);
+    const migratedKey = encyclopediaEntry?.word ?? normalizedKey;
+    const migratedWord = state.starters.includes(migratedKey)
+      ? migratedKey
+      : (encyclopediaEntry?.word ?? migratedKey);
+    const existingWord = migratedDiscovered.get(migratedKey);
+
+    if (!existingWord || isPreferredDiscoveredVariant(migratedWord, existingWord, migratedKey)) {
+      migratedDiscovered.set(migratedKey, migratedWord);
+    }
+    if (migratedKey !== loweredKey || migratedWord !== storedWord) {
+      didChange = true;
+    }
+    if (migratedKey !== loweredKey) {
+      rewrittenKeys.set(loweredKey, migratedKey);
+    }
+  });
+
+  if (!didChange) {
+    return false;
+  }
+
+  state.discovered = migratedDiscovered;
+  state.recentDiscoveredWordKeys = [...new Set(
+    state.recentDiscoveredWordKeys.map((wordKey) => rewrittenKeys.get(wordKey) || wordKey),
+  )].filter((wordKey) => state.discovered.has(wordKey)).slice(-RECENT_DISCOVERED_WORD_LIMIT);
+  state.hiddenWordPanelWords = new Set(
+    [...state.hiddenWordPanelWords].map((wordKey) => rewrittenKeys.get(wordKey) || wordKey),
+  );
+  state.wordAssignments = new Map(
+    [...state.wordAssignments].map(([wordKey, categoryId]) => [rewrittenKeys.get(wordKey) || wordKey, categoryId]),
+  );
+  state.completedEncyclopediaCategories = new Set(getCompletedEncyclopediaCategoryNames());
+  renderSidebar();
+  renderTiles();
+  renderNegativeMix();
+  renderHistory();
+  renderSettings();
+  queueProgressSave();
+  return true;
 }
 
 function updateCounts() {
@@ -2840,7 +3116,7 @@ async function useWildcardToken(position = null) {
       questResult,
     },
   );
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function refundNegativeMixToken() {
@@ -2909,16 +3185,16 @@ function renderTokenPanel() {
     const empty = document.createElement("p");
     empty.className = "source-word-empty";
     empty.textContent = hasUnlockedAnyTokenType()
-      ? "No unused tokens right now."
-      : "No tokens yet.";
+      ? "Сейчас нет неиспользованных токенов."
+      : "Пока нет токенов.";
     els.tokenList.append(empty);
     return;
   }
 
   if (state.availableNegativeMixTokens > 0) {
     els.tokenList.append(buildTokenButton({
-      title: "Minus Mix",
-      description: "Click or drag onto the field to unlock one A - B mix.",
+      title: "Минус-микс",
+      description: "Нажмите или перетащите на поле, чтобы разблокировать один микс А - Б.",
       count: state.availableNegativeMixTokens,
       dragType: "minus-mix",
       onClick: () => {
@@ -2929,7 +3205,7 @@ function renderTokenPanel() {
 
   if (state.availableBanWordTokens > 0) {
     els.tokenList.append(buildTokenButton({
-      title: "Ban Word",
+      title: "Запретить слово",
       description: "Перетащите на слово на поле, чтобы убрать его из будущих результатов микса.",
       count: state.availableBanWordTokens,
       dragType: "ban-word",
@@ -2941,8 +3217,8 @@ function renderTokenPanel() {
 
   if (state.availableWildcardTokens > 0) {
     els.tokenList.append(buildTokenButton({
-      title: "Wildcard",
-      description: "Drag onto the field to reveal a random dictionary word.",
+      title: "Джокер",
+      description: "Перетащите на поле, чтобы получить случайное слово из словаря.",
       count: state.availableWildcardTokens,
       dragType: "wildcard",
       onClick: () => {
@@ -3883,7 +4159,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       status.stateName = "success";
     }
   }
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 async function handleMix(firstTile, secondTile, clientPoint = null) {
@@ -3981,7 +4257,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       status.stateName = "success";
     }
   }
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function rememberResult(result, normalized = result, metadata = {}) {
@@ -4234,7 +4510,7 @@ async function runNegativeMix(clientPoint = null) {
     }
   }
   hideNegativeMixAfterUse();
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function clearNegativeMix() {
@@ -4601,38 +4877,44 @@ function renderShopWordBooster() {
     button.type = "button";
     button.className = "shop-word-booster-option";
     button.textContent = titleCase(entry.word);
-    button.addEventListener("click", () => {
-      const {
-        canonicalResult,
-        isInEncyclopedia,
-        wasDiscovered,
-        coinReward,
-        newNegativeMixTokens,
-        newBanWordTokens,
-        newWildcardTokens,
-        newPositionTokenRewards,
-        newZonesUnlocked,
-        completedCategories,
-        questResult,
-        vocabularyOverflow,
-      } = rememberResult(entry.word, entry.normalized, { zipf: entry.zipf });
-      state.shopWordBooster.options = [];
-      state.shopWordBooster.isOpen = false;
-      state.activeSidebarTab = "words";
-      els.shopWordBoosterModal.hidden = true;
-      renderSidebar();
-      queueProgressSave();
-      const status = getShopWordBoosterOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
-        coinReward,
-        newNegativeMixTokens,
-        newBanWordTokens,
-        newWildcardTokens,
-        newPositionTokenRewards,
-        newZonesUnlocked,
-        completedCategories,
-        questResult,
-      });
-      setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+    button.addEventListener("click", async () => {
+      try {
+        const normalized = await getNormalizedWord(entry.normalized || entry.word);
+        const {
+          canonicalResult,
+          isInEncyclopedia,
+          wasDiscovered,
+          coinReward,
+          newNegativeMixTokens,
+          newBanWordTokens,
+          newWildcardTokens,
+          newPositionTokenRewards,
+          newZonesUnlocked,
+          completedCategories,
+          questResult,
+          vocabularyOverflow,
+        } = rememberResult(entry.word, normalized, { zipf: entry.zipf });
+        state.shopWordBooster.options = [];
+        state.shopWordBooster.isOpen = false;
+        state.activeSidebarTab = "words";
+        els.shopWordBoosterModal.hidden = true;
+        renderSidebar();
+        queueProgressSave();
+        const status = getShopWordBoosterOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
+          coinReward,
+          newNegativeMixTokens,
+          newBanWordTokens,
+          newWildcardTokens,
+          newPositionTokenRewards,
+          newZonesUnlocked,
+          completedCategories,
+          questResult,
+        });
+        applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+      } catch (error) {
+        console.warn("[wordmath] Could not normalize shop word booster entry.", error);
+        setStatus(error.message || "Не удалось нормализовать слово для энциклопедии.", "error");
+      }
     });
     els.shopWordBoosterGrid.append(button);
   });
@@ -4731,7 +5013,7 @@ async function promptSpawnWord() {
     completedCategories,
     questResult,
   });
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 async function importSaveSnapshotFromFile(file) {
@@ -5120,10 +5402,16 @@ function initEvents() {
   initGarbageBinDropzone();
 }
 
-function init() {
+async function init() {
   initEvents();
   if (!loadProgress()) {
     resetRun();
+    return;
+  }
+  try {
+    await migrateDiscoveredWordsToCanonicalForms();
+  } catch (error) {
+    console.warn("[wordmath] Could not migrate discovered words.", error);
   }
 }
 

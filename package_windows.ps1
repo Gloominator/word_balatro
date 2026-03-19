@@ -1,6 +1,6 @@
 param(
     [string]$Python = "python",
-    [string]$SpaCyModel = "en_core_web_lg",
+    [string]$SpaCyModel = "ru_core_news_lg",
     [switch]$Console,
     [switch]$Rebuild
 )

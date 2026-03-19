@@ -19,14 +19,15 @@ Use Python `3.11` or `3.12` for the build. The current dependency stack is not r
 Optional flags:
 
 ```powershell
-.\build_windows.ps1 -SpaCyModel en_core_web_lg
+.\build_windows.ps1 -SpaCyModel ru_core_news_lg
 .\build_windows.ps1 -Python "C:\Path\To\Python311\python.exe"
 .\build_windows.ps1 -Windowed
 ```
 
 Notes:
 
-- `en_core_web_lg` is the larger model and makes the app bundle bigger.
+- `ru_core_news_lg` is the default bundled Russian model.
+- `ru_core_news_md` is smaller if you want a lighter package.
 - `-Windowed` hides the console window. Leave it off if you want startup logs and visible errors.
 - The script uses PyInstaller `--onedir` because it is more reliable than a single-file build for large NLP assets.
 
