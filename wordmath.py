@@ -31,7 +31,8 @@ APP_ROOT = get_app_root()
 
 if getattr(sys, "frozen", False):
     wordfreq.DATA_PATH = APP_ROOT / "wordfreq" / "data"
-DEFAULT_SPACY_MODELS = ("en_core_web_lg", "en_core_web_md")
+DEFAULT_SPACY_MODELS = ("ru_core_news_lg", "ru_core_news_md")
+DEFAULT_WORDFREQ_LANGUAGE = "ru"
 ZIPF_LOOKUP_WARNING_SHOWN = False
 
 mimetypes.add_type("application/javascript", ".js")
@@ -57,14 +58,14 @@ def get_language_resources():
         model_list = ", ".join(candidate_models)
         raise RuntimeError(
             f"Could not load a spaCy model. Tried: {model_list}. "
-            "Install 'en_core_web_md' or 'en_core_web_lg', or set WORDMATH_SPACY_MODEL."
+            "Install 'ru_core_news_lg' or 'ru_core_news_md', or set WORDMATH_SPACY_MODEL."
         ) from last_error
 
     all_vectors = nlp.vocab.vectors.data
     if all_vectors.size == 0:
         raise RuntimeError(
             "The loaded spaCy model has no word vectors. "
-            "Use 'en_core_web_md' or 'en_core_web_lg'."
+            "Use 'ru_core_news_lg' or 'ru_core_news_md'."
         )
 
     row_to_key = [None] * all_vectors.shape[0]
@@ -139,20 +140,6 @@ def get_word_family_forms(word: str) -> frozenset[str]:
     if lemma:
         forms.add(lemma)
 
-    if lowered.endswith("ies") and len(lowered) > 3:
-        forms.add(lowered[:-3] + "y")
-    if lowered.endswith("ing") and len(lowered) > 4:
-        stem = lowered[:-3]
-        forms.add(stem)
-        forms.add(stem + "e")
-        if len(stem) >= 2 and stem[-1] == stem[-2]:
-            forms.add(stem[:-1])
-    if lowered.endswith("es") and len(lowered) > 3:
-        forms.add(lowered[:-2])
-        forms.add(lowered[:-1])
-    if lowered.endswith("s") and len(lowered) > 2 and not lowered.endswith("ss"):
-        forms.add(lowered[:-1])
-
     cleaned = {
         form for form in forms
         if form and form.isalpha() and len(form) >= 2
@@ -166,15 +153,8 @@ def get_preferred_root(word: str) -> str:
     candidates = []
     for form in forms:
         lexeme = nlp.vocab[form]
-        has_vector = 1 if lexeme.has_vector else 0
-        suffix_penalty = 0
-        if form.endswith("ing"):
-            suffix_penalty += 2
-        if form.endswith("s"):
-            suffix_penalty += 1
         candidates.append((
-            has_vector,
-            -suffix_penalty,
+            1 if lexeme.has_vector else 0,
             lexeme.prob,
             -len(form),
             form,
@@ -191,7 +171,7 @@ def get_word_zipf_frequency(word: str) -> float:
     if not cleaned:
         return 0.0
     try:
-        return round(float(zipf_frequency(cleaned, "en")), 2)
+        return round(float(zipf_frequency(cleaned, DEFAULT_WORDFREQ_LANGUAGE)), 2)
     except Exception:
         if not ZIPF_LOOKUP_WARNING_SHOWN:
             ZIPF_LOOKUP_WARNING_SHOWN = True
@@ -212,10 +192,7 @@ def is_profanity_like(word: str) -> bool:
 
     candidate_forms = {
         lowered,
-        lowered.rstrip("s"),
-        lowered.rstrip("es"),
-        lowered.rstrip("ed"),
-        lowered.rstrip("ing"),
+        base,
     }
     return any(form in PROFANITY_BASE_FORMS for form in candidate_forms if form)
 

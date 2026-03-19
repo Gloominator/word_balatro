@@ -1,110 +1,110 @@
 const STARTER_POOL = [
-  "book",
-  "chair",
-  "cup",
-  "key",
-  "lamp",
-  "sun",
-  "moon",
-  "star",
-  "flame",
-  "ocean",
-  "beach",
-  "island",
-  "desert",
-  "cave",
-  "village",
-  "baby",
-  "king",
-  "queen",
-  "friend",
-  "crowd",
-  "song",
-  "movie",
-  "story",
-  "joke",
-  "dream",
-  "money",
-  "party",
-  "game",
-  "team",
-  "prize",
-  "castle",
-  "planet",
-  "angel",
-  "monster",
-  "robot",
-  "wolf",
-  "mouse",
-  "snake",
-  "bee",
-  "seed",
+  "книга",
+  "стул",
+  "чашка",
+  "ключ",
+  "лампа",
+  "солнце",
+  "луна",
+  "звезда",
+  "пламя",
+  "океан",
+  "пляж",
+  "остров",
+  "пустыня",
+  "пещера",
+  "деревня",
+  "младенец",
+  "король",
+  "королева",
+  "друг",
+  "толпа",
+  "песня",
+  "фильм",
+  "история",
+  "шутка",
+  "мечта",
+  "деньги",
+  "вечеринка",
+  "игра",
+  "команда",
+  "приз",
+  "замок",
+  "планета",
+  "ангел",
+  "монстр",
+  "робот",
+  "волк",
+  "мышь",
+  "змея",
+  "пчела",
+  "семя",
 ];
 
 const ENCYCLOPEDIA_CATEGORIES = [
   {
-    name: "Nature",
-    words: ["tree", "flower", "river", "mountain", "forest"],
+    name: "Природа",
+    words: ["дерево", "цветок", "река", "гора", "лес"],
   },
   {
-    name: "Weather",
-    words: ["rain", "cloud", "wind", "storm", "snow"],
+    name: "Погода",
+    words: ["дождь", "облако", "ветер", "буря", "снег"],
   },
   {
-    name: "Food",
-    words: ["bread", "soup", "cake", "apple", "cheese"],
+    name: "Еда",
+    words: ["хлеб", "суп", "торт", "яблоко", "сыр"],
   },
   {
-    name: "Animals",
-    words: ["bird", "fish", "cat", "dog", "horse"],
+    name: "Животные",
+    words: ["птица", "рыба", "кошка", "собака", "лошадь"],
   },
   {
-    name: "Places",
-    words: ["house", "bridge", "school", "garden", "city"],
+    name: "Места",
+    words: ["дом", "мост", "школа", "сад", "город"],
   },
   {
-    name: "Tools",
-    words: ["hammer", "ladder", "shovel", "knife", "wheel"],
+    name: "Инструменты",
+    words: ["молоток", "лестница", "лопата", "нож", "колесо"],
   },
   {
-    name: "Materials",
-    words: ["glass", "paper", "brick", "steel", "clay"],
+    name: "Материалы",
+    words: ["стекло", "бумага", "кирпич", "сталь", "глина"],
   },
   {
-    name: "Transport",
-    words: ["boat", "train", "bicycle", "truck", "airplane"],
+    name: "Транспорт",
+    words: ["лодка", "поезд", "велосипед", "грузовик", "самолёт"],
   },
   {
-    name: "Fashion",
-    words: ["shirt", "dress", "hat", "garment", "couture"],
+    name: "Мода",
+    words: ["рубашка", "платье", "шляпа", "одежда", "кутюр"],
   },
   {
-    name: "Fabrics",
-    words: ["wool", "silk", "cotton", "denim", "polyester"],
+    name: "Ткани",
+    words: ["шерсть", "шёлк", "хлопок", "деним", "полиэстер"],
   },
   {
-    name: "Colors",
-    words: ["red", "blue", "green", "crimson", "turquoise"],
+    name: "Цвета",
+    words: ["красный", "синий", "зелёный", "алый", "бирюзовый"],
   },
   {
-    name: "Anatomy",
-    words: ["hand", "bone", "tooth", "artery", "retina"],
+    name: "Анатомия",
+    words: ["рука", "кость", "зуб", "артерия", "сетчатка"],
   },
   {
-    name: "Gestures",
-    words: ["wave", "nod", "clap", "beckon", "salute"],
+    name: "Жесты",
+    words: ["взмах", "кивок", "хлопок", "манить", "салют"],
   },
   {
-    name: "Illness",
-    words: ["cold", "cough", "fever", "migraine", "infection"],
+    name: "Болезни",
+    words: ["простуда", "кашель", "жар", "мигрень", "инфекция"],
   },
   {
-    name: "Technology",
-    words: ["screen", "cable", "battery", "algorithm", "database"],
+    name: "Технологии",
+    words: ["экран", "кабель", "батарея", "алгоритм", "база"],
   },
   {
-    name: "Filler Words",
-    words: ["very", "just", "really", "perhaps", "somehow"],
+    name: "Служебные слова",
+    words: ["очень", "просто", "правда", "возможно", "вроде"],
   },
 ];
 
@@ -147,6 +147,7 @@ const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1;
 const STORAGE_KEY = "wordmath-progress-v1";
+const LETTER_ONLY_PATTERN = /^\p{L}+$/u;
 const DISCOVERY_COIN_BASE_REWARD = 1;
 const DISCOVERY_RARITY_MIN_ZIPF = 2;
 const DISCOVERY_RARITY_MAX_ZIPF = 6;
@@ -170,7 +171,7 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
 });
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
-const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
+const SHOP_WORD_BOOSTER_SOURCE_PATH = "./russianmostcommon.json";
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-word-booster",
@@ -568,8 +569,8 @@ function parseShopWordBoosterEntries(rawText) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const separatorIndex = line.indexOf(".");
-      const rawWord = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : line;
+      const match = line.match(/^\d+(?:[.\s]+)(.+)$/u);
+      const rawWord = (match ? match[1] : line).trim();
       const normalized = rawWord.toLowerCase();
       if (!normalized || seen.has(normalized)) {
         return null;
@@ -1170,7 +1171,24 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
       && typeof entry[0] === "string"
       && typeof entry[1] === "string")
     : [];
-  const discovered = new Map(discoveredEntries);
+  const discovered = new Map();
+  discoveredEntries.forEach(([wordKey, storedWord]) => {
+    const normalizedKey = wordKey.trim().toLowerCase();
+    if (!normalizedKey) {
+      return;
+    }
+
+    const encyclopediaEntry = getEncyclopediaEntry(storedWord, normalizedKey);
+    const migratedKey = encyclopediaEntry?.word ?? normalizedKey;
+    const migratedWord = starters.includes(migratedKey)
+      ? migratedKey
+      : (encyclopediaEntry?.word ?? migratedKey);
+    const existingWord = discovered.get(migratedKey);
+
+    if (!existingWord || isPreferredDiscoveredVariant(migratedWord, existingWord, migratedKey)) {
+      discovered.set(migratedKey, migratedWord);
+    }
+  });
   starters.forEach((word) => {
     if (!discovered.has(word)) {
       discovered.set(word, word);
@@ -1593,7 +1611,7 @@ function getAvailableWordEntries() {
 
   state.discovered.forEach((word, normalized) => {
     const existing = available.get(normalized);
-    if (!existing || isPreferredDiscoveredVariant(word, existing.word)) {
+    if (!existing || isPreferredDiscoveredVariant(word, existing.word, normalized)) {
       available.set(normalized, {
         key: normalized,
         word,
@@ -1761,7 +1779,7 @@ function getCandidateResultKey(candidate) {
 }
 
 function addFamilyForm(forms, value) {
-  if (!value || !/^[a-z]+$/.test(value) || value.length < 2) {
+  if (!value || !LETTER_ONLY_PATTERN.test(value) || value.length < 2) {
     return;
   }
   forms.add(value);
@@ -1775,36 +1793,6 @@ function getWordFamilyForms(word) {
   }
 
   addFamilyForm(forms, lowered);
-
-  if (lowered.endsWith("ies") && lowered.length > 3) {
-    addFamilyForm(forms, `${lowered.slice(0, -3)}y`);
-  }
-  if (lowered.endsWith("ied") && lowered.length > 3) {
-    addFamilyForm(forms, `${lowered.slice(0, -3)}y`);
-  }
-  if (lowered.endsWith("ing") && lowered.length > 4) {
-    const stem = lowered.slice(0, -3);
-    addFamilyForm(forms, stem);
-    addFamilyForm(forms, `${stem}e`);
-    if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) {
-      addFamilyForm(forms, stem.slice(0, -1));
-    }
-  }
-  if (lowered.endsWith("ed") && lowered.length > 3) {
-    const stem = lowered.slice(0, -2);
-    addFamilyForm(forms, stem);
-    addFamilyForm(forms, `${stem}e`);
-    if (stem.length >= 2 && stem.at(-1) === stem.at(-2)) {
-      addFamilyForm(forms, stem.slice(0, -1));
-    }
-  }
-  if (lowered.endsWith("es") && lowered.length > 3) {
-    addFamilyForm(forms, lowered.slice(0, -2));
-    addFamilyForm(forms, lowered.slice(0, -1));
-  }
-  if (lowered.endsWith("s") && lowered.length > 2 && !lowered.endsWith("ss")) {
-    addFamilyForm(forms, lowered.slice(0, -1));
-  }
 
   return forms;
 }
@@ -3194,34 +3182,44 @@ function describeOperation(operation) {
   return operation === "subtract" ? "A - B" : "A + B";
 }
 
-function isPreferredDiscoveredVariant(candidate, existing) {
-  const candidateIng = candidate.endsWith("ing");
-  const existingIng = existing.endsWith("ing");
-  if (candidateIng !== existingIng) {
-    return !candidateIng;
+function isPreferredDiscoveredVariant(candidate, existing, normalizedCandidate = candidate) {
+  const candidateKey = (candidate || "").trim().toLowerCase();
+  const existingKey = (existing || "").trim().toLowerCase();
+  const normalizedKey = (normalizedCandidate || candidate || "").trim().toLowerCase();
+
+  if (!candidateKey) {
+    return false;
+  }
+  if (!existingKey) {
+    return true;
+  }
+  if (candidateKey === existingKey) {
+    return false;
   }
 
-  const candidatePlural = candidate.endsWith("s");
-  const existingPlural = existing.endsWith("s");
-  if (candidatePlural !== existingPlural) {
-    return !candidatePlural;
+  const candidateMatchesNormalized = candidateKey === normalizedKey;
+  const existingMatchesNormalized = existingKey === normalizedKey;
+  if (candidateMatchesNormalized !== existingMatchesNormalized) {
+    return candidateMatchesNormalized;
   }
 
-  return candidate.length < existing.length;
+  return candidateKey.length < existingKey.length;
 }
 
 function getCanonicalWord(result, normalized = result) {
-  const starterVariant = state.starters.find((word) => word === normalized);
-  if (starterVariant && !isPreferredDiscoveredVariant(result, starterVariant)) {
+  const normalizedKey = (normalized || result || "").trim().toLowerCase();
+  const resultKey = (result || "").trim().toLowerCase();
+  const starterVariant = state.starters.find((word) => word === normalizedKey || word === resultKey);
+  if (starterVariant) {
     return starterVariant;
   }
 
-  const discoveredVariant = state.discovered.get(normalized);
-  if (discoveredVariant && !isPreferredDiscoveredVariant(result, discoveredVariant)) {
+  const discoveredVariant = state.discovered.get(normalizedKey) ?? state.discovered.get(resultKey);
+  if (discoveredVariant) {
     return discoveredVariant;
   }
 
-  return result;
+  return normalizedKey || resultKey;
 }
 
 function setLastMix(label, operation, candidates) {
@@ -4014,7 +4012,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     state.discovered.set(discoveryKey, canonicalResult);
     trackDiscoveredWord(discoveryKey);
     didDiscoverNewWord = true;
-  } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing)) {
+  } else if (existing && existing !== canonicalResult && isPreferredDiscoveredVariant(canonicalResult, existing, discoveryKey)) {
     state.discovered.set(discoveryKey, canonicalResult);
   }
 
