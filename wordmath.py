@@ -6,6 +6,7 @@ import re
 import socket
 import sys
 import threading
+import traceback
 import webbrowser
 from functools import lru_cache
 from pathlib import Path
@@ -13,6 +14,7 @@ from pathlib import Path
 import numpy as np
 import spacy
 from flask import Flask, jsonify, request, send_from_directory
+import wordfreq
 from wordfreq import zipf_frequency
 
 
@@ -26,7 +28,11 @@ def get_app_root() -> Path:
 
 
 APP_ROOT = get_app_root()
+
+if getattr(sys, "frozen", False):
+    wordfreq.DATA_PATH = APP_ROOT / "wordfreq" / "data"
 DEFAULT_SPACY_MODELS = ("en_core_web_lg", "en_core_web_md")
+ZIPF_LOOKUP_WARNING_SHOWN = False
 
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("application/javascript", ".mjs")
@@ -180,10 +186,18 @@ def get_preferred_root(word: str) -> str:
 
 @lru_cache(maxsize=8192)
 def get_word_zipf_frequency(word: str) -> float:
+    global ZIPF_LOOKUP_WARNING_SHOWN
     cleaned = word.strip().lower()
     if not cleaned:
         return 0.0
-    return round(float(zipf_frequency(cleaned, "en")), 2)
+    try:
+        return round(float(zipf_frequency(cleaned, "en")), 2)
+    except Exception:
+        if not ZIPF_LOOKUP_WARNING_SHOWN:
+            ZIPF_LOOKUP_WARNING_SHOWN = True
+            print("Warning: wordfreq lookup failed; falling back to zipf=0.0.")
+            traceback.print_exc()
+        return 0.0
 
 
 def is_same_word_family(candidate: str, input_forms: set[str]) -> bool:
@@ -371,6 +385,7 @@ def mix_words():
             "deadEndWord": dead_end_word,
         }), 400
     except Exception as error:
+        traceback.print_exc()
         return jsonify({
             "ok": False,
             "error": f"Unexpected mix error: {error}",
@@ -396,6 +411,7 @@ def random_word():
             "error": str(error),
         }), 400
     except Exception as error:
+        traceback.print_exc()
         return jsonify({
             "ok": False,
             "error": f"Unexpected random word error: {error}",
@@ -421,6 +437,7 @@ def spawn_word():
             "error": str(error),
         }), 400
     except Exception as error:
+        traceback.print_exc()
         return jsonify({
             "ok": False,
             "error": f"Unexpected spawn word error: {error}",

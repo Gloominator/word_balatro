@@ -153,7 +153,13 @@ const DISCOVERY_RARITY_MAX_ZIPF = 6;
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const QUEST_INITIAL_DISCOVERY_TIMER = 60;
+const QUEST_COMPLETION_COIN_REWARD = 500;
 const QUEST_COMPLETION_REWARD_COUNT = 5;
+const QUEST_SPEED_BONUS_TIERS = Object.freeze([
+  { maxTurns: 10, coins: 500 },
+  { maxTurns: 20, coins: 300 },
+  { maxTurns: 30, coins: 100 },
+]);
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const POSITION_TOKEN_CONFIG = Object.freeze({
@@ -345,6 +351,7 @@ const state = {
     number: 1,
     targetWord: null,
     remainingDiscoveries: 0,
+    turnsTaken: 0,
     isLost: false,
   },
   shopWordBooster: {
@@ -840,11 +847,13 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
   const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
   state.quest.remainingDiscoveries = baseTurns + getSafeCount(carryOverTurns);
+  state.quest.turnsTaken = 0;
   state.quest.isLost = false;
   return {
     number: state.quest.number,
     targetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
+    turnsTaken: state.quest.turnsTaken,
   };
 }
 
@@ -881,6 +890,26 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   return rewardSummary;
 }
 
+function getQuestSpeedBonusCoins(turnsTaken = state.quest.turnsTaken) {
+  const safeTurnsTaken = Math.max(0, getSafeCount(turnsTaken));
+  const matchedTier = QUEST_SPEED_BONUS_TIERS.find((tier) => safeTurnsTaken < tier.maxTurns);
+  return matchedTier?.coins ?? 0;
+}
+
+function awardQuestCompletionCoins(turnsTaken = state.quest.turnsTaken) {
+  const safeTurnsTaken = Math.max(0, getSafeCount(turnsTaken));
+  const speedBonusCoins = getQuestSpeedBonusCoins(safeTurnsTaken);
+  const totalCoins = QUEST_COMPLETION_COIN_REWARD + speedBonusCoins;
+  state.coins += totalCoins;
+  state.totalCoinsEarned += totalCoins;
+  return {
+    baseCoins: QUEST_COMPLETION_COIN_REWARD,
+    speedBonusCoins,
+    totalCoins,
+    turnsTaken: safeTurnsTaken,
+  };
+}
+
 function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatchedWord = canonicalResult } = {}) {
   const questResult = {
     completedQuest: false,
@@ -892,6 +921,10 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
     newBanWordTokens: 0,
     newWildcardTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+    turnsTaken: state.quest.turnsTaken,
+    questBaseCoins: 0,
+    questSpeedBonusCoins: 0,
+    questTotalCoins: 0,
   };
   if (!state.quest.targetWord || state.quest.isLost) {
     return questResult;
@@ -899,9 +932,12 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
 
   if (didDiscoverNewWord) {
     state.quest.remainingDiscoveries = Math.max(0, state.quest.remainingDiscoveries - 1);
+    state.quest.turnsTaken += 1;
+    questResult.turnsTaken = state.quest.turnsTaken;
   }
 
   if (questMatchedWord === state.quest.targetWord) {
+    const coinReward = awardQuestCompletionCoins(state.quest.turnsTaken);
     const rewardSummary = awardQuestCompletionTokens();
     const completedTargetWord = state.quest.targetWord;
     const carryOverTurns = state.quest.remainingDiscoveries;
@@ -914,6 +950,10 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
     questResult.completedTargetWord = completedTargetWord;
     questResult.nextTargetWord = nextQuest.targetWord;
     questResult.remainingDiscoveries = nextQuest.remainingDiscoveries;
+    questResult.turnsTaken = coinReward.turnsTaken;
+    questResult.questBaseCoins = coinReward.baseCoins;
+    questResult.questSpeedBonusCoins = coinReward.speedBonusCoins;
+    questResult.questTotalCoins = coinReward.totalCoins;
     questResult.newNegativeMixTokens = rewardSummary.newNegativeMixTokens;
     questResult.newBanWordTokens = rewardSummary.newBanWordTokens;
     questResult.newWildcardTokens = rewardSummary.newWildcardTokens;
@@ -1016,6 +1056,7 @@ function buildProgressSnapshot() {
       number: state.quest.number,
       targetWord: state.quest.targetWord,
       remainingDiscoveries: state.quest.remainingDiscoveries,
+      turnsTaken: state.quest.turnsTaken,
       isLost: state.quest.isLost,
     },
     nextTileId: state.nextTileId,
@@ -1239,11 +1280,13 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     : null;
   const savedQuestNumber = Math.max(1, getSafeCount(snapshot.quest?.number, 1));
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
+  const savedQuestTurnsTaken = Math.max(0, getSafeCount(snapshot.quest?.turnsTaken));
   const savedQuestLost = Boolean(snapshot.quest?.isLost);
   if (savedQuestTarget && (savedQuestRemaining > 0 || savedQuestLost)) {
     state.quest.number = savedQuestNumber;
     state.quest.targetWord = savedQuestTarget;
     state.quest.remainingDiscoveries = savedQuestRemaining;
+    state.quest.turnsTaken = savedQuestTurnsTaken;
     state.quest.isLost = savedQuestLost;
   } else {
     assignNewQuest({ initial: true });
@@ -2694,7 +2737,6 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
   const hideResult = hideWordFromPanel(
     oldestTrackedEntry.word,
     oldestTrackedEntry.key,
-    getRelatedTileIdsForWord(oldestTrackedEntry.word),
   );
   const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
     ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
@@ -3242,7 +3284,7 @@ function getMixOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+    message = `${message} ${getQuestCompletionMessage(questResult)}`;
     stateName = "reward";
   }
 
@@ -3307,6 +3349,19 @@ function getTokenRewardParts({
   return rewardParts;
 }
 
+function getQuestCompletionMessage(questResult) {
+  if (!questResult?.completedQuest) {
+    return "";
+  }
+
+  let rewardText = `${questResult.questTotalCoins} coins`;
+  if (questResult.questSpeedBonusCoins > 0) {
+    rewardText = `${rewardText}, including a ${questResult.questSpeedBonusCoins}-coin speed bonus for finishing in ${questResult.turnsTaken} turns`;
+  }
+
+  return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+}
+
 function getWildcardOutcomeMessage(
   canonicalResult,
   isInEncyclopedia,
@@ -3347,7 +3402,7 @@ function getWildcardOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+    message = `${message} ${getQuestCompletionMessage(questResult)}`;
     stateName = "reward";
   }
 
@@ -3419,7 +3474,7 @@ function getSpawnWordOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+    message = `${message} ${getQuestCompletionMessage(questResult)}`;
     stateName = "reward";
   }
 
@@ -3491,7 +3546,7 @@ function getShopWordBoosterOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+    message = `${message} ${getQuestCompletionMessage(questResult)}`;
     stateName = "reward";
   }
 
