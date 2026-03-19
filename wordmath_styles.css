@@ -138,6 +138,56 @@ input {
   border-color: var(--bad-border);
 }
 
+.quest-strip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #3c517e;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(36, 53, 87, 0.9), rgba(24, 31, 47, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.quest-label {
+  margin: 0 0 0.25rem;
+  color: #b8c6de;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.quest-word,
+.quest-countdown {
+  display: block;
+  font-size: 1.15rem;
+}
+
+.quest-countdown-panel {
+  min-width: 140px;
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+  background: rgba(9, 13, 21, 0.4);
+  text-align: right;
+}
+
+.quest-countdown {
+  color: #ffd98b;
+}
+
+.quest-strip[data-state="warning"] {
+  border-color: #9a6a34;
+  background: linear-gradient(135deg, rgba(84, 54, 24, 0.92), rgba(29, 24, 20, 0.96));
+}
+
+.quest-strip[data-state="danger"] {
+  border-color: var(--bad-border);
+  background: linear-gradient(135deg, rgba(82, 30, 37, 0.94), rgba(33, 18, 22, 0.98));
+}
+
 .main-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
@@ -893,6 +943,15 @@ input {
   width: min(560px, 100%);
 }
 
+.quest-loss-modal-card {
+  width: min(460px, 100%);
+}
+
+.quest-loss-copy {
+  margin: 1rem 0 0;
+  font-size: 1rem;
+}
+
 .settings-toggle {
   display: flex;
   align-items: flex-start;
@@ -1022,7 +1081,8 @@ input {
   .section-title-row,
   .list-summary,
   .modal-head,
-  .negative-mix-head {
+  .negative-mix-head,
+  .quest-strip {
     display: grid;
     grid-template-columns: 1fr;
     align-items: start;

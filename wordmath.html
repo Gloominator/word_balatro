@@ -31,6 +31,17 @@
         Drop a word onto the field to start mixing.
       </div>
 
+      <section class="quest-strip" aria-label="Current quest">
+        <div>
+          <p class="quest-label">Quest Target</p>
+          <strong class="quest-word" data-quest-word>Loading...</strong>
+        </div>
+        <div class="quest-countdown-panel">
+          <p class="quest-label">Discoveries Left</p>
+          <strong class="quest-countdown" data-quest-countdown>0</strong>
+        </div>
+      </section>
+
       <section class="main-layout">
         <section class="panel playfield-panel">
           <div class="panel-head">
@@ -202,6 +213,21 @@
         </div>
         <p class="muted settings-copy">The exported file includes the full game snapshot, including `discovered`, so discovered words can be extracted from it later.</p>
         <input type="file" accept="application/json,.json" data-save-file-input hidden>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-quest-loss-modal hidden>
+      <section class="modal-card quest-loss-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-loss-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="quest-loss-title">You lost!</h2>
+            <p class="muted">The quest timer ran out before you found the target word.</p>
+          </div>
+        </div>
+        <p class="quest-loss-copy">You ran out of discoveries before finding <strong data-quest-loss-word>Tree</strong>.</p>
+        <div class="settings-actions">
+          <button type="button" data-action="quest-try-again">Try Again</button>
+        </div>
       </section>
     </div>
 

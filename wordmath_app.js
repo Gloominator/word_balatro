@@ -137,10 +137,15 @@ const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
 const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
-const MAX_PLAYFIELD_ZOOM = 1.2;
+const MAX_PLAYFIELD_ZOOM = 1;
 const STORAGE_KEY = "wordmath-progress-v1";
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
+const QUEST_INITIAL_DISCOVERY_TIMER = 60;
+const QUEST_TIMER_MIN = 50;
+const QUEST_TIMER_MAX = 70;
+const QUEST_COMPLETION_REWARD_COUNT = 5;
+const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const POSITION_TOKEN_CONFIG = Object.freeze({
   2: { title: "Second Result", shortLabel: "2nd" },
@@ -209,6 +214,11 @@ const state = {
     x: 0,
     y: 0,
   },
+  quest: {
+    targetWord: null,
+    remainingDiscoveries: 0,
+    isLost: false,
+  },
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -218,6 +228,8 @@ const els = {
   encyclopediaCount: document.querySelector("[data-encyclopedia-count]"),
   historyCount: document.querySelector("[data-history-count]"),
   discoveredCount: document.querySelector("[data-discovered-count]"),
+  questWord: document.querySelector("[data-quest-word]"),
+  questCountdown: document.querySelector("[data-quest-countdown]"),
   availableCount: document.querySelector("[data-available-count]"),
   wordSearch: document.querySelector("[data-word-search]"),
   wordList: document.querySelector("[data-word-list]"),
@@ -265,6 +277,10 @@ const els = {
   settingsModal: document.querySelector("[data-settings-modal]"),
   saveFileInput: document.querySelector("[data-save-file-input]"),
   spawnExistingWordsToggle: document.querySelector("[data-setting='spawn-existing-words']"),
+  questStrip: document.querySelector(".quest-strip"),
+  questLossModal: document.querySelector("[data-quest-loss-modal]"),
+  questLossWord: document.querySelector("[data-quest-loss-word]"),
+  questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
 };
 
 let pendingProgressSave = null;
@@ -458,6 +474,116 @@ function awardRandomDiscoveryToken() {
   return { newWildcardTokens, newPositionTokenRewards };
 }
 
+function mergePositionTokenRewardSummary(target, source) {
+  POSITION_TOKEN_RANKS.forEach((rank) => {
+    target[rank] += getSafeCount(source?.[rank]);
+  });
+}
+
+function sampleQuestWord(previousWord = null) {
+  const pool = previousWord
+    ? ENCYCLOPEDIA_WORDS
+      .map((entry) => entry.word)
+      .filter((word) => word !== previousWord)
+    : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
+  const fallbackPool = pool.length > 0 ? pool : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
+  return fallbackPool[Math.floor(Math.random() * fallbackPool.length)] ?? null;
+}
+
+function getRandomQuestDiscoveryTimer() {
+  return QUEST_TIMER_MIN + Math.floor(Math.random() * ((QUEST_TIMER_MAX - QUEST_TIMER_MIN) + 1));
+}
+
+function assignNewQuest({ initial = false, previousTargetWord = null } = {}) {
+  state.quest.targetWord = sampleQuestWord(previousTargetWord);
+  state.quest.remainingDiscoveries = initial ? QUEST_INITIAL_DISCOVERY_TIMER : getRandomQuestDiscoveryTimer();
+  state.quest.isLost = false;
+  return {
+    targetWord: state.quest.targetWord,
+    remainingDiscoveries: state.quest.remainingDiscoveries,
+  };
+}
+
+function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
+  const rewardSummary = {
+    newNegativeMixTokens: 0,
+    newBanWordTokens: 0,
+    newWildcardTokens: 0,
+    newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
+    if (rewardType === "minus-mix") {
+      state.availableNegativeMixTokens += 1;
+      state.totalNegativeMixTokensEarned += 1;
+      state.unseenTokenRewards += 1;
+      rewardSummary.newNegativeMixTokens += 1;
+      continue;
+    }
+    if (rewardType === "ban-word") {
+      state.availableBanWordTokens += 1;
+      state.totalBanWordTokensEarned += 1;
+      state.unseenTokenRewards += 1;
+      rewardSummary.newBanWordTokens += 1;
+      continue;
+    }
+
+    addPositionTokens(rewardType, 1);
+    state.unseenTokenRewards += 1;
+    rewardSummary.newPositionTokenRewards[rewardType] += 1;
+  }
+
+  return rewardSummary;
+}
+
+function advanceQuest(canonicalResult, { didDiscoverNewWord = false } = {}) {
+  const questResult = {
+    completedQuest: false,
+    failedQuest: false,
+    completedTargetWord: state.quest.targetWord,
+    nextTargetWord: state.quest.targetWord,
+    remainingDiscoveries: state.quest.remainingDiscoveries,
+    newNegativeMixTokens: 0,
+    newBanWordTokens: 0,
+    newWildcardTokens: 0,
+    newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+  };
+  if (!state.quest.targetWord || state.quest.isLost) {
+    return questResult;
+  }
+
+  if (didDiscoverNewWord) {
+    state.quest.remainingDiscoveries = Math.max(0, state.quest.remainingDiscoveries - 1);
+  }
+
+  if (canonicalResult === state.quest.targetWord) {
+    const rewardSummary = awardQuestCompletionTokens();
+    const completedTargetWord = state.quest.targetWord;
+    const nextQuest = assignNewQuest({
+      initial: false,
+      previousTargetWord: completedTargetWord,
+    });
+    questResult.completedQuest = true;
+    questResult.completedTargetWord = completedTargetWord;
+    questResult.nextTargetWord = nextQuest.targetWord;
+    questResult.remainingDiscoveries = nextQuest.remainingDiscoveries;
+    questResult.newNegativeMixTokens = rewardSummary.newNegativeMixTokens;
+    questResult.newBanWordTokens = rewardSummary.newBanWordTokens;
+    questResult.newWildcardTokens = rewardSummary.newWildcardTokens;
+    mergePositionTokenRewardSummary(questResult.newPositionTokenRewards, rewardSummary.newPositionTokenRewards);
+    return questResult;
+  }
+
+  questResult.remainingDiscoveries = state.quest.remainingDiscoveries;
+  if (didDiscoverNewWord && state.quest.remainingDiscoveries <= 0) {
+    state.quest.isLost = true;
+    questResult.failedQuest = true;
+  }
+
+  return questResult;
+}
+
 function getTileTagRank(tile) {
   if (!tile) {
     return 0;
@@ -477,7 +603,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 1,
+    version: 2,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     selfMatchedWords: [...state.selfMatchedWords],
@@ -536,6 +662,11 @@ function buildProgressSnapshot() {
     unseenTokenRewards: state.unseenTokenRewards,
     playfieldZoom: state.playfieldZoom,
     playfieldCamera: { ...state.playfieldCamera },
+    quest: {
+      targetWord: state.quest.targetWord,
+      remainingDiscoveries: state.quest.remainingDiscoveries,
+      isLost: state.quest.isLost,
+    },
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
   };
@@ -740,6 +871,19 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     x: Number.isFinite(snapshot.playfieldCamera?.x) ? snapshot.playfieldCamera.x : getDefaultPlayfieldCamera(state.playfieldZoom).x,
     y: Number.isFinite(snapshot.playfieldCamera?.y) ? snapshot.playfieldCamera.y : getDefaultPlayfieldCamera(state.playfieldZoom).y,
   }, state.playfieldZoom);
+  const savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
+    && ENCYCLOPEDIA_LOOKUP.has(snapshot.quest.targetWord)
+    ? snapshot.quest.targetWord
+    : null;
+  const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
+  const savedQuestLost = Boolean(snapshot.quest?.isLost);
+  if (savedQuestTarget && (savedQuestRemaining > 0 || savedQuestLost)) {
+    state.quest.targetWord = savedQuestTarget;
+    state.quest.remainingDiscoveries = savedQuestRemaining;
+    state.quest.isLost = savedQuestLost;
+  } else {
+    assignNewQuest({ initial: true });
+  }
   state.nextTileId = Math.max(
     getSafeCount(snapshot.nextTileId, 1),
     ...tiles.map((tile) => tile.id + 1),
@@ -1464,6 +1608,25 @@ function updateCounts() {
   els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
 }
 
+function renderQuest() {
+  const targetWord = state.quest.targetWord ? titleCase(state.quest.targetWord) : "None";
+  const countdown = state.quest.remainingDiscoveries;
+  let questState = "active";
+  if (state.quest.isLost) {
+    questState = "danger";
+  } else if (countdown <= 10) {
+    questState = "danger";
+  } else if (countdown <= 20) {
+    questState = "warning";
+  }
+
+  els.questWord.textContent = targetWord;
+  els.questCountdown.textContent = countdown.toString();
+  els.questStrip.dataset.state = questState;
+  els.questLossWord.textContent = targetWord;
+  els.questLossModal.hidden = !state.quest.isLost;
+}
+
 function getWordKey(word) {
   for (const [key, value] of state.discovered.entries()) {
     if (value === word) {
@@ -2087,6 +2250,7 @@ async function useWildcardToken(position = null) {
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
+    questResult,
     vocabularyOverflow,
   } = rememberResult(randomWord.word, randomWord.normalized);
   spawnWordOnField(canonicalResult, position);
@@ -2101,6 +2265,7 @@ async function useWildcardToken(position = null) {
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
+      questResult,
     },
   );
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
@@ -2266,6 +2431,7 @@ function renderSidebar() {
   renderTokenPanel();
   renderGarbageBin();
   renderEncyclopedia();
+  renderQuest();
 }
 
 function renderNegativeMix() {
@@ -2350,6 +2516,7 @@ function getMixOutcomeMessage(
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
+    questResult = null,
     usedShift = 0,
     refundedTagCount = 0,
   } = {},
@@ -2362,10 +2529,10 @@ function getMixOutcomeMessage(
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`;
     stateName = "success";
   } else if (isInEncyclopedia) {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was already in the encyclopedia, so it only appeared on the field.`;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}.`;
     stateName = "ok";
   } else {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, so it only appeared on the field.`;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. `;
     stateName = "ok";
   }
 
@@ -2385,6 +2552,11 @@ function getMixOutcomeMessage(
     stateName = "reward";
   }
 
+  if (questResult?.completedQuest) {
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
   const rewardParts = getTokenRewardParts({
     newNegativeMixTokens,
     newBanWordTokens,
@@ -2400,6 +2572,11 @@ function getMixOutcomeMessage(
     const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
     message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
     stateName = "reward";
+  }
+
+  if (questResult?.failedQuest) {
+    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    stateName = "error";
   }
 
   return { message, stateName };
@@ -2446,6 +2623,7 @@ function getWildcardOutcomeMessage(
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
+    questResult = null,
   } = {},
 ) {
   let message;
@@ -2472,6 +2650,11 @@ function getWildcardOutcomeMessage(
     stateName = "reward";
   }
 
+  if (questResult?.completedQuest) {
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
   const rewardParts = getTokenRewardParts({
     newNegativeMixTokens,
     newBanWordTokens,
@@ -2487,6 +2670,11 @@ function getWildcardOutcomeMessage(
     const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
     message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
     stateName = "reward";
+  }
+
+  if (questResult?.failedQuest) {
+    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    stateName = "error";
   }
 
   return { message, stateName };
@@ -2734,7 +2922,6 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     showFloatingCandidatePreview(selection.candidates);
   }
   const selectedCandidate = selection.candidate;
-  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2745,12 +2932,13 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
+    questResult,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const noticePoint = clientPoint || getClientPointForWorldPosition(position);
-  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", noticePoint);
   } else {
@@ -2761,10 +2949,18 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   }
   let status;
   if (shouldBlockSpawn) {
-    status = {
-      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
-      stateName: "ok",
-    };
+    status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
+      newNegativeMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newPositionTokenRewards,
+      newZonesUnlocked,
+      completedCategories,
+      questResult,
+      usedShift: selection.usedShift,
+      refundedTagCount: selection.refundedTagCount,
+    });
+    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       newNegativeMixTokens,
@@ -2773,10 +2969,11 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
+      questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
     });
-    if (!state.spawnExistingWords) {
+    if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -2803,7 +3000,6 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
   showFloatingCandidatePreview(selection.candidates, clientPoint);
   const selectedCandidate = selection.candidate;
-  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -2814,13 +3010,14 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
+    questResult,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
   recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
@@ -2831,10 +3028,26 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   }
   let status;
   if (shouldBlockSpawn) {
-    status = {
-      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
-      stateName: "ok",
-    };
+    status = getMixOutcomeMessage(
+      firstTile.word,
+      secondTile.word,
+      canonicalResult,
+      "add",
+      isInEncyclopedia,
+      wasDiscovered,
+      {
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        questResult,
+        usedShift: selection.usedShift,
+        refundedTagCount: selection.refundedTagCount,
+      },
+    );
+    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
     status = getMixOutcomeMessage(
       firstTile.word,
@@ -2850,11 +3063,12 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
+        questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
       },
     );
-    if (!state.spawnExistingWords) {
+    if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -2877,6 +3091,7 @@ function rememberResult(result, normalized = result) {
   let newWildcardTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
   let completedCategories = [];
+  let questResult = null;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -2934,6 +3149,12 @@ function rememberResult(result, normalized = result) {
     });
   }
 
+  questResult = advanceQuest(canonicalResult, { didDiscoverNewWord });
+  newNegativeMixTokensFromCompletion += questResult.newNegativeMixTokens;
+  newBanWordTokens += questResult.newBanWordTokens;
+  newWildcardTokens += questResult.newWildcardTokens;
+  mergePositionTokenRewardSummary(newPositionTokenRewards, questResult.newPositionTokenRewards);
+
   const unlockedSecondResultTokenCount = getUnlockedSecondResultTokenCount();
   const guaranteedSecondResultTokens = Math.max(
     0,
@@ -2974,6 +3195,7 @@ function rememberResult(result, normalized = result) {
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
+    questResult,
     vocabularyOverflow,
   };
 }
@@ -3024,6 +3246,7 @@ async function runNegativeMix(clientPoint = null) {
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
+    questResult,
     vocabularyOverflow,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
   recordMatch(
@@ -3034,7 +3257,7 @@ async function runNegativeMix(clientPoint = null) {
     selection.candidates,
     selectedCandidate.word,
   );
-  const shouldBlockSpawn = !state.spawnExistingWords && Boolean(existingAvailableResult);
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
@@ -3045,10 +3268,26 @@ async function runNegativeMix(clientPoint = null) {
   }
   let status;
   if (shouldBlockSpawn) {
-    status = {
-      message: `${titleCase(canonicalResult)} is already in Available Words, so it was not spawned.`,
-      stateName: "ok",
-    };
+    status = getMixOutcomeMessage(
+      state.negativeMix.a,
+      state.negativeMix.b,
+      canonicalResult,
+      "subtract",
+      isInEncyclopedia,
+      wasDiscovered,
+      {
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        questResult,
+        usedShift: selection.usedShift,
+        refundedTagCount: selection.refundedTagCount,
+      },
+    );
+    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
     status = getMixOutcomeMessage(
       state.negativeMix.a,
@@ -3064,11 +3303,12 @@ async function runNegativeMix(clientPoint = null) {
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
+        questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
       },
     );
-    if (!state.spawnExistingWords) {
+    if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -3466,6 +3706,7 @@ function resetRun() {
   state.unseenTokenRewards = 0;
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
+  assignNewQuest({ initial: true });
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
@@ -3496,7 +3737,7 @@ function resetRun() {
     ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
     : starterNames[0];
   setStatus(
-    `New game started with ${starterSummary}. Mix them to discover new words.`,
+    `New game started with ${starterSummary}. Your first quest is ${titleCase(state.quest.targetWord)} and you have ${state.quest.remainingDiscoveries} discoveries to find it.`,
     "ok",
   );
 }
@@ -3666,6 +3907,7 @@ function initEvents() {
   els.closeSettingsButton.addEventListener("click", closeSettings);
   els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
   els.importSaveButton.addEventListener("click", promptSaveImport);
+  els.questTryAgainButton.addEventListener("click", resetRun);
   els.spawnExistingWordsToggle.addEventListener("change", () => {
     state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
     queueProgressSave();
