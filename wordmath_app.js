@@ -162,6 +162,9 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
   4: { title: "Fourth Result", shortLabel: "4th" },
   5: { title: "Fifth Result", shortLabel: "5th" },
 });
+const SHOP_WORD_BOOSTER_COST = 50;
+const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
+const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-match-2",
@@ -229,6 +232,22 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
       state.availableNegativeMixTokens += 1;
       state.totalNegativeMixTokensEarned += 1;
       return "Bought 1 Minus Mix token for 30 coins.";
+    },
+  },
+  {
+    id: "shop-word-booster",
+    title: "Word Booster",
+    cost: SHOP_WORD_BOOSTER_COST,
+    description: "Roll 10 random words from the common-word list, then pick 1 to discover.",
+    canPurchase: () => !state.shopWordBooster.isLoading,
+    purchase: async () => {
+      if (hasPendingShopWordBooster()) {
+        openShopWordBooster();
+        return "Reopened your pending Word Booster.";
+      }
+      state.shopWordBooster.options = await rollShopWordBoosterOptions();
+      openShopWordBooster();
+      return `Bought a Word Booster for ${SHOP_WORD_BOOSTER_COST} coins. Pick 1 rolled word to discover it.`;
     },
   },
   {
@@ -316,6 +335,11 @@ const state = {
     remainingDiscoveries: 0,
     isLost: false,
   },
+  shopWordBooster: {
+    isOpen: false,
+    isLoading: false,
+    options: [],
+  },
   nextTileId: 1,
   nextZIndex: 1,
 };
@@ -349,6 +373,9 @@ const els = {
   encyclopediaGrid: document.querySelector("[data-encyclopedia-grid]"),
   historyModal: document.querySelector("[data-history-modal]"),
   historyList: document.querySelector("[data-history-list]"),
+  shopWordBoosterModal: document.querySelector("[data-shop-word-booster-modal]"),
+  shopWordBoosterGrid: document.querySelector("[data-shop-word-booster-grid]"),
+  closeShopWordBoosterButton: document.querySelector("[data-action='close-shop-word-booster']"),
   resetButton: document.querySelector("[data-action='reset']"),
   clearFieldButton: document.querySelector("[data-action='clear-field']"),
   clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
@@ -391,6 +418,8 @@ let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
 let activeFloatingWordNotice = null;
 let activeFloatingWordNoticeTimeout = null;
+let cachedShopWordBoosterPool = null;
+let shopWordBoosterPoolPromise = null;
 const associationPreviewCache = new Map();
 const dragMixPreviewState = {
   pairKey: null,
@@ -483,6 +512,83 @@ function getCoinRewardText(coinReward) {
 
 function getStringList(value) {
   return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+}
+
+function parseShopWordBoosterEntries(rawText) {
+  const seen = new Set();
+  return rawText
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const separatorIndex = line.indexOf(".");
+      const rawWord = separatorIndex >= 0 ? line.slice(separatorIndex + 1).trim() : line;
+      const normalized = rawWord.toLowerCase();
+      if (!normalized || seen.has(normalized)) {
+        return null;
+      }
+      seen.add(normalized);
+      return {
+        word: normalized,
+        normalized,
+        zipf: null,
+      };
+    })
+    .filter(Boolean);
+}
+
+async function loadShopWordBoosterPool() {
+  if (cachedShopWordBoosterPool) {
+    return cachedShopWordBoosterPool;
+  }
+  if (!shopWordBoosterPoolPromise) {
+    shopWordBoosterPoolPromise = (async () => {
+      const response = await fetch(SHOP_WORD_BOOSTER_SOURCE_PATH);
+      if (!response.ok) {
+        throw new Error(`Could not load ${SHOP_WORD_BOOSTER_SOURCE_PATH}.`);
+      }
+      const rawText = await response.text();
+      const entries = parseShopWordBoosterEntries(rawText);
+      if (!entries.length) {
+        throw new Error("The Word Booster list was empty.");
+      }
+      cachedShopWordBoosterPool = entries;
+      return entries;
+    })().catch((error) => {
+      shopWordBoosterPoolPromise = null;
+      throw error;
+    });
+  }
+  return shopWordBoosterPoolPromise;
+}
+
+function sampleRandomEntries(entries, count) {
+  const pool = [...entries];
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[swapIndex]] = [pool[swapIndex], pool[index]];
+  }
+  return pool.slice(0, Math.min(count, pool.length));
+}
+
+async function rollShopWordBoosterOptions() {
+  const pool = await loadShopWordBoosterPool();
+  const unavailableWords = new Set([
+    ...state.starters,
+    ...state.discovered.keys(),
+    ...state.discovered.values(),
+  ].map((word) => word.toLowerCase()));
+  const undiscoveredPool = pool.filter((entry) => !unavailableWords.has(entry.normalized));
+  const candidatePool = undiscoveredPool.length > 0 ? undiscoveredPool : pool;
+  const options = sampleRandomEntries(candidatePool, SHOP_WORD_BOOSTER_ROLL_COUNT);
+  if (!options.length) {
+    throw new Error("No Word Booster choices were available.");
+  }
+  return options;
+}
+
+function hasPendingShopWordBooster() {
+  return Array.isArray(state.shopWordBooster.options) && state.shopWordBooster.options.length > 0;
 }
 
 function getOrdinalLabel(rank) {
@@ -1643,7 +1749,7 @@ function getSelectedCandidate(candidates, shift) {
   return candidates[shift];
 }
 
-function resolveCandidateSelection(candidates, tileIds = []) {
+function resolveCandidateSelection(candidates, tileIds = [], { applyTagEffects = true } = {}) {
   const allowedCandidates = filterRemovedCandidates(candidates);
   const taggedTiles = getTaggedTiles(tileIds);
   const taggedRanks = taggedTiles.map((tile) => getTileTagRank(tile));
@@ -1654,7 +1760,7 @@ function resolveCandidateSelection(candidates, tileIds = []) {
       : Math.max(...taggedRanks) + 1;
   const desiredShift = Math.max(0, desiredResultRank - 1);
   if (!allowedCandidates.length) {
-    const refundedTagCount = taggedTiles.length > 0
+    const refundedTagCount = applyTagEffects && taggedTiles.length > 0
       ? releaseTaggedResultTokens(tileIds, { refund: true })
       : 0;
     return {
@@ -1666,11 +1772,11 @@ function resolveCandidateSelection(candidates, tileIds = []) {
     };
   }
   const canUseShiftedCandidate = desiredShift > 0 && allowedCandidates.length > desiredShift;
-  const refundedTagCount = desiredShift > 0 && !canUseShiftedCandidate
+  const refundedTagCount = applyTagEffects && desiredShift > 0 && !canUseShiftedCandidate
     ? releaseTaggedResultTokens(tileIds, { refund: true })
     : 0;
 
-  if (desiredShift > 0 && canUseShiftedCandidate) {
+  if (applyTagEffects && desiredShift > 0 && canUseShiftedCandidate) {
     releaseTaggedResultTokens(tileIds);
   }
 
@@ -1865,7 +1971,9 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
       return;
     }
 
-    const selection = resolveCandidateSelection(mix.candidates, [sourceTile.id, targetTile.id]);
+    const selection = resolveCandidateSelection(mix.candidates, [sourceTile.id, targetTile.id], {
+      applyTagEffects: false,
+    });
     if (!selection.candidate) {
       clearFloatingCandidatePreview();
       return;
@@ -2766,6 +2874,12 @@ function renderTokenPanel() {
 }
 
 function getShopItemPurchaseState(item) {
+  if (item.id === "shop-word-booster" && hasPendingShopWordBooster()) {
+    return {
+      canBuy: !state.shopWordBooster.isLoading,
+      reason: state.shopWordBooster.isLoading ? "Rolling words..." : "",
+    };
+  }
   if (state.coins < item.cost) {
     return {
       canBuy: false,
@@ -2773,6 +2887,12 @@ function getShopItemPurchaseState(item) {
     };
   }
   if (!item.canPurchase()) {
+    if (item.id === "shop-word-booster") {
+      return {
+        canBuy: false,
+        reason: "Rolling words...",
+      };
+    }
     if (item.id === "shop-quest-turn") {
       return {
         canBuy: false,
@@ -2790,7 +2910,7 @@ function getShopItemPurchaseState(item) {
   };
 }
 
-function purchaseShopItem(itemId) {
+async function purchaseShopItem(itemId) {
   const item = SHOP_ITEM_DEFINITIONS.find((entry) => entry.id === itemId);
   if (!item) {
     return;
@@ -2802,11 +2922,37 @@ function purchaseShopItem(itemId) {
     return;
   }
 
-  state.coins -= item.cost;
-  const message = item.purchase();
-  renderSidebar();
-  queueProgressSave();
-  setStatus(message, "reward");
+  const isWordBooster = item.id === "shop-word-booster";
+  if (isWordBooster) {
+    const willRollNewBooster = !hasPendingShopWordBooster();
+    state.shopWordBooster.isLoading = true;
+    renderSidebar();
+    try {
+      const message = await item.purchase();
+      if (willRollNewBooster) {
+        state.coins -= item.cost;
+      }
+      renderSidebar();
+      queueProgressSave();
+      setStatus(message, "reward");
+    } catch (error) {
+      setStatus(error.message || "Could not buy that shop item.", "error");
+    } finally {
+      state.shopWordBooster.isLoading = false;
+      renderSidebar();
+    }
+    return;
+  }
+
+  try {
+    const message = await item.purchase();
+    state.coins -= item.cost;
+    renderSidebar();
+    queueProgressSave();
+    setStatus(message, "reward");
+  } catch (error) {
+    setStatus(error.message || "Could not buy that shop item.", "error");
+  }
 }
 
 function renderUpgradePanel() {
@@ -2814,6 +2960,7 @@ function renderUpgradePanel() {
 
   SHOP_ITEM_DEFINITIONS.forEach((item) => {
     const purchaseState = getShopItemPurchaseState(item);
+    const isPendingWordBooster = item.id === "shop-word-booster" && hasPendingShopWordBooster();
 
     const card = document.createElement("article");
     card.className = "upgrade-card";
@@ -2842,14 +2989,14 @@ function renderUpgradePanel() {
 
     const effect = document.createElement("p");
     effect.className = "upgrade-card-effect";
-    effect.textContent = purchaseState.reason;
-    effect.hidden = !purchaseState.reason;
+    effect.textContent = isPendingWordBooster ? "Your rolled booster is waiting." : purchaseState.reason;
+    effect.hidden = !(isPendingWordBooster || purchaseState.reason);
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "upgrade-buy-button";
     button.disabled = !purchaseState.canBuy;
-    button.textContent = `Buy for ${item.cost} coins`;
+    button.textContent = isPendingWordBooster ? "View Booster" : `Buy for ${item.cost} coins`;
     button.addEventListener("click", () => {
       purchaseShopItem(item.id);
     });
@@ -3187,6 +3334,78 @@ function getSpawnWordOutcomeMessage(
     stateName = "success";
   } else {
     message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to your discovered words.`;
+    stateName = "success";
+  }
+
+  if (completedCategories.length > 0) {
+    const categoryLabel = completedCategories.join(" and ");
+    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
+    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    stateName = "reward";
+  }
+
+  if (questResult?.completedQuest) {
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
+  const coinRewardText = getCoinRewardText(coinReward);
+  if (coinRewardText) {
+    message = `${message} ${coinRewardText}`;
+    stateName = "reward";
+  }
+
+  const rewardParts = getTokenRewardParts({
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+  });
+  if (rewardParts.length > 0) {
+    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    stateName = "reward";
+  }
+
+  if (newZonesUnlocked > 0) {
+    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
+    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    stateName = "reward";
+  }
+
+  if (questResult?.failedQuest) {
+    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    stateName = "error";
+  }
+
+  return { message, stateName };
+}
+
+function getShopWordBoosterOutcomeMessage(
+  canonicalResult,
+  isInEncyclopedia,
+  wasDiscovered,
+  {
+    coinReward = null,
+    newNegativeMixTokens = 0,
+    newBanWordTokens = 0,
+    newWildcardTokens = 0,
+    newPositionTokenRewards = null,
+    newZonesUnlocked = 0,
+    completedCategories = [],
+    questResult = null,
+  } = {},
+) {
+  let message;
+  let stateName;
+
+  if (wasDiscovered) {
+    message = `Word Booster revealed ${titleCase(canonicalResult)}, but it was already discovered.`;
+    stateName = "ok";
+  } else if (isInEncyclopedia) {
+    message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to the encyclopedia.`;
+    stateName = "success";
+  } else {
+    message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to your available words.`;
     stateName = "success";
   }
 
@@ -4250,6 +4469,63 @@ function clearField() {
   setStatus(`The field was cleared.${refundMessage}`);
 }
 
+function renderShopWordBooster() {
+  els.shopWordBoosterGrid.innerHTML = "";
+  state.shopWordBooster.options.forEach((entry) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "shop-word-booster-option";
+    button.textContent = titleCase(entry.word);
+    button.addEventListener("click", () => {
+      const {
+        canonicalResult,
+        isInEncyclopedia,
+        wasDiscovered,
+        coinReward,
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        questResult,
+        vocabularyOverflow,
+      } = rememberResult(entry.word, entry.normalized, { zipf: entry.zipf });
+      state.shopWordBooster.options = [];
+      state.shopWordBooster.isOpen = false;
+      state.activeSidebarTab = "words";
+      els.shopWordBoosterModal.hidden = true;
+      renderSidebar();
+      queueProgressSave();
+      const status = getShopWordBoosterOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
+        coinReward,
+        newNegativeMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newPositionTokenRewards,
+        newZonesUnlocked,
+        completedCategories,
+        questResult,
+      });
+      setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+    });
+    els.shopWordBoosterGrid.append(button);
+  });
+}
+
+function openShopWordBooster() {
+  state.shopWordBooster.isOpen = true;
+  renderShopWordBooster();
+  els.shopWordBoosterModal.hidden = false;
+}
+
+function closeShopWordBooster() {
+  state.shopWordBooster.isOpen = false;
+  els.shopWordBoosterModal.hidden = true;
+  renderSidebar();
+  queueProgressSave();
+}
+
 function openEncyclopedia() {
   els.encyclopediaModal.hidden = false;
 }
@@ -4411,10 +4687,14 @@ function resetRun() {
   state.unseenTokenRewards = 0;
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
+  state.shopWordBooster.isOpen = false;
+  state.shopWordBooster.isLoading = false;
+  state.shopWordBooster.options = [];
   assignNewQuest({ initial: true });
   state.nextTileId = 1;
   state.nextZIndex = 1;
   els.wordSearch.value = "";
+  els.shopWordBoosterModal.hidden = true;
 
   updatePlayfieldCamera();
   renderSidebar();
@@ -4619,6 +4899,7 @@ function initEvents() {
   els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.closeShopWordBoosterButton.addEventListener("click", closeShopWordBooster);
   els.spawnWordButton.addEventListener("click", async () => {
     try {
       await promptSpawnWord();
@@ -4666,6 +4947,11 @@ function initEvents() {
       closeSettings();
     }
   });
+  els.shopWordBoosterModal.addEventListener("click", (event) => {
+    if (event.target === els.shopWordBoosterModal) {
+      closeShopWordBooster();
+    }
+  });
 
   els.playfield.addEventListener("wheel", (event) => {
     event.preventDefault();
@@ -4683,6 +4969,9 @@ function initEvents() {
     }
     if (event.key === "Escape" && !els.settingsModal.hidden) {
       closeSettings();
+    }
+    if (event.key === "Escape" && !els.shopWordBoosterModal.hidden) {
+      closeShopWordBooster();
     }
   });
 
