@@ -121,6 +121,10 @@ const ENCYCLOPEDIA_LOOKUP = new Map(
 
 const TILE_WIDTH = 152;
 const TILE_HEIGHT = 76;
+const NEGATIVE_MIX_WIDTH = 168;
+const NEGATIVE_MIX_HEIGHT = 132;
+const NEGATIVE_MIX_Z_INDEX = 5000;
+const DRAGGING_TILE_Z_INDEX = 6000;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const DEFAULT_CATEGORY_ID = "uncategorized";
@@ -168,6 +172,10 @@ const state = {
   negativeMixSources: {
     a: null,
     b: null,
+  },
+  negativeMixPosition: {
+    x: 24,
+    y: 24,
   },
   lastMix: {
     label: "No mix yet.",
@@ -619,6 +627,7 @@ function buildProgressSnapshot() {
     })),
     negativeMix: { ...state.negativeMix },
     negativeMixSources: { ...state.negativeMixSources },
+    negativeMixPosition: { ...state.negativeMixPosition },
     lastMix: {
       label: state.lastMix.label,
       operation: state.lastMix.operation,
@@ -871,6 +880,10 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     x: Number.isFinite(snapshot.playfieldCamera?.x) ? snapshot.playfieldCamera.x : getDefaultPlayfieldCamera(state.playfieldZoom).x,
     y: Number.isFinite(snapshot.playfieldCamera?.y) ? snapshot.playfieldCamera.y : getDefaultPlayfieldCamera(state.playfieldZoom).y,
   }, state.playfieldZoom);
+  state.negativeMixPosition = clampNegativeMixPosition({
+    x: Number.isFinite(snapshot.negativeMixPosition?.x) ? snapshot.negativeMixPosition.x : getDefaultNegativeMixPosition().x,
+    y: Number.isFinite(snapshot.negativeMixPosition?.y) ? snapshot.negativeMixPosition.y : getDefaultNegativeMixPosition().y,
+  });
   const savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
     && ENCYCLOPEDIA_LOOKUP.has(snapshot.quest.targetWord)
     ? snapshot.quest.targetWord
@@ -934,6 +947,9 @@ function loadProgress() {
 }
 
 function titleCase(word) {
+  if (typeof word !== "string" || word.length === 0) {
+    return "";
+  }
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
@@ -1071,6 +1087,31 @@ function getPlayfieldPointFromClientPoint(clientX, clientY, bounds = getPlayfiel
     x: clamp(state.playfieldCamera.x + ((clientX - playfieldRect.left) / state.playfieldZoom), bounds.minX, bounds.maxX),
     y: clamp(state.playfieldCamera.y + ((clientY - playfieldRect.top) / state.playfieldZoom), bounds.minY, bounds.maxY),
   };
+}
+
+function getNegativeMixSize() {
+  return {
+    width: els.negativePanel?.offsetWidth || NEGATIVE_MIX_WIDTH,
+    height: els.negativePanel?.offsetHeight || NEGATIVE_MIX_HEIGHT,
+  };
+}
+
+function clampNegativeMixPosition(position = state.negativeMixPosition) {
+  const world = getPlayfieldWorldSize();
+  const size = getNegativeMixSize();
+  return {
+    x: clamp(roundTo(position.x), 0, Math.max(0, world.width - size.width)),
+    y: clamp(roundTo(position.y), 0, Math.max(0, world.height - size.height)),
+  };
+}
+
+function getDefaultNegativeMixPosition() {
+  const visible = getPlayfieldVisibleWorldSize();
+  const size = getNegativeMixSize();
+  return clampNegativeMixPosition({
+    x: state.playfieldCamera.x + Math.max(24, (visible.width - size.width) / 2),
+    y: state.playfieldCamera.y + Math.max(24, (visible.height - size.height) / 4),
+  });
 }
 
 function clampTilesToPlayfieldBounds() {
@@ -1885,7 +1926,7 @@ function setActiveSidebarTab(tab) {
   queueProgressSave();
 }
 
-function activateNegativeMixToken() {
+function activateNegativeMixToken(point = null) {
   if (state.hasActiveNegativeMixToken) {
     setStatus("Negative mixing is already active.", "ok");
     return;
@@ -1898,6 +1939,15 @@ function activateNegativeMixToken() {
   state.availableNegativeMixTokens -= 1;
   state.hasActiveNegativeMixToken = true;
   clearNegativeMix();
+  if (point) {
+    const size = getNegativeMixSize();
+    state.negativeMixPosition = clampNegativeMixPosition({
+      x: point.x - (size.width / 2),
+      y: point.y - (size.height / 2),
+    });
+  } else {
+    state.negativeMixPosition = getDefaultNegativeMixPosition();
+  }
   renderSidebar();
   renderNegativeMix();
   queueProgressSave();
@@ -2440,6 +2490,10 @@ function renderNegativeMix() {
     return;
   }
 
+  state.negativeMixPosition = clampNegativeMixPosition(state.negativeMixPosition);
+  els.negativePanel.style.left = `${state.negativeMixPosition.x}px`;
+  els.negativePanel.style.top = `${state.negativeMixPosition.y}px`;
+
   const slots = [
     { key: "a", element: els.negativeWordA },
     { key: "b", element: els.negativeWordB },
@@ -2818,6 +2872,15 @@ function spawnWordOnField(word, position = null) {
   state.nextZIndex += 1;
   renderTiles();
   queueProgressSave();
+}
+
+function getNegativeMixResultSpawnPosition() {
+  const bounds = getPlayfieldBounds();
+  const gap = 14;
+  return {
+    x: clamp(state.negativeMixPosition.x + ((NEGATIVE_MIX_WIDTH - TILE_WIDTH) / 2), bounds.minX, bounds.maxX),
+    y: clamp(state.negativeMixPosition.y + NEGATIVE_MIX_HEIGHT + gap, bounds.minY, bounds.maxY),
+  };
 }
 
 function removeTile(tileId) {
@@ -3261,7 +3324,7 @@ async function runNegativeMix(clientPoint = null) {
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
-    spawnWordOnField(canonicalResult, { x: 340, y: 48 });
+    spawnWordOnField(canonicalResult, getNegativeMixResultSpawnPosition());
     if (!state.spawnExistingWords) {
       showFloatingWordNotice("💡", "success", clientPoint);
     }
@@ -3330,6 +3393,9 @@ function assignNegativeSlot(slot, word, tileId = null) {
     setStatus("Use a minus-mix token first.", "error");
     return;
   }
+  if (Number.isFinite(tileId)) {
+    removeTile(tileId);
+  }
   state.negativeMix[slot] = word;
   state.negativeMixSources[slot] = tileId;
   renderNegativeMix();
@@ -3340,16 +3406,76 @@ function getNegativeSlotAtPoint(clientX, clientY) {
   if (!state.hasActiveNegativeMixToken) {
     return null;
   }
-  const element = document.elementFromPoint(clientX, clientY);
-  return element ? element.closest("[data-negative-slot]") : null;
+  const elements = typeof document.elementsFromPoint === "function"
+    ? document.elementsFromPoint(clientX, clientY)
+    : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+  return elements.find((element) => element.matches?.("[data-negative-slot]")) || null;
 }
 
 function getGarbageBinAtPoint(clientX, clientY) {
   if (!isGarbageBinUnlocked()) {
     return null;
   }
-  const element = document.elementFromPoint(clientX, clientY);
-  return element ? element.closest("[data-garbage-bin]") : null;
+  const elements = typeof document.elementsFromPoint === "function"
+    ? document.elementsFromPoint(clientX, clientY)
+    : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
+  return elements.find((element) => element.matches?.("[data-garbage-bin]")) || null;
+}
+
+function startNegativeMixDrag(event) {
+  if (event.button !== 0) {
+    return;
+  }
+  if (event.target.closest("button")) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const panelRect = els.negativePanel.getBoundingClientRect();
+  const pointerOffsetX = (event.clientX - panelRect.left) / state.playfieldZoom;
+  const pointerOffsetY = (event.clientY - panelRect.top) / state.playfieldZoom;
+  const startClientX = event.clientX;
+  const startClientY = event.clientY;
+  let dragStarted = false;
+
+  const move = (moveEvent) => {
+    const deltaX = moveEvent.clientX - startClientX;
+    const deltaY = moveEvent.clientY - startClientY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (!dragStarted) {
+      if (distance < DRAG_THRESHOLD) {
+        return;
+      }
+      dragStarted = true;
+      els.negativePanel.dataset.dragging = "true";
+    }
+
+    const localPoint = getPlayfieldPointFromClientPoint(moveEvent.clientX, moveEvent.clientY);
+    state.negativeMixPosition = clampNegativeMixPosition({
+      x: localPoint.x - pointerOffsetX,
+      y: localPoint.y - pointerOffsetY,
+    });
+    els.negativePanel.style.left = `${state.negativeMixPosition.x}px`;
+    els.negativePanel.style.top = `${state.negativeMixPosition.y}px`;
+  };
+
+  const end = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    delete els.negativePanel.dataset.dragging;
+
+    if (dragStarted) {
+      state.negativeMixPosition = clampNegativeMixPosition(state.negativeMixPosition);
+      renderNegativeMix();
+      queueProgressSave();
+    }
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end, { once: true });
 }
 
 function startPlayfieldPan(event) {
@@ -3414,6 +3540,7 @@ function startTileDrag(event, tileId) {
   event.stopPropagation();
 
   const tileElement = event.currentTarget;
+  tileElement.style.zIndex = String(DRAGGING_TILE_Z_INDEX);
   const tileRect = tileElement.getBoundingClientRect();
   const pointerOffsetX = (event.clientX - tileRect.left) / state.playfieldZoom;
   const pointerOffsetY = (event.clientY - tileRect.top) / state.playfieldZoom;
@@ -3435,7 +3562,7 @@ function startTileDrag(event, tileId) {
       state.nextZIndex += 1;
       tile.zIndex = state.nextZIndex;
       tileElement.classList.add("dragging");
-      tileElement.style.zIndex = String(tile.zIndex);
+      tileElement.style.zIndex = String(DRAGGING_TILE_Z_INDEX);
     }
 
     const bounds = getPlayfieldBounds();
@@ -3452,6 +3579,7 @@ function startTileDrag(event, tileId) {
     tileElement.classList.remove("dragging");
 
     if (!dragStarted) {
+      tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
       try {
         const bounds = getPlayfieldBounds();
         await handleTileClick(tile.word, {
@@ -3518,7 +3646,7 @@ function renderTiles() {
       tileElement.dataset.tagged = getTileTagRank(tile) >= 2 ? "true" : "false";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
-      tileElement.style.zIndex = String(tile.zIndex);
+      tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
       tileElement.addEventListener("pointerdown", (event) => startTileDrag(event, tile.id));
       tileElement.addEventListener("dragover", (event) => {
         const dragTypes = Array.from(event.dataTransfer.types || []);
@@ -3551,7 +3679,10 @@ function renderTiles() {
           return;
         }
         if (tokenType === "minus-mix") {
-          activateNegativeMixToken();
+          activateNegativeMixToken({
+            x: tile.x + (TILE_WIDTH / 2),
+            y: tile.y + (TILE_HEIGHT / 2),
+          });
         }
       });
       tileElement.addEventListener("contextmenu", (event) => {
@@ -3667,6 +3798,7 @@ function resetRun() {
   state.negativeMix.b = null;
   state.negativeMixSources.a = null;
   state.negativeMixSources.b = null;
+  state.negativeMixPosition = { x: 24, y: 24 };
   state.lastMix = {
     label: "No mix yet.",
     operation: "None",
@@ -3758,7 +3890,8 @@ function initPlayfieldDropzone() {
 
     const tokenType = event.dataTransfer.getData("application/x-token-type");
     if (tokenType === "minus-mix") {
-      activateNegativeMixToken();
+      const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY);
+      activateNegativeMixToken(point);
       return;
     }
     if (tokenType === "ban-word") {
@@ -3844,6 +3977,11 @@ function initGarbageBinDropzone() {
 }
 
 function initEvents() {
+  els.negativePanel.addEventListener("pointerdown", startNegativeMixDrag);
+  els.negativePanel.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    refundNegativeMixToken();
+  });
   els.wordSearch.addEventListener("input", (event) => {
     state.search = event.target.value.trim().toLowerCase();
     renderWordList();

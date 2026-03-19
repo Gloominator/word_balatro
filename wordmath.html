@@ -63,28 +63,28 @@
           </div>
           <div class="playfield" data-playfield>
             <div class="playfield-surface" data-playfield-surface>
+              <section class="negative-mix-panel" data-negative-panel hidden>
+                <div class="negative-mix-head">
+                  <div class="negative-mix-title">Minus Mix Board</div>
+                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Refund minus-mix token">Refund</button>
+                </div>
+                <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A - B</strong>. Right-click the board to refund the token.</p>
+                <div class="negative-mix-slots">
+                  <div class="negative-slot" data-negative-slot="a">
+                    <span class="negative-slot-label">A</span>
+                    <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+                  </div>
+                  <div class="negative-slot" data-negative-slot="b">
+                    <span class="negative-slot-label">B</span>
+                    <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                  </div>
+                </div>
+                <div class="negative-mix-actions">
+                  <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
+                  <button type="button" data-action="run-negative">Mix A - B</button>
+                </div>
+              </section>
             </div>
-            <section class="negative-mix-panel" data-negative-panel hidden>
-              <div class="negative-mix-head">
-                <div class="negative-mix-title">Negative Mixing</div>
-                <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Close negative mixing">X</button>
-              </div>
-              <p class="negative-mix-text">Drop two words here to create a result using <strong>A - B</strong>.</p>
-              <div class="negative-mix-slots">
-                <div class="negative-slot" data-negative-slot="a">
-                  <span class="negative-slot-label">A</span>
-                  <span class="negative-slot-word" data-negative-word-a>Drop word</span>
-                </div>
-                <div class="negative-slot" data-negative-slot="b">
-                  <span class="negative-slot-label">B</span>
-                  <span class="negative-slot-word" data-negative-word-b>Drop word</span>
-                </div>
-              </div>
-              <div class="negative-mix-actions">
-                <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
-                <button type="button" data-action="run-negative">Mix A - B</button>
-              </div>
-            </section>
             <div class="playfield-empty" data-empty-message>
               Drag a starter or discovered word here.
             </div>
