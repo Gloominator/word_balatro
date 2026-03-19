@@ -164,10 +164,10 @@ const QUEST_SPEED_BONUS_TIERS = Object.freeze([
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const POSITION_TOKEN_CONFIG = Object.freeze({
-  2: { title: "Second Result", shortLabel: "2nd" },
-  3: { title: "Third Result", shortLabel: "3rd" },
-  4: { title: "Fourth Result", shortLabel: "4th" },
-  5: { title: "Fifth Result", shortLabel: "5th" },
+  2: { title: "Второй результат", shortLabel: "2-й" },
+  3: { title: "Третий результат", shortLabel: "3-й" },
+  4: { title: "Четвёртый результат", shortLabel: "4-й" },
+  5: { title: "Пятый результат", shortLabel: "5-й" },
 });
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -175,108 +175,108 @@ const SHOP_WORD_BOOSTER_SOURCE_PATH = "./russianmostcommon.json";
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-word-booster",
-    title: "Word Booster",
+    title: "Усилитель слов",
     cost: SHOP_WORD_BOOSTER_COST,
-    description: "Roll 10 random words from the common-word list, then pick 1 to discover.",
+    description: "Выпадение 10 случайных слов из списка, выберите 1 для открытия.",
     canPurchase: () => !state.shopWordBooster.isLoading,
     purchase: async () => {
       if (hasPendingShopWordBooster()) {
         openShopWordBooster();
-        return "Reopened your pending Word Booster.";
+        return "Снова открыт ваш усилитель слов.";
       }
       state.shopWordBooster.options = await rollShopWordBoosterOptions();
       openShopWordBooster();
-      return `Bought a Word Booster for ${SHOP_WORD_BOOSTER_COST} coins. Pick 1 rolled word to discover it.`;
+      return `Куплен усилитель слов за ${SHOP_WORD_BOOSTER_COST} монет. Выберите 1 из выпавших слов.`;
     },
   },
   {
     id: "shop-match-2",
-    title: "Second Result Token",
+    title: "Токен «Второй результат»",
     cost: 40,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(2, 1);
-      return "Bought 1 Second Result token for 40 coins.";
+      return "Куплен 1 токен «Второй результат» за 40 монет.";
     },
   },
   {
     id: "shop-match-3",
-    title: "Third Result Token",
+    title: "Токен «Третий результат»",
     cost: 50,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(3, 1);
-      return "Bought 1 Third Result token for 50 coins.";
+      return "Куплен 1 токен «Третий результат» за 50 монет.";
     },
   },
   {
     id: "shop-match-4",
-    title: "Fourth Result Token",
+    title: "Токен «Четвёртый результат»",
     cost: 60,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(4, 1);
-      return "Bought 1 Fourth Result token for 60 coins.";
+      return "Куплен 1 токен «Четвёртый результат» за 60 монет.";
     },
   },
   {
     id: "shop-match-5",
-    title: "Fifth Result Token",
+    title: "Токен «Пятый результат»",
     cost: 70,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(5, 1);
-      return "Bought 1 Fifth Result token for 70 coins.";
+      return "Куплен 1 токен «Пятый результат» за 70 монет.";
     },
   },
   {
     id: "shop-ban-word",
-    title: "Ban Word Token",
+    title: "Токен «Запретить слово»",
     cost: 80,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       state.availableBanWordTokens += 1;
       state.totalBanWordTokensEarned += 1;
-      return "Bought 1 Ban Word token for 80 coins.";
+      return "Куплен 1 токен «Запретить слово» за 80 монет.";
     },
   },
   {
     id: "shop-minus-mix",
-    title: "Minus Mix Token",
+    title: "Токен «Минус-микс»",
     cost: 50,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       state.availableNegativeMixTokens += 1;
       state.totalNegativeMixTokensEarned += 1;
-      return "Bought 1 Minus Mix token for 50 coins.";
+      return "Куплен 1 токен «Минус-микс» за 50 монет.";
     },
   },
   {
     id: "shop-available-word-cap",
-    title: "Available Words Cap +10",
+    title: "Лимит слов +10",
     cost: AVAILABLE_WORD_CAP_UPGRADE_BASE_COST,
     description: "",
     canPurchase: () => true,
     purchase: () => {
       state.purchasedUpgrades.availableWordCap = getAvailableWordCapUpgradeLevel() + 1;
-      return `Available words cap increased to ${getAvailableWordLimit()}.`;
+      return `Лимит доступных слов увеличен до ${getAvailableWordLimit()}.`;
     },
   },
   {
     id: "shop-quest-turn",
-    title: "Quest Turn +1",
+    title: "Ход квеста +1",
     cost: 100,
-    description: "Add 1 turn before you lose the current active quest.",
+    description: "Добавить 1 ход перед проигрышем текущего квеста.",
     canPurchase: () => Boolean(state.quest.targetWord) && !state.quest.isLost,
     purchase: () => {
       state.quest.remainingDiscoveries += 1;
-      return `Added 1 turn to the active quest. You now lose in ${state.quest.remainingDiscoveries} turns.`;
+      return `Добавлен 1 ход к квесту. Проигрыш через ${state.quest.remainingDiscoveries} ходов.`;
     },
   },
 ]);
@@ -301,8 +301,8 @@ const state = {
     y: 24,
   },
   lastMix: {
-    label: "No mix yet.",
-    operation: "None",
+    label: "Пока нет микса.",
+    operation: "Нет",
     candidates: [],
   },
   matchHistory: [],
@@ -498,21 +498,21 @@ function getAffordableShopItemCount() {
 function getDiscoveryRarityLabel(zipf) {
   const safeZipf = normalizeZipfFrequency(zipf);
   if (safeZipf >= 6) {
-    return "common";
+    return "обычное";
   }
   if (safeZipf >= 5) {
-    return "familiar";
+    return "знакомое";
   }
   if (safeZipf >= 4) {
-    return "uncommon";
+    return "необычное";
   }
   if (safeZipf >= 3) {
-    return "rare";
+    return "редкое";
   }
   if (safeZipf >= 2) {
-    return "very rare";
+    return "очень редкое";
   }
-  return "extremely rare";
+  return "крайне редкое";
 }
 
 function isRareDiscoveryZipf(zipf) {
@@ -554,7 +554,7 @@ function getCoinRewardText(coinReward) {
     return "";
   }
 
-  const coinSuffix = coinReward.coins === 1 ? "coin" : "coins";
+  const coinSuffix = coinReward.coins === 1 ? "монета" : "монет";
   return `You earned ${coinReward.coins} ${coinSuffix} for discovering a ${coinReward.rarityLabel} word (${coinReward.multiplier.toFixed(1)}x base payout).`;
 }
 
@@ -598,7 +598,7 @@ async function loadShopWordBoosterPool() {
       const rawText = await response.text();
       const entries = parseShopWordBoosterEntries(rawText);
       if (!entries.length) {
-        throw new Error("The Word Booster list was empty.");
+        throw new Error("Список усилителя слов пуст.");
       }
       cachedShopWordBoosterPool = entries;
       return entries;
@@ -630,7 +630,7 @@ async function rollShopWordBoosterOptions() {
   const candidatePool = undiscoveredPool.length > 0 ? undiscoveredPool : pool;
   const options = sampleRandomEntries(candidatePool, SHOP_WORD_BOOSTER_ROLL_COUNT);
   if (!options.length) {
-    throw new Error("No Word Booster choices were available.");
+    throw new Error("Нет доступных вариантов усилителя слов.");
   }
   return options;
 }
@@ -658,7 +658,7 @@ function getOrdinalLabel(rank) {
 }
 
 function getPositionTokenDisplayName(rank) {
-  return POSITION_TOKEN_CONFIG[rank]?.title || `${getOrdinalLabel(rank)} Result`;
+  return POSITION_TOKEN_CONFIG[rank]?.title || `Результат №${rank}`;
 }
 
 function getPositionTokenShortLabel(rank) {
@@ -985,7 +985,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
   if (refundedTagCount <= 0) {
     return "";
   }
-  return ` ${refundedTagCount} tagged-result token${refundedTagCount === 1 ? " was" : "s were"} refunded.`;
+  return ` ${refundedTagCount} токен${refundedTagCount === 1 ? " помеченного результата возвращён" : "ов помеченного результата возвращено"}.`;
 }
 
 function buildProgressSnapshot() {
@@ -1151,7 +1151,7 @@ function normalizeSavedCategories(value) {
   if (!categories.some((category) => category.id === DEFAULT_CATEGORY_ID)) {
     categories.unshift({
       id: DEFAULT_CATEGORY_ID,
-      name: "Uncategorized",
+      name: "Без категории",
       collapsed: false,
     });
   }
@@ -1159,7 +1159,7 @@ function normalizeSavedCategories(value) {
   return categories;
 }
 
-function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
+function applyProgressSnapshot(snapshot, { statusMessage = "Сохранение загружено." } = {}) {
   const starters = getStringList(snapshot?.starters);
   if (starters.length < 2) {
     return false;
@@ -1222,8 +1222,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.negativeMixSources.a = tileIds.has(snapshot.negativeMixSources?.a) ? snapshot.negativeMixSources.a : null;
   state.negativeMixSources.b = tileIds.has(snapshot.negativeMixSources?.b) ? snapshot.negativeMixSources.b : null;
   state.lastMix = {
-    label: typeof snapshot.lastMix?.label === "string" ? snapshot.lastMix.label : "No mix yet.",
-    operation: typeof snapshot.lastMix?.operation === "string" ? snapshot.lastMix.operation : "None",
+    label: typeof snapshot.lastMix?.label === "string" ? snapshot.lastMix.label : "Пока нет микса.",
+    operation: typeof snapshot.lastMix?.operation === "string" ? snapshot.lastMix.operation : "Нет",
     candidates: Array.isArray(snapshot.lastMix?.candidates) ? [...snapshot.lastMix.candidates] : [],
   };
   state.matchHistory = normalizeSavedHistory(snapshot.matchHistory);
@@ -1547,7 +1547,7 @@ function updatePlayfieldCamera() {
   const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
 
   els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
-  els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words`;
+  els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} зон • след. при ${nextUnlockAt} словах`;
   els.zoomOutButton.disabled = state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
   els.zoomInButton.disabled = state.playfieldZoom >= MAX_PLAYFIELD_ZOOM - 0.001;
 }
@@ -1560,7 +1560,7 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
     if (hitLockedFrontier && !silent) {
       const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
       if (nextUnlockAt) {
-        setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+        setStatus(`Новая зона поля откроется при ${nextUnlockAt} открытых словах.`, "error");
       }
     }
     updatePlayfieldCamera();
@@ -1584,7 +1584,7 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
   if (hitLockedFrontier && !silent) {
     const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
     if (nextUnlockAt) {
-      setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+      setStatus(`Новая зона поля откроется при ${nextUnlockAt} открытых словах.`, "error");
     }
   }
 
@@ -2006,7 +2006,7 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
 
   const title = document.createElement("div");
   title.className = "floating-match-preview-title";
-  title.textContent = "Top matches";
+  title.textContent = "Лучшие совпадения";
   preview.append(title);
 
   candidates.slice(0, 5).forEach((candidate, index) => {
@@ -2166,7 +2166,7 @@ function updateCounts() {
   els.tokenCount.textContent = totalUsableTokenCount.toString();
   els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
   els.upgradeCount.textContent = getAffordableShopItemCount().toString();
-  els.upgradeCoinCount.textContent = `${state.coins} coin${state.coins === 1 ? "" : "s"}`;
+  els.upgradeCoinCount.textContent = `${state.coins} ${state.coins === 1 ? "монета" : "монет"}`;
 }
 
 function renderQuest() {
@@ -2212,7 +2212,7 @@ function buildSourceButton(entry) {
       return;
     }
     spawnWordOnField(word);
-    setStatus(`${titleCase(word)} was added to the field.`);
+    setStatus(`${titleCase(word)} добавлено на поле.`);
   });
   button.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("text/plain", word);
@@ -2245,7 +2245,7 @@ function deleteCategory(categoryId) {
 
   renderWordList();
   queueProgressSave();
-  setStatus(`${category.name} was deleted. Its words moved to Uncategorized.`);
+  setStatus(`Категория «${category.name}» удалена. Слова перемещены в «Без категории».`);
 }
 
 function ensureWordAssignments(entries) {
@@ -2276,17 +2276,17 @@ function setGooglePickMode(enabled) {
 }
 
 function openGoogleMeaning(word) {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(`${word} meaning in english`)}`;
+  const url = `https://www.google.com/search?q=${encodeURIComponent(`${word} значение`)}`;
   window.open(url, "_blank", "noopener");
   setGooglePickMode(false);
-  setStatus(`Opened Google meaning search for ${titleCase(word)}.`);
+  setStatus(`Открыт поиск значения «${titleCase(word)}» в Google.`);
 }
 
 function createDefaultCategoryState() {
   return [
     {
       id: DEFAULT_CATEGORY_ID,
-      name: "Uncategorized",
+      name: "Без категории",
       collapsed: false,
     },
   ];
@@ -2304,7 +2304,7 @@ function renderWordList() {
   if (filteredEntries.length === 0) {
     const empty = document.createElement("p");
     empty.className = "source-word-empty";
-    empty.textContent = "No available words match that search.";
+    empty.textContent = "Нет доступных слов по этому запросу.";
     els.wordList.append(empty);
     return;
   }
@@ -2349,7 +2349,7 @@ function renderWordList() {
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.className = "ghost-button word-category-delete";
-      deleteButton.textContent = "Delete";
+      deleteButton.textContent = "Удалить";
       deleteButton.addEventListener("click", () => {
         deleteCategory(category.id);
       });
@@ -2379,7 +2379,7 @@ function renderWordList() {
       state.wordAssignments.set(wordKey, category.id);
       renderWordList();
       queueProgressSave();
-      setStatus(`${titleCase(word)} moved to ${category.name}.`);
+      setStatus(`${titleCase(word)} перемещено в «${category.name}».`);
     });
 
     if (entries.length === 0) {
@@ -2448,11 +2448,11 @@ function setActiveSidebarTab(tab) {
 
 function activateNegativeMixToken(point = null) {
   if (state.hasActiveNegativeMixToken) {
-    setStatus("Negative mixing is already active.", "ok");
+    setStatus("Минус-микс уже активен.", "ok");
     return;
   }
   if (state.availableNegativeMixTokens <= 0) {
-    setStatus("You do not have any minus-mix tokens yet.", "error");
+    setStatus("У вас пока нет токенов минус-микса.", "error");
     return;
   }
 
@@ -2471,7 +2471,7 @@ function activateNegativeMixToken(point = null) {
   renderSidebar();
   renderNegativeMix();
   queueProgressSave();
-  setStatus("Minus mixing is active for your next pair.", "ok");
+  setStatus("Минус-микс активен для вашей следующей пары.", "ok");
 }
 
 function rollGarbageRewardToken() {
@@ -2641,7 +2641,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
       ok: false,
       alreadyHidden: true,
       refundedTagCount,
-      statusMessage: `${titleCase(word)} is already hidden from the word panel.${refundMessage}`,
+      statusMessage: `${titleCase(word)} уже скрыто из панели слов.${refundMessage}`,
       statusState: "ok",
       rewardedToken: null,
     };
@@ -2651,7 +2651,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
   state.garbageWordsSinceReward += 1;
   const garbageTarget = getCurrentGarbageTarget();
 
-  let statusMessage = `${titleCase(word)} was hidden from the word panel.${refundMessage}`;
+  let statusMessage = `${titleCase(word)} скрыто из панели слов.${refundMessage}`;
   let statusState = "ok";
 
   if (state.garbageWordsSinceReward >= garbageTarget) {
@@ -2659,7 +2659,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
     state.garbageRewardLevel += 1;
     const rewardedToken = rollGarbageRewardToken();
     state.unseenTokenRewards += 1;
-    statusMessage = `${statusMessage} The garbage bin paid out a ${rewardedToken} token.`;
+    statusMessage = `${statusMessage} Корзина выдала токен «${rewardedToken}».`;
     statusState = "reward";
     if (state.activeSidebarTab === "tokens") {
       state.unseenTokenRewards = 0;
@@ -2678,7 +2678,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
 
 function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
   if (!isGarbageBinUnlocked()) {
-    setStatus(`The garbage bin unlocks at ${GARBAGE_BIN_UNLOCK_WORDS} discovered words.`, "error");
+    setStatus(`Корзина откроется при ${GARBAGE_BIN_UNLOCK_WORDS} открытых словах.`, "error");
     return;
   }
 
@@ -2717,7 +2717,7 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
   const oldestTrackedEntry = getOldestTrackedAvailableEntry();
   if (!oldestTrackedEntry) {
     return {
-      message: `You have more than ${availableWordLimit} available words, but none of your last ${RECENT_DISCOVERED_WORD_LIMIT} discovered words could be auto-binned.`,
+      message: `У вас более ${availableWordLimit} доступных слов, но ни одно из последних ${RECENT_DISCOVERED_WORD_LIMIT} открытых не подошло для авто-корзины.`,
       stateName: "error",
     };
   }
@@ -2731,7 +2731,7 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
     : "";
 
   return {
-    message: `${titleCase(oldestTrackedEntry.word)} was automatically binned to keep your available words at ${availableWordLimit}.${rewardSuffix}`,
+    message: `${titleCase(oldestTrackedEntry.word)} автоматически отправлено в корзину, чтобы сохранить лимит ${availableWordLimit} слов.${rewardSuffix}`,
     stateName: "error",
   };
 }
@@ -2739,21 +2739,21 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
 function tagTileWithResultToken(tileId, rank) {
   const tile = getTileById(tileId);
   if (!tile) {
-    setStatus("Drop that token onto a word on the field.", "error");
+    setStatus("Положите токен на слово на поле.", "error");
     return;
   }
   const existingRank = getTileTagRank(tile);
   if (existingRank >= 2) {
-    setStatus(`${titleCase(tile.word)} already has a ${getPositionTokenDisplayName(existingRank)} token on it.`, "ok");
+    setStatus(`На ${titleCase(tile.word)} уже есть токен «${getPositionTokenDisplayName(existingRank)}».`, "ok");
     return;
   }
   if (getAvailablePositionTokenCount(rank) <= 0) {
-    setStatus(`You do not have any ${getPositionTokenDisplayName(rank).toLowerCase()} tokens yet.`, "error");
+    setStatus(`У вас пока нет токенов «${getPositionTokenDisplayName(rank)}».`, "error");
     return;
   }
 
   if (!spendPositionToken(rank)) {
-    setStatus(`You do not have any ${getPositionTokenDisplayName(rank).toLowerCase()} tokens yet.`, "error");
+    setStatus(`У вас пока нет токенов «${getPositionTokenDisplayName(rank)}».`, "error");
     return;
   }
 
@@ -2761,23 +2761,23 @@ function tagTileWithResultToken(tileId, rank) {
   renderSidebar();
   renderTiles();
   queueProgressSave();
-  setStatus(`${titleCase(tile.word)} is tagged to jump to the ${getOrdinalLabel(rank)} valid mix result.`, "ok");
+  setStatus(`${titleCase(tile.word)} помечено — результат смешивания будет ${getOrdinalLabel(rank)}-м в списке.`, "ok");
 }
 
 function banTileWordFromResults(tileId) {
   const tile = getTileById(tileId);
   if (!tile) {
-    setStatus("Drop that token onto a word on the field.", "error");
+    setStatus("Положите токен на слово на поле.", "error");
     return;
   }
 
   const removalKeys = getRemovalKeysForWord(tile.word);
   if ([...removalKeys].some((key) => state.removedResultWords.has(key))) {
-    setStatus(`${titleCase(tile.word)} is already permanently removed from future results.`, "ok");
+    setStatus(`${titleCase(tile.word)} уже навсегда исключено из будущих результатов.`, "ok");
     return;
   }
   if (state.availableBanWordTokens <= 0) {
-    setStatus("You do not have any ban-word tokens yet.", "error");
+    setStatus("У вас пока нет токенов «Запретить слово».", "error");
     return;
   }
 
@@ -2788,12 +2788,12 @@ function banTileWordFromResults(tileId) {
   state.lastMix.candidates = filterRemovedCandidates(state.lastMix.candidates);
   renderSidebar();
   queueProgressSave();
-  setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
+  setStatus(`${titleCase(tile.word)} больше не будет появляться в результатах смешивания в этой партии.`, "reward");
 }
 
 async function useWildcardToken(position = null) {
   if (state.availableWildcardTokens <= 0) {
-    setStatus("You do not have any wildcard tokens yet.", "error");
+    setStatus("У вас пока нет джокер-токенов.", "error");
     return;
   }
 
@@ -2801,12 +2801,12 @@ async function useWildcardToken(position = null) {
   try {
     randomWord = await getRandomWildcardWord();
   } catch (error) {
-    setStatus(error.message || "Could not reveal a random word.", "error");
+    setStatus(error.message || "Не удалось получить случайное слово.", "error");
     return;
   }
 
   if (!spendWildcardToken()) {
-    setStatus("You do not have any wildcard tokens yet.", "error");
+    setStatus("У вас пока нет джокер-токенов.", "error");
     return;
   }
 
@@ -2854,7 +2854,7 @@ function refundNegativeMixToken() {
   renderSidebar();
   renderNegativeMix();
   queueProgressSave();
-  setStatus("Minus-mix token refunded.", "ok");
+  setStatus("Токен минус-микса возвращён.", "ok");
 }
 
 function hideNegativeMixAfterUse() {
@@ -2930,11 +2930,11 @@ function renderTokenPanel() {
   if (state.availableBanWordTokens > 0) {
     els.tokenList.append(buildTokenButton({
       title: "Ban Word",
-      description: "Drag onto a field word to permanently remove that word from future mix results.",
+      description: "Перетащите на слово на поле, чтобы убрать его из будущих результатов микса.",
       count: state.availableBanWordTokens,
       dragType: "ban-word",
       onClick: () => {
-        setStatus("Drag a Ban Word token onto a word on the field.", "ok");
+        setStatus("Перетащите токен «Запретить слово» на слово на поле.", "ok");
       },
     }));
   }
@@ -2946,7 +2946,7 @@ function renderTokenPanel() {
       count: state.availableWildcardTokens,
       dragType: "wildcard",
       onClick: () => {
-        setStatus("Drag a Wildcard token onto the field.", "ok");
+        setStatus("Перетащите джокер-токен на поле.", "ok");
       },
     }));
   }
@@ -2959,8 +2959,8 @@ function renderTokenPanel() {
 
     const title = getPositionTokenDisplayName(rank);
     const description = rank === 5
-      ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
-      : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
+      ? "Перетащите на слово — одно помеченное слово даёт 5-й результат, два — 6-й."
+      : `Перетащите на слово на поле. Один тег — результат №${rank}; два тега могут дать №${rank + 1}.`;
 
     els.tokenList.append(buildTokenButton({
       title,
@@ -2968,7 +2968,7 @@ function renderTokenPanel() {
       count,
       dragType: getPositionTokenDragType(rank),
       onClick: () => {
-        setStatus(`Drag a ${title} token onto a word on the field.`, "ok");
+        setStatus(`Перетащите токен «${title}» на слово на поле.`, "ok");
       },
     }));
   });
@@ -3039,7 +3039,7 @@ async function purchaseShopItem(itemId) {
       queueProgressSave();
       setStatus(message, "reward");
     } catch (error) {
-      setStatus(error.message || "Could not buy that shop item.", "error");
+      setStatus(error.message || "Не удалось купить этот товар.", "error");
     } finally {
       state.shopWordBooster.isLoading = false;
       renderSidebar();
@@ -3054,7 +3054,7 @@ async function purchaseShopItem(itemId) {
     queueProgressSave();
     setStatus(message, "reward");
   } catch (error) {
-    setStatus(error.message || "Could not buy that shop item.", "error");
+    setStatus(error.message || "Не удалось купить этот товар.", "error");
   }
 }
 
@@ -3128,8 +3128,8 @@ function renderSidebar() {
   const isTokenTabActive = state.activeSidebarTab === "tokens";
   const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
   els.sidebarTitle.textContent = isTokenTabActive
-    ? "Usable Tokens"
-    : (isUpgradeTabActive ? "Shop" : "Word Panel");
+    ? "Используемые токены"
+    : (isUpgradeTabActive ? "Магазин" : "Панель слов");
   els.openWordTabButton.setAttribute("aria-selected", isWordTabActive ? "true" : "false");
   els.openTokenTabButton.hidden = !tokensUnlocked;
   els.openTokenTabButton.setAttribute("aria-selected", isTokenTabActive ? "true" : "false");
@@ -3165,7 +3165,7 @@ function renderNegativeMix() {
 
   slots.forEach(({ key, element }) => {
     const word = state.negativeMix[key];
-    element.textContent = word ? titleCase(word) : "Drop word";
+    element.textContent = word ? titleCase(word) : "Бросьте слово";
     element.dataset.empty = word ? "false" : "true";
   });
 
@@ -3255,29 +3255,30 @@ function getMixOutcomeMessage(
   let stateName;
 
   if (isInEncyclopedia && !wasDiscovered) {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} → ${titleCase(canonicalResult)}. Добавлено в энциклопедию.`;
     stateName = "success";
   } else if (isInEncyclopedia) {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}.`;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} → ${titleCase(canonicalResult)}.`;
     stateName = "ok";
   } else {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. `;
+    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} → ${titleCase(canonicalResult)}. `;
     stateName = "ok";
   }
 
   if (usedShift > 0) {
-    message = `${message} Tagged words pushed this mix to the ${getOrdinalLabel(usedShift + 1)} valid result.`;
+    message = `${message} Помеченные слова сдвинули результат на ${getOrdinalLabel(usedShift + 1)}.`;
+    stateName = "reward";
   }
 
   if (refundedTagCount > 0) {
-    message = `${message} There was no deep enough candidate, so${getTaggedTokenRefundMessage(refundedTagCount)}`;
+    message = `${message} Недостаточно глубокого результата,${getTaggedTokenRefundMessage(refundedTagCount)}`;
     stateName = "reward";
   }
 
   if (completedCategories.length > 0) {
-    const categoryLabel = completedCategories.join(" and ");
-    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
-    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    const categoryLabel = completedCategories.join(" и ");
+    const categorySuffix = completedCategories.length === 1 ? "категорию" : "категории";
+    message = `${message} Вы завершили ${categoryLabel} в энциклопедии.`;
     stateName = "reward";
   }
 
@@ -3299,18 +3300,18 @@ function getMixOutcomeMessage(
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
-    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    message = `${message} Получено: ${rewardParts.join(", ")}.`;
     stateName = "reward";
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    const zoneSuffix = newZonesUnlocked === 1 ? "зону" : "зоны";
+    message = `${message} Открыто ${newZonesUnlocked} новых зон поля.`;
     stateName = "reward";
   }
 
   if (questResult?.failedQuest) {
-    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    message = `${message} Время квеста истекло до того, как вы нашли ${titleCase(questResult.completedTargetWord)}.`;
     stateName = "error";
   }
 
@@ -3325,24 +3326,24 @@ function getTokenRewardParts({
 } = {}) {
   const rewardParts = [];
   if (newNegativeMixTokens > 0) {
-    const tokenSuffix = newNegativeMixTokens === 1 ? "token" : "tokens";
-    rewardParts.push(`${newNegativeMixTokens} minus-mix ${tokenSuffix}`);
+    const tokenSuffix = newNegativeMixTokens === 1 ? "токен минус-микса" : "токена минус-микса";
+    rewardParts.push(`${newNegativeMixTokens} ${tokenSuffix}`);
   }
   if (newBanWordTokens > 0) {
-    const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
-    rewardParts.push(`${newBanWordTokens} Ban Word ${tokenSuffix}`);
+    const tokenSuffix = newBanWordTokens === 1 ? "токен «Запретить слово»" : "токена «Запретить слово»";
+    rewardParts.push(`${newBanWordTokens} ${tokenSuffix}`);
   }
   if (newWildcardTokens > 0) {
-    const tokenSuffix = newWildcardTokens === 1 ? "token" : "tokens";
-    rewardParts.push(`${newWildcardTokens} wildcard ${tokenSuffix}`);
+    const tokenSuffix = newWildcardTokens === 1 ? "джокер-токен" : "джокер-токена";
+    rewardParts.push(`${newWildcardTokens} ${tokenSuffix}`);
   }
   POSITION_TOKEN_RANKS.forEach((rank) => {
     const count = getSafeCount(newPositionTokenRewards?.[rank]);
     if (count <= 0) {
       return;
     }
-    const tokenSuffix = count === 1 ? "token" : "tokens";
-    rewardParts.push(`${count} ${getPositionTokenDisplayName(rank)} ${tokenSuffix}`);
+    const tokenSuffix = count === 1 ? "токен" : "токена";
+    rewardParts.push(`${count} ${tokenSuffix} «${getPositionTokenDisplayName(rank)}»`);
   });
   return rewardParts;
 }
@@ -3352,12 +3353,12 @@ function getQuestCompletionMessage(questResult) {
     return "";
   }
 
-  let rewardText = `${questResult.questTotalCoins} coins`;
+  let rewardText = `${questResult.questTotalCoins} монет`;
   if (questResult.questSpeedBonusCoins > 0) {
-    rewardText = `${rewardText}, including a ${questResult.questSpeedBonusCoins}-coin speed bonus for finishing in ${questResult.turnsTaken} turns`;
+    rewardText = `${rewardText} (бонус за скорость: ${questResult.questSpeedBonusCoins} монет за ${questResult.turnsTaken} ходов)`;
   }
 
-  return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
+  return `Квест выполнен! Найдено ${titleCase(questResult.completedTargetWord)}. Получено ${rewardText}. Следующая цель: ${titleCase(questResult.nextTargetWord)}. Проигрыш через ${questResult.remainingDiscoveries} ходов.`;
 }
 
 function getWildcardOutcomeMessage(
@@ -3379,23 +3380,22 @@ function getWildcardOutcomeMessage(
   let stateName;
 
   if (isInEncyclopedia && !wasDiscovered) {
-    message = `Wildcard revealed ${titleCase(canonicalResult)} and added it to your discovered words.`;
+    message = `Джокер показал ${titleCase(canonicalResult)} и добавил в открытые слова.`;
     stateName = "success";
   } else if (isInEncyclopedia) {
-    message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered, so it only appeared on the field.`;
+    message = `Джокер показал ${titleCase(canonicalResult)}. Уже открыто — только на поле.`;
     stateName = "ok";
   } else if (!wasDiscovered) {
-    message = `${titleCase(canonicalResult)} is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, but Wildcard added it to your discovered words.`;
+    message = `${titleCase(canonicalResult)} не из энциклопедии, но джокер добавил в открытые.`;
     stateName = "success";
   } else {
-    message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered and is not one of the ${ENCYCLOPEDIA_WORDS.length} encyclopedia words, so it only appeared on the field.`;
+    message = `Джокер показал ${titleCase(canonicalResult)}. Уже открыто и не из энциклопедии — только на поле.`;
     stateName = "ok";
   }
 
   if (completedCategories.length > 0) {
-    const categoryLabel = completedCategories.join(" and ");
-    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
-    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    const categoryLabel = completedCategories.join(" и ");
+    message = `${message} Завершена категория ${categoryLabel} в энциклопедии.`;
     stateName = "reward";
   }
 
@@ -3417,18 +3417,17 @@ function getWildcardOutcomeMessage(
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
-    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    message = `${message} Получено: ${rewardParts.join(", ")}.`;
     stateName = "reward";
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = `${message} Открыто ${newZonesUnlocked} новых зон поля.`;
     stateName = "reward";
   }
 
   if (questResult?.failedQuest) {
-    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    message = `${message} Время квеста истекло до того, как вы нашли ${titleCase(questResult.completedTargetWord)}.`;
     stateName = "error";
   }
 
@@ -3454,20 +3453,19 @@ function getSpawnWordOutcomeMessage(
   let stateName;
 
   if (wasDiscovered) {
-    message = `Spawned ${titleCase(canonicalResult)} onto the field. It was already in your discovered words.`;
+    message = `${titleCase(canonicalResult)} помещено на поле. Уже в открытых словах.`;
     stateName = "ok";
   } else if (isInEncyclopedia) {
-    message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to the encyclopedia.`;
+    message = `${titleCase(canonicalResult)} помещено на поле и добавлено в энциклопедию.`;
     stateName = "success";
   } else {
-    message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to your discovered words.`;
+    message = `${titleCase(canonicalResult)} помещено на поле и добавлено в открытые слова.`;
     stateName = "success";
   }
 
   if (completedCategories.length > 0) {
-    const categoryLabel = completedCategories.join(" and ");
-    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
-    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    const categoryLabel = completedCategories.join(" и ");
+    message = `${message} Завершена категория ${categoryLabel} в энциклопедии.`;
     stateName = "reward";
   }
 
@@ -3489,18 +3487,17 @@ function getSpawnWordOutcomeMessage(
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
-    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    message = `${message} Получено: ${rewardParts.join(", ")}.`;
     stateName = "reward";
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = `${message} Открыто ${newZonesUnlocked} новых зон поля.`;
     stateName = "reward";
   }
 
   if (questResult?.failedQuest) {
-    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    message = `${message} Время квеста истекло до того, как вы нашли ${titleCase(questResult.completedTargetWord)}.`;
     stateName = "error";
   }
 
@@ -3526,20 +3523,19 @@ function getShopWordBoosterOutcomeMessage(
   let stateName;
 
   if (wasDiscovered) {
-    message = `Word Booster revealed ${titleCase(canonicalResult)}, but it was already discovered.`;
+    message = `Усилитель слов показал ${titleCase(canonicalResult)}, но слово уже было открыто.`;
     stateName = "ok";
   } else if (isInEncyclopedia) {
-    message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to the encyclopedia.`;
+    message = `Усилитель слов открыл ${titleCase(canonicalResult)} и добавил в энциклопедию.`;
     stateName = "success";
   } else {
-    message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to your available words.`;
+    message = `Усилитель слов открыл ${titleCase(canonicalResult)} и добавил в доступные слова.`;
     stateName = "success";
   }
 
   if (completedCategories.length > 0) {
-    const categoryLabel = completedCategories.join(" and ");
-    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
-    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    const categoryLabel = completedCategories.join(" и ");
+    message = `${message} Завершена категория ${categoryLabel} в энциклопедии.`;
     stateName = "reward";
   }
 
@@ -3561,18 +3557,17 @@ function getShopWordBoosterOutcomeMessage(
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
-    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    message = `${message} Получено: ${rewardParts.join(", ")}.`;
     stateName = "reward";
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = `${message} Открыто ${newZonesUnlocked} новых зон поля.`;
     stateName = "reward";
   }
 
   if (questResult?.failedQuest) {
-    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    message = `${message} Время квеста истекло до того, как вы нашли ${titleCase(questResult.completedTargetWord)}.`;
     stateName = "error";
   }
 
@@ -3635,12 +3630,12 @@ function recordMatch(wordA, wordB, result, operation, candidates = [], selectedW
 
 function renderHistory() {
   els.historyList.innerHTML = "";
-  els.toggleHistorySortButton.textContent = state.historySort === "recent" ? "Sort by Result" : "Show Recent";
+  els.toggleHistorySortButton.textContent = state.historySort === "recent" ? "Сортировка по результату" : "Показать последние";
 
   if (state.matchHistory.length === 0) {
     const empty = document.createElement("p");
     empty.className = "source-word-empty";
-    empty.textContent = "No matches recorded yet.";
+    empty.textContent = "Пока нет записей комбинаций.";
     els.historyList.append(empty);
     return;
   }
@@ -3677,7 +3672,7 @@ function renderHistory() {
 
     const meta = document.createElement("div");
     meta.className = "history-item-meta";
-    meta.textContent = match.operation === "subtract" ? "Negative mix" : "Standard mix";
+    meta.textContent = match.operation === "subtract" ? "Минус-микс" : "Стандартный микс";
 
     item.append(main, meta);
     els.historyList.append(item);
@@ -3870,7 +3865,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
     });
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    status.message = `${status.message} ${titleCase(canonicalResult)} уже в открытых словах — не добавлено на поле.`;
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
@@ -3960,7 +3955,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         refundedTagCount: selection.refundedTagCount,
       },
     );
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    status.message = `${status.message} ${titleCase(canonicalResult)} уже в открытых словах — не добавлено на поле.`;
   } else {
     status = getMixOutcomeMessage(
       firstTile.word,
@@ -4125,7 +4120,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
 async function runNegativeMix(clientPoint = null) {
   if (!(state.negativeMix.a && state.negativeMix.b)) {
-    setStatus("Negative mixing needs both A and B.", "error");
+    setStatus("Для минус-микса нужны оба слова А и Б.", "error");
     return;
   }
 
@@ -4212,7 +4207,7 @@ async function runNegativeMix(clientPoint = null) {
         refundedTagCount: selection.refundedTagCount,
       },
     );
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    status.message = `${status.message} ${titleCase(canonicalResult)} уже в открытых словах — не добавлено на поле.`;
   } else {
     status = getMixOutcomeMessage(
       state.negativeMix.a,
@@ -4253,7 +4248,7 @@ function clearNegativeMix() {
 
 function assignNegativeSlot(slot, word, tileId = null) {
   if (!state.hasActiveNegativeMixToken) {
-    setStatus("Use a minus-mix token first.", "error");
+    setStatus("Сначала используйте токен минус-микса.", "error");
     return;
   }
   if (Number.isFinite(tileId)) {
@@ -4475,7 +4470,7 @@ function startTileDrag(event, tileId) {
       const slot = negativeSlotElement.dataset.negativeSlot;
       assignNegativeSlot(slot, tile.word, tile.id);
       renderTiles();
-      setStatus(`${titleCase(tile.word)} was placed into slot ${slot.toUpperCase()}.`);
+      setStatus(`${titleCase(tile.word)} помещено в слот ${slot.toUpperCase()}.`);
       return;
     }
 
@@ -4550,7 +4545,7 @@ function renderTiles() {
           return;
         }
         if (tokenType === "wildcard") {
-          setStatus("Drop a Wildcard token onto the field, not onto a word.", "error");
+          setStatus("Положите джокер-токен на поле, а не на слово.", "error");
           return;
         }
         if (tokenType === "minus-mix") {
@@ -4566,7 +4561,7 @@ function renderTiles() {
         const refundMessage = refundedTagCount > 0
           ? getTaggedTokenRefundMessage(refundedTagCount)
           : "";
-        setStatus(`${titleCase(tile.word)} was removed from the field.${refundMessage}`);
+        setStatus(`${titleCase(tile.word)} убрано с поля.${refundMessage}`);
       });
 
       const wordElement = document.createElement("div");
@@ -4596,7 +4591,7 @@ function clearField() {
   renderTiles();
   queueProgressSave();
   const refundMessage = getTaggedTokenRefundMessage(refundedTagCount);
-  setStatus(`The field was cleared.${refundMessage}`);
+  setStatus(`Поле очищено.${refundMessage}`);
 }
 
 function renderShopWordBooster() {
@@ -4687,7 +4682,7 @@ function renderSettings() {
 
 function exportSaveSnapshot() {
   downloadProgressSnapshot();
-  setStatus("Save JSON exported.", "ok");
+  setStatus("Сохранение экспортировано в JSON.", "ok");
 }
 
 function promptSaveImport() {
@@ -4703,7 +4698,7 @@ async function promptSpawnWord() {
 
   const trimmedWord = requestedWord.trim().toLowerCase();
   if (!trimmedWord) {
-    setStatus("Enter a word to spawn.", "error");
+    setStatus("Введите слово для создания.", "error");
     return;
   }
 
@@ -4749,12 +4744,12 @@ async function importSaveSnapshotFromFile(file) {
     const raw = await file.text();
     snapshot = JSON.parse(raw);
   } catch (error) {
-    setStatus("That file is not valid JSON.", "error");
+    setStatus("Файл не является корректным JSON.", "error");
     return;
   }
 
-  if (!applyProgressSnapshot(snapshot, { statusMessage: "Imported saved game JSON." })) {
-    setStatus("That save file is missing required game data.", "error");
+  if (!applyProgressSnapshot(snapshot, { statusMessage: "Сохранение загружено из JSON." })) {
+    setStatus("Файл сохранения не содержит необходимых данных игры.", "error");
     return;
   }
 
@@ -4850,10 +4845,10 @@ function resetRun() {
 
   const starterNames = state.starters.map((word) => titleCase(word));
   const starterSummary = starterNames.length > 1
-    ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
+    ? `${starterNames.slice(0, -1).join(", ")} и ${starterNames.at(-1)}`
     : starterNames[0];
   setStatus(
-    `New game started with ${starterSummary}. Your first quest is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
+    `Новая игра: ${starterSummary}. Первая цель квеста — ${titleCase(state.quest.targetWord)}. Проигрыш через ${state.quest.remainingDiscoveries} ходов, если не найдёте.`,
     "ok",
   );
 }
@@ -4879,7 +4874,7 @@ function initPlayfieldDropzone() {
       return;
     }
     if (tokenType === "ban-word") {
-      setStatus("Drop a Ban Word token onto a word on the field.", "error");
+      setStatus("Положите токен «Запретить слово» на слово на поле.", "error");
       return;
     }
     const bounds = getPlayfieldBounds();
@@ -4892,7 +4887,7 @@ function initPlayfieldDropzone() {
     }
     const resultRank = getPositionTokenRankFromDragType(tokenType);
     if (resultRank >= 2) {
-      setStatus(`Drop a ${getPositionTokenDisplayName(resultRank)} token onto a word on the field.`, "error");
+      setStatus(`Положите токен «${getPositionTokenDisplayName(resultRank)}» на слово на поле.`, "error");
       return;
     }
 
@@ -4902,7 +4897,7 @@ function initPlayfieldDropzone() {
     }
 
     spawnWordOnField(word, { x, y });
-    setStatus(`${titleCase(word)} was dropped onto the field.`);
+    setStatus(`${titleCase(word)} добавлено на поле.`);
   });
 }
 
@@ -4929,7 +4924,7 @@ function initNegativeMixDropzones() {
         return;
       }
       assignNegativeSlot(slot, word);
-      setStatus(`${titleCase(word)} was placed into slot ${slot.toUpperCase()}.`);
+      setStatus(`${titleCase(word)} помещено в слот ${slot.toUpperCase()}.`);
     });
   });
 }
@@ -4991,7 +4986,7 @@ function initEvents() {
   els.clearNegativeButton.addEventListener("click", clearNegativeMix);
   els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);
   els.addCategoryButton.addEventListener("click", () => {
-    const name = window.prompt("Category name?");
+    const name = window.prompt("Название категории?");
     if (!name) {
       return;
     }
@@ -5007,14 +5002,14 @@ function initEvents() {
     });
     renderWordList();
     queueProgressSave();
-    setStatus(`Created category ${trimmed}.`);
+    setStatus(`Создана категория «${trimmed}».`);
   });
   els.toggleGooglePickButton.addEventListener("click", () => {
     const nextMode = !state.googlePickMode;
     setGooglePickMode(nextMode);
     setStatus(nextMode
-      ? "Google mode is on. Click a field word or available word to search its meaning."
-      : "Google mode is off.");
+      ? "Режим Google включён. Кликните по слову на поле или в списке для поиска значения."
+      : "Режим Google выключен.");
   });
   els.runNegativeButton.addEventListener("click", async (event) => {
     try {
@@ -5046,8 +5041,8 @@ function initEvents() {
     queueProgressSave();
     setStatus(
       state.spawnExistingWords
-        ? "Spawn existing words is on."
-        : "Spawn existing words is off. Matches will skip words already in Available Words.",
+        ? "Создание открытых слов включено."
+        : "Создание открытых слов выключено. Результаты не будут включать уже доступные слова.",
       "ok",
     );
   });

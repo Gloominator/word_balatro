@@ -1,43 +1,43 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>King Minus Man</title>
+    <title>Смешивание слов</title>
     <link rel="stylesheet" href="./wordmath_styles.css">
   </head>
   <body>
     <main class="game-shell">
       <header class="topbar">
         <div>
-          <h1>WordMath Mixer</h1>
+          <h1>Смешивание слов</h1>
           <p class="subtitle"></p>
         </div>
         <div class="topbar-actions">
-          <button type="button" class="ghost-button" data-action="open-settings">Settings</button>
-          <button type="button" data-action="reset">New Game</button>
+          <button type="button" class="ghost-button" data-action="open-settings">Настройки</button>
+          <button type="button" data-action="reset">Новая игра</button>
           <button type="button" class="encyclopedia-button" data-action="open-history">
-            Match History
+            История комбинаций
             <span class="encyclopedia-count" data-history-count>0</span>
           </button>
           <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
-            Encyclopedia
+            Энциклопедия
             <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
           </button>
         </div>
       </header>
 
       <div class="status-pill" data-status data-state="ok">
-        Drop a word onto the field to start mixing.
+        Перетащите слово на поле, чтобы начать смешивание.
       </div>
 
-      <section class="quest-strip" aria-label="Current quest">
+      <section class="quest-strip" aria-label="Текущий квест">
         <div>
-          <p class="quest-label">Quest Target</p>
-          <strong class="quest-word" data-quest-word>Loading...</strong>
+          <p class="quest-label">Цель квеста</p>
+          <strong class="quest-word" data-quest-word>Загрузка...</strong>
         </div>
         <div class="quest-countdown-panel">
-          <p class="quest-label">Lose in turns</p>
+          <p class="quest-label">Осталось ходов</p>
           <strong class="quest-countdown" data-quest-countdown>0</strong>
         </div>
       </section>
@@ -47,59 +47,59 @@
           <div class="panel-head">
             <div class="playfield-heading">
               <div>
-                <h2>Mixing Field</h2>
-                <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
+                <h2>Поле смешивания</h2>
+                <p class="muted">ПКМ по слову — удалить. Перетащите одно слово на другое, чтобы создать новое.</p>
               </div>
-              <div class="coin-counter" aria-label="Coins">
+              <div class="coin-counter" aria-label="Монеты">
                 <span class="coin-counter-value" data-coin-count>0</span>
                 <span class="coin-counter-icon" aria-hidden="true"></span>
               </div>
             </div>
             <div class="playfield-actions">
-              <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
-                <button type="button" class="ghost-button" data-action="zoom-out" aria-label="Zoom out">-</button>
+              <div class="playfield-zoom-controls" aria-label="Масштаб поля">
+                <button type="button" class="ghost-button" data-action="zoom-out" aria-label="Уменьшить">-</button>
                 <span class="section-count playfield-zoom-pill" data-playfield-zoom-value>100%</span>
-                <button type="button" class="ghost-button" data-action="zoom-in" aria-label="Zoom in">+</button>
+                <button type="button" class="ghost-button" data-action="zoom-in" aria-label="Увеличить">+</button>
               </div>
               <div class="playfield-zoom-readout">
-                <span class="muted" data-playfield-zone-value>1 / 1 zones</span>
+                <span class="muted" data-playfield-zone-value>1 / 1 зон</span>
               </div>
-              <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
+              <button type="button" class="ghost-button" data-action="clear-field">Очистить поле</button>
             </div>
           </div>
           <div class="playfield" data-playfield>
             <div class="playfield-surface" data-playfield-surface>
               <section class="negative-mix-panel" data-negative-panel hidden>
                 <div class="negative-mix-head">
-                  <div class="negative-mix-title">Minus Mix Board</div>
-                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Refund minus-mix token">Refund</button>
+                  <div class="negative-mix-title">Доска «Минус-микс»</div>
+                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Вернуть токен минус-микса">Вернуть</button>
                 </div>
-                <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A - B</strong>. Right-click the board to refund the token.</p>
+                <p class="negative-mix-text">Перетащите доску, бросьте два слова в слоты и нажмите <strong>А - Б</strong>. ПКМ по доске — вернуть токен.</p>
                 <div class="negative-mix-slots">
                   <div class="negative-slot" data-negative-slot="a">
                     <span class="negative-slot-label">A</span>
-                    <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+                    <span class="negative-slot-word" data-negative-word-a>Бросьте слово</span>
                   </div>
                   <div class="negative-slot" data-negative-slot="b">
                     <span class="negative-slot-label">B</span>
-                    <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                    <span class="negative-slot-word" data-negative-word-b>Бросьте слово</span>
                   </div>
                 </div>
                 <div class="negative-mix-actions">
-                  <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
-                  <button type="button" data-action="run-negative">Mix A - B</button>
+                  <button type="button" class="ghost-button" data-action="clear-negative">Очистить</button>
+                  <button type="button" data-action="run-negative">Микс А - Б</button>
                 </div>
               </section>
             </div>
             <div class="playfield-empty" data-empty-message>
-              Drag a starter or discovered word here.
+              Перетащите стартовое или открытое слово сюда.
             </div>
           </div>
           <section class="garbage-panel" data-garbage-panel hidden>
             <div class="section-title-row">
               <div>
-                <h3>Garbage Bin</h3>
-                <p class="muted garbage-copy">🗑️words to hide them forever. They can still be mixed</p>
+                <h3>Корзина</h3>
+                <p class="muted garbage-copy">ПКМ по слову — скрыть навсегда. Слова можно смешивать.</p>
               </div>
               <span class="section-count" data-garbage-progress>0/15</span>
             </div>
@@ -111,22 +111,22 @@
         </section>
 
         <aside class="panel sidebar">
-          <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
+          <div class="sidebar-tabs" role="tablist" aria-label="Панели">
             <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true">
-              Word Panel
+              Панель слов
             </button>
             <button type="button" class="sidebar-tab" data-action="open-token-tab" data-sidebar-tab="tokens" role="tab" aria-selected="false" hidden>
-              Usable Tokens
+              Используемые токены
               <span class="section-count" data-token-count>0</span>
             </button>
             <button type="button" class="sidebar-tab" data-action="open-upgrades-tab" data-sidebar-tab="upgrades" role="tab" aria-selected="false">
-              Shop
+              Магазин
               <span class="section-count" data-upgrade-count>0</span>
             </button>
           </div>
           <div class="section-title-row sidebar-title-row">
-            <h2 data-sidebar-title>Word Panel</h2>
-            <button type="button" class="ghost-button google-button" data-action="toggle-google-pick" aria-pressed="false" title="Click, then pick a word to search Google">
+            <h2 data-sidebar-title>Панель слов</h2>
+            <button type="button" class="ghost-button google-button" data-action="toggle-google-pick" aria-pressed="false" title="Нажмите, затем выберите слово для поиска в Google">
               <span class="google-glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
                   <rect x="3" y="4" width="9" height="9" rx="2"></rect>
@@ -141,13 +141,13 @@
 
           <section class="sidebar-section" data-sidebar-panel="words" role="tabpanel">
             <div class="section-title-row">
-              <h3>Discovered Words</h3>
+              <h3>Открытые слова</h3>
               <span class="section-count" data-discovered-count>0</span>
             </div>
-            <label class="search-label" for="word-search">Search and select a word</label>
-            <input id="word-search" type="search" autocomplete="off" placeholder="Search a word" data-word-search>
+            <label class="search-label" for="word-search">Поиск и выбор слова</label>
+            <input id="word-search" type="search" autocomplete="off" placeholder="Поиск слова" data-word-search>
             <div class="list-summary">
-              <span>Available words</span>
+              <span>Доступные слова</span>
               <div class="topbar-actions">
                 <button type="button" class="ghost-button" data-action="add-category">+</button>
                 <span data-available-count>2</span>
@@ -159,26 +159,26 @@
           <section class="sidebar-section" data-sidebar-panel="tokens" role="tabpanel" hidden>
             <div class="section-title-row">
               <h3 class="token-tooltip">
-                <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip">Usable Tokens</span>
-                <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip">Encyclopedia discoveries earn Ban Word tokens. Minus-mix tokens arrive at 5 words, then again at 15, 30, 45, and so on. A guaranteed Second Result token arrives at 10 words. Every new word discovery also has a 10% total drop chance split evenly across Wildcard, Third Result, Fourth Result, and Fifth Result tokens.</span>
+                <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip">Используемые токены</span>
+                <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip">Открытия в энциклопедии дают токены «Запретить слово». Токены минус-микса появляются на 5, 15, 30, 45 и т.д. словах. На 10 словах — гарантированный токен «Второй результат». Каждое новое слово даёт 10% шанс выпадения токена (равномерно: Джокер, Третий, Четвёртый, Пятый результат).</span>
               </h3>
               <span class="section-count" data-token-panel-count>0</span>
             </div>
             <div class="token-list" data-token-list>
-              <p class="source-word-empty">No tokens yet.</p>
+              <p class="source-word-empty">Пока нет токенов.</p>
             </div>
           </section>
 
           <section class="sidebar-section" data-sidebar-panel="upgrades" role="tabpanel" hidden>
             <div class="section-title-row">
               <div>
-                <h3>Shop</h3>
+                <h3>Магазин</h3>
                 <p class="muted upgrade-panel-copy"></p>
               </div>
-              <span class="section-count" data-upgrade-coin-count>0 coins</span>
+              <span class="section-count" data-upgrade-coin-count>0 монет</span>
             </div>
             <div class="upgrade-list" data-upgrade-list>
-              <p class="source-word-empty">Loading shop...</p>
+              <p class="source-word-empty">Загрузка магазина...</p>
             </div>
           </section>
         </aside>
@@ -189,10 +189,10 @@
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
         <div class="modal-head">
           <div>
-            <h2 id="encyclopedia-title">Encyclopedia</h2>
-            <p class="muted">Eighty hidden words across sixteen categories.</p>
+            <h2 id="encyclopedia-title">Энциклопедия</h2>
+            <p class="muted">Восемьдесят скрытых слов в шестнадцати категориях.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-encyclopedia">Close</button>
+          <button type="button" class="ghost-button" data-action="close-encyclopedia">Закрыть</button>
         </div>
         <div class="encyclopedia-grid" data-encyclopedia-grid></div>
       </section>
@@ -202,12 +202,12 @@
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="history-title">
         <div class="modal-head">
           <div>
-            <h2 id="history-title">Match History</h2>
-            <p class="muted">Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.</p>
+            <h2 id="history-title">История комбинаций</h2>
+            <p class="muted">Только уникальные комбинации. Повтор одной комбинации не добавляет запись. Хранятся последние 100.</p>
           </div>
           <div class="topbar-actions">
-            <button type="button" class="ghost-button" data-action="toggle-history-sort">Sort by Result</button>
-            <button type="button" class="ghost-button" data-action="close-history">Close</button>
+            <button type="button" class="ghost-button" data-action="toggle-history-sort">Сортировка по результату</button>
+            <button type="button" class="ghost-button" data-action="close-history">Закрыть</button>
           </div>
         </div>
         <div class="history-list" data-history-list></div>
@@ -218,24 +218,24 @@
       <section class="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div class="modal-head">
           <div>
-            <h2 id="settings-title">Settings</h2>
-            <p class="muted">Gameplay and debug tools for this run.</p>
+            <h2 id="settings-title">Настройки</h2>
+            <p class="muted">Игровые и отладочные опции.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-settings">Close</button>
+          <button type="button" class="ghost-button" data-action="close-settings">Закрыть</button>
         </div>
         <label class="settings-toggle" for="spawn-existing-words">
           <input id="spawn-existing-words" type="checkbox" data-setting="spawn-existing-words">
           <span>
-            <strong>Spawn existing words</strong>
-            <span class="muted settings-toggle-copy">When off, matching will not spawn words that are already in Available Words.</span>
+            <strong>Создавать уже открытые слова</strong>
+            <span class="muted settings-toggle-copy">Если выключено, при смешивании не появятся слова из списка доступных.</span>
           </span>
         </label>
         <div class="settings-actions">
-          <button type="button" data-action="spawn-word">Spawn Word</button>
-          <button type="button" data-action="export-save">Debug Export Save JSON</button>
-          <button type="button" class="ghost-button" data-action="import-save">Load Saved Game JSON</button>
+          <button type="button" data-action="spawn-word">Создать слово</button>
+          <button type="button" data-action="export-save">Экспорт сохранения (JSON)</button>
+          <button type="button" class="ghost-button" data-action="import-save">Загрузить сохранение (JSON)</button>
         </div>
-        <p class="muted settings-copy">The exported file includes the full game snapshot, including `discovered`, so discovered words can be extracted from it later.</p>
+        <p class="muted settings-copy">Экспортируемый файл содержит полный снимок игры, включая открытые слова.</p>
         <input type="file" accept="application/json,.json" data-save-file-input hidden>
       </section>
     </div>
@@ -244,10 +244,10 @@
       <section class="modal-card shop-word-booster-card" role="dialog" aria-modal="true" aria-labelledby="shop-word-booster-title">
         <div class="modal-head">
           <div>
-            <h2 id="shop-word-booster-title">Word Booster</h2>
-            <p class="muted">Pick 1 of these 10 rolled words to discover it and add it to Available Words.</p>
+            <h2 id="shop-word-booster-title">Усилитель слов</h2>
+            <p class="muted">Выберите 1 из 10 выпавших слов, чтобы открыть его и добавить в доступные.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-shop-word-booster">Fold</button>
+          <button type="button" class="ghost-button" data-action="close-shop-word-booster">Свернуть</button>
         </div>
         <div class="shop-word-booster-grid" data-shop-word-booster-grid></div>
       </section>
@@ -257,13 +257,13 @@
       <section class="modal-card quest-loss-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-loss-title">
         <div class="modal-head">
           <div>
-            <h2 id="quest-loss-title">You lost!</h2>
-            <p class="muted">The quest timer ran out before you found the target word.</p>
+            <h2 id="quest-loss-title">Вы проиграли!</h2>
+            <p class="muted">Время квеста истекло до того, как вы нашли целевое слово.</p>
           </div>
         </div>
-        <p class="quest-loss-copy">You ran out of discoveries before finding <strong data-quest-loss-word>Tree</strong>.</p>
+        <p class="quest-loss-copy">Вы исчерпали попытки до того, как нашли <strong data-quest-loss-word>Дерево</strong>.</p>
         <div class="settings-actions">
-          <button type="button" data-action="quest-try-again">Try Again</button>
+          <button type="button" data-action="quest-try-again">Попробовать снова</button>
         </div>
       </section>
     </div>
