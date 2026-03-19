@@ -280,6 +280,7 @@ const els = {
   closeEncyclopediaButton: document.querySelector("[data-action='close-encyclopedia']"),
   openSettingsButton: document.querySelector("[data-action='open-settings']"),
   closeSettingsButton: document.querySelector("[data-action='close-settings']"),
+  spawnWordButton: document.querySelector("[data-action='spawn-word']"),
   exportSaveButton: document.querySelector("[data-action='export-save']"),
   importSaveButton: document.querySelector("[data-action='import-save']"),
   settingsModal: document.querySelector("[data-settings-modal]"),
@@ -1639,6 +1640,24 @@ async function getRandomWildcardWord() {
   return { word, normalized };
 }
 
+async function getSpawnWordCandidate(word) {
+  const query = new URLSearchParams({ word });
+  const response = await fetch(`./api/spawn-word?${query.toString()}`);
+  const payload = await response.json();
+
+  if (!response.ok || !payload.ok) {
+    throw new Error(payload.error || "Could not spawn that word.");
+  }
+
+  const spawnedWord = typeof payload.word === "string" ? payload.word.trim().toLowerCase() : "";
+  const normalized = typeof payload.normalized === "string" ? payload.normalized.trim().toLowerCase() : "";
+  if (!spawnedWord || !normalized) {
+    throw new Error("Spawn word payload was incomplete.");
+  }
+
+  return { word: spawnedWord, normalized };
+}
+
 function updateCounts() {
   els.discoveredCount.textContent = state.discovered.size.toString();
   els.availableCount.textContent = getAvailableWordEntries().length.toString();
@@ -2734,6 +2753,71 @@ function getWildcardOutcomeMessage(
   return { message, stateName };
 }
 
+function getSpawnWordOutcomeMessage(
+  canonicalResult,
+  isInEncyclopedia,
+  wasDiscovered,
+  {
+    newNegativeMixTokens = 0,
+    newBanWordTokens = 0,
+    newWildcardTokens = 0,
+    newPositionTokenRewards = null,
+    newZonesUnlocked = 0,
+    completedCategories = [],
+    questResult = null,
+  } = {},
+) {
+  let message;
+  let stateName;
+
+  if (wasDiscovered) {
+    message = `Spawned ${titleCase(canonicalResult)} onto the field. It was already in your discovered words.`;
+    stateName = "ok";
+  } else if (isInEncyclopedia) {
+    message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to the encyclopedia.`;
+    stateName = "success";
+  } else {
+    message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to your discovered words.`;
+    stateName = "success";
+  }
+
+  if (completedCategories.length > 0) {
+    const categoryLabel = completedCategories.join(" and ");
+    const categorySuffix = completedCategories.length === 1 ? "category" : "categories";
+    message = `${message} You completed the ${categoryLabel} encyclopedia ${categorySuffix}.`;
+    stateName = "reward";
+  }
+
+  if (questResult?.completedQuest) {
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
+  const rewardParts = getTokenRewardParts({
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+  });
+  if (rewardParts.length > 0) {
+    message = `${message} Congrats! You earned ${rewardParts.join(" and ")}.`;
+    stateName = "reward";
+  }
+
+  if (newZonesUnlocked > 0) {
+    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
+    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    stateName = "reward";
+  }
+
+  if (questResult?.failedQuest) {
+    message = `${message} The quest timer hit 0 before you found ${titleCase(questResult.completedTargetWord)}.`;
+    stateName = "error";
+  }
+
+  return { message, stateName };
+}
+
 function getMatchHistoryKey(wordA, wordB, result, operation) {
   if (operation === "subtract") {
     return `${operation}:${wordA.toLowerCase()}|${wordB.toLowerCase()}=>${result.toLowerCase()}`;
@@ -3763,6 +3847,48 @@ function promptSaveImport() {
   els.saveFileInput.click();
 }
 
+async function promptSpawnWord() {
+  const requestedWord = window.prompt("Spawn which word?");
+  if (requestedWord === null) {
+    return;
+  }
+
+  const trimmedWord = requestedWord.trim().toLowerCase();
+  if (!trimmedWord) {
+    setStatus("Enter a word to spawn.", "error");
+    return;
+  }
+
+  const candidate = await getSpawnWordCandidate(trimmedWord);
+  const {
+    canonicalResult,
+    isInEncyclopedia,
+    wasDiscovered,
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+    newZonesUnlocked,
+    completedCategories,
+    questResult,
+    vocabularyOverflow,
+  } = rememberResult(candidate.word, candidate.normalized);
+
+  spawnWordOnField(canonicalResult);
+  closeSettings();
+
+  const status = getSpawnWordOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
+    newNegativeMixTokens,
+    newBanWordTokens,
+    newWildcardTokens,
+    newPositionTokenRewards,
+    newZonesUnlocked,
+    completedCategories,
+    questResult,
+  });
+  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+}
+
 async function importSaveSnapshotFromFile(file) {
   if (!file) {
     return;
@@ -4043,6 +4169,13 @@ function initEvents() {
   els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.spawnWordButton.addEventListener("click", async () => {
+    try {
+      await promptSpawnWord();
+    } catch (error) {
+      setStatus(error.message, "error");
+    }
+  });
   els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
   els.importSaveButton.addEventListener("click", promptSaveImport);
   els.questTryAgainButton.addEventListener("click", resetRun);

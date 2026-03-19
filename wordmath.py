@@ -294,6 +294,26 @@ def get_random_word_candidate() -> dict[str, str]:
     raise ValueError("No suitable random words found.")
 
 
+def get_spawn_word_candidate(word: str) -> dict[str, str]:
+    nlp, _, _, _ = get_language_resources()
+    candidate = word.strip().lower()
+    if not candidate:
+        raise ValueError("A word is required.")
+    if not candidate.isalpha() or len(candidate) < 2:
+        raise ValueError("Spawn Word only accepts alphabetic words with at least 2 letters.")
+    if is_profanity_like(candidate):
+        raise ValueError("That word cannot be spawned.")
+
+    normalized = get_preferred_root(candidate)
+    if not nlp.vocab[candidate].has_vector and not nlp.vocab[normalized].has_vector:
+        raise ValueError(f"'{candidate}' has no vector in this model.")
+
+    return {
+        "word": candidate,
+        "normalized": normalized,
+    }
+
+
 NO_VECTOR_ERROR_PATTERN = re.compile(r"^'(?P<word>.+)' has no vector in this model\.$")
 
 
@@ -364,6 +384,30 @@ def random_word():
         return jsonify({
             "ok": False,
             "error": f"Unexpected random word error: {error}",
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "word": candidate["word"],
+        "normalized": candidate["normalized"],
+    })
+
+
+@app.route("/api/spawn-word")
+def spawn_word():
+    word = request.args.get("word", "")
+
+    try:
+        candidate = get_spawn_word_candidate(word)
+    except ValueError as error:
+        return jsonify({
+            "ok": False,
+            "error": str(error),
+        }), 400
+    except Exception as error:
+        return jsonify({
+            "ok": False,
+            "error": f"Unexpected spawn word error: {error}",
         }), 500
 
     return jsonify({
