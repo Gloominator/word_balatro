@@ -364,6 +364,7 @@ const state = {
     remainingDiscoveries: 0,
     turnsTaken: 0,
     isLost: false,
+    isWon: false,
   },
   shopWordBooster: {
     isOpen: false,
@@ -441,6 +442,8 @@ const els = {
   questLossModal: document.querySelector("[data-quest-loss-modal]"),
   questLossWord: document.querySelector("[data-quest-loss-word]"),
   questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
+  questWinModal: document.querySelector("[data-quest-win-modal]"),
+  questGoAgainButton: document.querySelector("[data-action='quest-go-again']"),
 };
 
 let pendingProgressSave = null;
@@ -837,13 +840,31 @@ function mergePositionTokenRewardSummary(target, source) {
 }
 
 function sampleQuestWord(previousWord = null) {
+  const undiscoveredWords = getUndiscoveredEncyclopediaWords();
+  if (!undiscoveredWords.length) {
+    return null;
+  }
   const pool = previousWord
-    ? ENCYCLOPEDIA_WORDS
-      .map((entry) => entry.word)
-      .filter((word) => word !== previousWord)
-    : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
-  const fallbackPool = pool.length > 0 ? pool : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
+    ? undiscoveredWords.filter((word) => word !== previousWord)
+    : undiscoveredWords;
+  const fallbackPool = pool.length > 0 ? pool : undiscoveredWords;
   return fallbackPool[Math.floor(Math.random() * fallbackPool.length)] ?? null;
+}
+
+function setQuestVictoryState({ questNumber = state.quest.number } = {}) {
+  state.quest.number = Math.max(1, getSafeCount(questNumber, 1));
+  state.quest.targetWord = null;
+  state.quest.remainingDiscoveries = 0;
+  state.quest.turnsTaken = 0;
+  state.quest.isLost = false;
+  state.quest.isWon = true;
+  return {
+    number: state.quest.number,
+    targetWord: null,
+    remainingDiscoveries: 0,
+    turnsTaken: 0,
+    isWon: true,
+  };
 }
 
 function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) {
@@ -860,15 +881,20 @@ function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) 
 function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
   state.quest.number = initial ? 1 : Math.max(2, getSafeCount(state.quest.number, 1) + 1);
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
+  if (!state.quest.targetWord) {
+    return setQuestVictoryState({ questNumber: state.quest.number });
+  }
   const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
   state.quest.remainingDiscoveries = baseTurns + getSafeCount(carryOverTurns);
   state.quest.turnsTaken = 0;
   state.quest.isLost = false;
+  state.quest.isWon = false;
   return {
     number: state.quest.number,
     targetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
     turnsTaken: state.quest.turnsTaken,
+    isWon: false,
   };
 }
 
@@ -929,6 +955,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
   const questResult = {
     completedQuest: false,
     failedQuest: false,
+    completedEncyclopedia: false,
     completedTargetWord: state.quest.targetWord,
     nextTargetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
@@ -941,7 +968,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
     questSpeedBonusCoins: 0,
     questTotalCoins: 0,
   };
-  if (!state.quest.targetWord || state.quest.isLost) {
+  if (!state.quest.targetWord || state.quest.isLost || state.quest.isWon) {
     return questResult;
   }
 
@@ -962,6 +989,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
       carryOverTurns,
     });
     questResult.completedQuest = true;
+    questResult.completedEncyclopedia = Boolean(nextQuest.isWon);
     questResult.completedTargetWord = completedTargetWord;
     questResult.nextTargetWord = nextQuest.targetWord;
     questResult.remainingDiscoveries = nextQuest.remainingDiscoveries;
@@ -1073,6 +1101,7 @@ function buildProgressSnapshot() {
       remainingDiscoveries: state.quest.remainingDiscoveries,
       turnsTaken: state.quest.turnsTaken,
       isLost: state.quest.isLost,
+      isWon: state.quest.isWon,
     },
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
@@ -1314,12 +1343,17 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Сохранение
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
   const savedQuestTurnsTaken = Math.max(0, getSafeCount(snapshot.quest?.turnsTaken));
   const savedQuestLost = Boolean(snapshot.quest?.isLost);
-  if (savedQuestTarget && (savedQuestRemaining > 0 || savedQuestLost)) {
+  const savedQuestWon = Boolean(snapshot.quest?.isWon);
+  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+  if (getUndiscoveredEncyclopediaWords().length === 0 || savedQuestWon) {
+    setQuestVictoryState({ questNumber: savedQuestNumber });
+  } else if (savedQuestTarget && !discoveredEncyclopediaWords.has(savedQuestTarget) && (savedQuestRemaining > 0 || savedQuestLost)) {
     state.quest.number = savedQuestNumber;
     state.quest.targetWord = savedQuestTarget;
     state.quest.remainingDiscoveries = savedQuestRemaining;
     state.quest.turnsTaken = savedQuestTurnsTaken;
     state.quest.isLost = savedQuestLost;
+    state.quest.isWon = false;
   } else {
     assignNewQuest({ initial: true });
   }
@@ -1677,6 +1711,13 @@ function getDiscoveredEncyclopediaWords() {
   );
 }
 
+function getUndiscoveredEncyclopediaWords() {
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  return ENCYCLOPEDIA_WORDS
+    .map((entry) => entry.word)
+    .filter((word) => !discoveredWords.has(word));
+}
+
 function getCompletedEncyclopediaCategoryNames(discoveredWords = getDiscoveredEncyclopediaWords()) {
   return ENCYCLOPEDIA_CATEGORIES
     .filter((category) => category.words.every((word) => discoveredWords.has(word)))
@@ -1959,7 +2000,9 @@ function showQuestCompletionNotice(questResult, overflowMessage = "") {
 
   const next = document.createElement("div");
   next.className = "quest-complete-toast-next";
-  next.textContent = `Следующая цель: ${titleCase(questResult.nextTargetWord)}.`;
+  next.textContent = questResult.completedEncyclopedia
+    ? "Энциклопедия заполнена. Забег завершён."
+    : `Следующая цель: ${titleCase(questResult.nextTargetWord)}.`;
 
   notice.append(title, body, next);
 
@@ -2446,10 +2489,14 @@ function updateCounts() {
 }
 
 function renderQuest() {
-  const targetWord = state.quest.targetWord ? titleCase(state.quest.targetWord) : "None";
-  const countdown = state.quest.remainingDiscoveries;
+  const targetWord = state.quest.isWon
+    ? "Энциклопедия заполнена"
+    : (state.quest.targetWord ? titleCase(state.quest.targetWord) : "None");
+  const countdown = state.quest.isWon ? "0" : state.quest.remainingDiscoveries;
   let questState = "active";
-  if (state.quest.isLost) {
+  if (state.quest.isWon) {
+    questState = "active";
+  } else if (state.quest.isLost) {
     questState = "danger";
   } else if (countdown <= 10) {
     questState = "danger";
@@ -2462,6 +2509,7 @@ function renderQuest() {
   els.questStrip.dataset.state = questState;
   els.questLossWord.textContent = targetWord;
   els.questLossModal.hidden = !state.quest.isLost;
+  els.questWinModal.hidden = !state.quest.isWon;
 }
 
 function getWordKey(word) {
@@ -3632,6 +3680,10 @@ function getQuestCompletionMessage(questResult) {
   let rewardText = `${questResult.questTotalCoins} монет`;
   if (questResult.questSpeedBonusCoins > 0) {
     rewardText = `${rewardText} (бонус за скорость: ${questResult.questSpeedBonusCoins} монет за ${questResult.turnsTaken} ходов)`;
+  }
+
+  if (questResult.completedEncyclopedia) {
+    return `Квест выполнен! Найдено ${titleCase(questResult.completedTargetWord)}. Получено ${rewardText}. Энциклопедия заполнена. Забег завершён.`;
   }
 
   return `Квест выполнен! Найдено ${titleCase(questResult.completedTargetWord)}. Получено ${rewardText}. Следующая цель: ${titleCase(questResult.nextTargetWord)}. Проигрыш через ${questResult.remainingDiscoveries} ходов.`;
@@ -5095,6 +5147,7 @@ function resetRun() {
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
   state.quest.number = 1;
+  state.quest.isWon = false;
   state.shopWordBooster.isOpen = false;
   state.shopWordBooster.isLoading = false;
   state.shopWordBooster.options = [];
@@ -5103,6 +5156,7 @@ function resetRun() {
   state.nextZIndex = 1;
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
+  els.questWinModal.hidden = true;
 
   updatePlayfieldCamera();
   renderSidebar();
@@ -5318,6 +5372,7 @@ function initEvents() {
   els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
   els.importSaveButton.addEventListener("click", promptSaveImport);
   els.questTryAgainButton.addEventListener("click", resetRun);
+  els.questGoAgainButton.addEventListener("click", resetRun);
   els.spawnExistingWordsToggle.addEventListener("change", () => {
     state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
     queueProgressSave();

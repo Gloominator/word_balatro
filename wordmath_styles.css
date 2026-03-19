@@ -1268,6 +1268,10 @@ input {
   font-size: 1rem;
 }
 
+.quest-win-modal-card {
+  width: min(460px, 100%);
+}
+
 .shop-word-booster-card {
   width: min(760px, 100%);
 }
