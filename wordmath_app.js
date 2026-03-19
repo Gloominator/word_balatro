@@ -143,6 +143,9 @@ const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1;
 const STORAGE_KEY = "wordmath-progress-v1";
+const DISCOVERY_COIN_BASE_REWARD = 1;
+const DISCOVERY_RARITY_MIN_ZIPF = 2;
+const DISCOVERY_RARITY_MAX_ZIPF = 6;
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const QUEST_INITIAL_DISCOVERY_TIMER = 60;
@@ -157,6 +160,87 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
   4: { title: "Fourth Result", shortLabel: "4th" },
   5: { title: "Fifth Result", shortLabel: "5th" },
 });
+const SHOP_ITEM_DEFINITIONS = Object.freeze([
+  {
+    id: "shop-match-2",
+    title: "Second Result Token",
+    cost: 20,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(2, 1);
+      return "Bought 1 Second Result token for 20 coins.";
+    },
+  },
+  {
+    id: "shop-match-3",
+    title: "Third Result Token",
+    cost: 30,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(3, 1);
+      return "Bought 1 Third Result token for 30 coins.";
+    },
+  },
+  {
+    id: "shop-match-4",
+    title: "Fourth Result Token",
+    cost: 40,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(4, 1);
+      return "Bought 1 Fourth Result token for 40 coins.";
+    },
+  },
+  {
+    id: "shop-match-5",
+    title: "Fifth Result Token",
+    cost: 50,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(5, 1);
+      return "Bought 1 Fifth Result token for 50 coins.";
+    },
+  },
+  {
+    id: "shop-ban-word",
+    title: "Ban Word Token",
+    cost: 60,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableBanWordTokens += 1;
+      state.totalBanWordTokensEarned += 1;
+      return "Bought 1 Ban Word token for 60 coins.";
+    },
+  },
+  {
+    id: "shop-minus-mix",
+    title: "Minus Mix Token",
+    cost: 30,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableNegativeMixTokens += 1;
+      state.totalNegativeMixTokensEarned += 1;
+      return "Bought 1 Minus Mix token for 30 coins.";
+    },
+  },
+  {
+    id: "shop-quest-turn",
+    title: "Quest Turn +1",
+    cost: 100,
+    description: "Add 1 discovery turn to the current active quest.",
+    canPurchase: () => Boolean(state.quest.targetWord) && !state.quest.isLost,
+    purchase: () => {
+      state.quest.remainingDiscoveries += 1;
+      return `Added 1 turn to the active quest. ${state.quest.remainingDiscoveries} discoveries left now.`;
+    },
+  },
+]);
 
 const state = {
   starters: [],
@@ -200,6 +284,9 @@ const state = {
   availableNegativeMixTokens: 0,
   totalNegativeMixTokensEarned: 0,
   progressNegativeMixTokensAwarded: 0,
+  coins: 0,
+  totalCoinsEarned: 0,
+  purchasedUpgrades: createDefaultPurchasedUpgradeState(),
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableWildcardTokens: 0,
@@ -269,9 +356,14 @@ const els = {
   sidebarTitle: document.querySelector("[data-sidebar-title]"),
   openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
   openTokenTabButton: document.querySelector("[data-action='open-token-tab']"),
+  openUpgradesTabButton: document.querySelector("[data-action='open-upgrades-tab']"),
+  coinCount: document.querySelector("[data-coin-count]"),
   tokenCount: document.querySelector("[data-token-count]"),
   tokenPanelCount: document.querySelector("[data-token-panel-count]"),
   tokenList: document.querySelector("[data-token-list]"),
+  upgradeCount: document.querySelector("[data-upgrade-count]"),
+  upgradeCoinCount: document.querySelector("[data-upgrade-coin-count]"),
+  upgradeList: document.querySelector("[data-upgrade-list]"),
   sidebarPanels: document.querySelectorAll("[data-sidebar-panel]"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
@@ -300,6 +392,85 @@ let activeFloatingWordNoticeTimeout = null;
 
 function getSafeCount(value, fallback = 0) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
+}
+
+function normalizeZipfFrequency(value, fallback = DISCOVERY_RARITY_MAX_ZIPF) {
+  return Number.isFinite(value) ? clamp(value, 0, 8) : fallback;
+}
+
+function createDefaultPurchasedUpgradeState() {
+  return {};
+}
+
+function normalizeSavedPurchasedUpgrades(value) {
+  return value && typeof value === "object" ? value : createDefaultPurchasedUpgradeState();
+}
+
+function getAffordableShopItemCount() {
+  return SHOP_ITEM_DEFINITIONS.filter((item) => state.coins >= item.cost && item.canPurchase()).length;
+}
+
+function getDiscoveryRarityLabel(zipf) {
+  const safeZipf = normalizeZipfFrequency(zipf);
+  if (safeZipf >= 6) {
+    return "common";
+  }
+  if (safeZipf >= 5) {
+    return "familiar";
+  }
+  if (safeZipf >= 4) {
+    return "uncommon";
+  }
+  if (safeZipf >= 3) {
+    return "rare";
+  }
+  if (safeZipf >= 2) {
+    return "very rare";
+  }
+  return "extremely rare";
+}
+
+function isRareDiscoveryZipf(zipf) {
+  return normalizeZipfFrequency(zipf) < 4;
+}
+
+function isCommonDiscoveryZipf(zipf) {
+  return normalizeZipfFrequency(zipf) >= 6;
+}
+
+function getDiscoveryCoinBaseMultiplier(zipf) {
+  const safeZipf = clamp(normalizeZipfFrequency(zipf), DISCOVERY_RARITY_MIN_ZIPF, DISCOVERY_RARITY_MAX_ZIPF);
+  const progress = (DISCOVERY_RARITY_MAX_ZIPF - safeZipf) / (DISCOVERY_RARITY_MAX_ZIPF - DISCOVERY_RARITY_MIN_ZIPF);
+  return 1 + (Math.pow(progress, 2) * 19);
+}
+
+function getDiscoveryCoinReward({ zipf, isInEncyclopedia = false } = {}) {
+  const safeZipf = normalizeZipfFrequency(zipf);
+  const baseMultiplier = getDiscoveryCoinBaseMultiplier(safeZipf);
+  let coins = Math.max(1, Math.round(DISCOVERY_COIN_BASE_REWARD * baseMultiplier));
+
+  return {
+    coins,
+    zipf: safeZipf,
+    multiplier: Math.round(baseMultiplier * 10) / 10,
+    rarityLabel: getDiscoveryRarityLabel(safeZipf),
+  };
+}
+
+function awardDiscoveryCoins(options = {}) {
+  const reward = getDiscoveryCoinReward(options);
+  state.coins += reward.coins;
+  state.totalCoinsEarned += reward.coins;
+  return reward;
+}
+
+function getCoinRewardText(coinReward) {
+  if (!coinReward || coinReward.coins <= 0) {
+    return "";
+  }
+
+  const coinSuffix = coinReward.coins === 1 ? "coin" : "coins";
+  return `You earned ${coinReward.coins} ${coinSuffix} for discovering a ${coinReward.rarityLabel} word (${coinReward.multiplier.toFixed(1)}x base payout).`;
 }
 
 function getStringList(value) {
@@ -612,7 +783,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 2,
+    version: 3,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     selfMatchedWords: [...state.selfMatchedWords],
@@ -653,6 +824,9 @@ function buildProgressSnapshot() {
     availableNegativeMixTokens: state.availableNegativeMixTokens,
     totalNegativeMixTokensEarned: state.totalNegativeMixTokensEarned,
     progressNegativeMixTokensAwarded: state.progressNegativeMixTokensAwarded,
+    coins: state.coins,
+    totalCoinsEarned: state.totalCoinsEarned,
+    purchasedUpgrades: { ...state.purchasedUpgrades },
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableWildcardTokens: state.availableWildcardTokens,
@@ -848,6 +1022,9 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     getUnlockedNegativeMixTokenCount(discovered.size),
     getSafeCount(snapshot.progressNegativeMixTokensAwarded, getUnlockedNegativeMixTokenCount(discovered.size)),
   );
+  state.coins = getSafeCount(snapshot.coins);
+  state.totalCoinsEarned = Math.max(state.coins, getSafeCount(snapshot.totalCoinsEarned, state.coins));
+  state.purchasedUpgrades = normalizeSavedPurchasedUpgrades(snapshot.purchasedUpgrades);
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableWildcardTokens = getSafeCount(snapshot.availableWildcardTokens);
@@ -872,9 +1049,13 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
       )),
   );
   state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
-  state.activeSidebarTab = snapshot.activeSidebarTab === "tokens" && hasUnlockedAnyTokenType()
-    ? "tokens"
-    : "words";
+  if (snapshot.activeSidebarTab === "tokens" && hasUnlockedAnyTokenType()) {
+    state.activeSidebarTab = "tokens";
+  } else if (snapshot.activeSidebarTab === "upgrades") {
+    state.activeSidebarTab = "upgrades";
+  } else {
+    state.activeSidebarTab = "words";
+  }
   state.unseenTokenRewards = getSafeCount(snapshot.unseenTokenRewards);
   state.playfieldZoom = getNormalizedPlayfieldZoom(snapshot.playfieldZoom);
   state.playfieldCamera = clampPlayfieldCamera({
@@ -1637,7 +1818,11 @@ async function getRandomWildcardWord() {
     throw new Error("Random word payload was incomplete.");
   }
 
-  return { word, normalized };
+  return {
+    word,
+    normalized,
+    zipf: Number.isFinite(payload.zipf) ? payload.zipf : null,
+  };
 }
 
 async function getSpawnWordCandidate(word) {
@@ -1655,7 +1840,11 @@ async function getSpawnWordCandidate(word) {
     throw new Error("Spawn word payload was incomplete.");
   }
 
-  return { word: spawnedWord, normalized };
+  return {
+    word: spawnedWord,
+    normalized,
+    zipf: Number.isFinite(payload.zipf) ? payload.zipf : null,
+  };
 }
 
 function updateCounts() {
@@ -1664,8 +1853,11 @@ function updateCounts() {
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
   els.historyCount.textContent = state.matchHistory.length.toString();
   const totalUsableTokenCount = getTotalUsableTokenCount();
+  els.coinCount.textContent = state.coins.toString();
   els.tokenCount.textContent = totalUsableTokenCount.toString();
   els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
+  els.upgradeCount.textContent = getAffordableShopItemCount().toString();
+  els.upgradeCoinCount.textContent = `${state.coins} coin${state.coins === 1 ? "" : "s"}`;
 }
 
 function renderQuest() {
@@ -2313,6 +2505,7 @@ async function useWildcardToken(position = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -2321,13 +2514,14 @@ async function useWildcardToken(position = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(randomWord.word, randomWord.normalized);
+  } = rememberResult(randomWord.word, randomWord.normalized, { zipf: randomWord.zipf });
   spawnWordOnField(canonicalResult, position);
   const status = getWildcardOutcomeMessage(
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
     {
+      coinReward,
       newNegativeMixTokens,
       newBanWordTokens,
       newWildcardTokens,
@@ -2471,6 +2665,100 @@ function renderTokenPanel() {
   });
 }
 
+function getShopItemPurchaseState(item) {
+  if (state.coins < item.cost) {
+    return {
+      canBuy: false,
+      reason: `Need ${item.cost - state.coins} more coins.`,
+    };
+  }
+  if (!item.canPurchase()) {
+    if (item.id === "shop-quest-turn") {
+      return {
+        canBuy: false,
+        reason: state.quest.isLost ? "Quest already failed." : "No active quest.",
+      };
+    }
+    return {
+      canBuy: false,
+      reason: "Unavailable right now.",
+    };
+  }
+  return {
+    canBuy: true,
+    reason: "",
+  };
+}
+
+function purchaseShopItem(itemId) {
+  const item = SHOP_ITEM_DEFINITIONS.find((entry) => entry.id === itemId);
+  if (!item) {
+    return;
+  }
+
+  const purchaseState = getShopItemPurchaseState(item);
+  if (!purchaseState.canBuy) {
+    setStatus(purchaseState.reason, "error");
+    return;
+  }
+
+  state.coins -= item.cost;
+  const message = item.purchase();
+  renderSidebar();
+  queueProgressSave();
+  setStatus(message, "reward");
+}
+
+function renderUpgradePanel() {
+  els.upgradeList.innerHTML = "";
+
+  SHOP_ITEM_DEFINITIONS.forEach((item) => {
+    const purchaseState = getShopItemPurchaseState(item);
+
+    const card = document.createElement("article");
+    card.className = "upgrade-card";
+
+    const head = document.createElement("div");
+    head.className = "upgrade-card-head";
+
+    const titleWrap = document.createElement("div");
+    titleWrap.className = "upgrade-card-title";
+
+    const title = document.createElement("div");
+    title.className = "upgrade-card-name";
+    title.textContent = item.title;
+
+    titleWrap.append(title);
+    head.append(titleWrap);
+
+    const price = document.createElement("div");
+    price.className = "upgrade-cost";
+    price.textContent = item.cost.toString();
+    head.append(price);
+
+    const blurb = document.createElement("p");
+    blurb.className = "upgrade-card-text";
+    blurb.textContent = item.description;
+
+    const effect = document.createElement("p");
+    effect.className = "upgrade-card-effect";
+    effect.textContent = purchaseState.reason;
+    effect.hidden = !purchaseState.reason;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "upgrade-buy-button";
+    button.disabled = !purchaseState.canBuy;
+    button.textContent = `Buy for ${item.cost} coins`;
+    button.addEventListener("click", () => {
+      purchaseShopItem(item.id);
+    });
+
+    card.append(head, blurb, effect, button);
+    els.upgradeList.append(card);
+  });
+}
+
 function renderGarbageBin() {
   const unlocked = isGarbageBinUnlocked();
   els.garbagePanel.hidden = !unlocked;
@@ -2485,19 +2773,25 @@ function renderSidebar() {
   updateCounts();
   updatePlayfieldCamera();
   const tokensUnlocked = hasUnlockedAnyTokenType();
+  const isWordTabActive = state.activeSidebarTab === "words";
   const isTokenTabActive = state.activeSidebarTab === "tokens";
-  els.sidebarTitle.textContent = isTokenTabActive ? "Usable Tokens" : "Word Panel";
-  els.openWordTabButton.setAttribute("aria-selected", isTokenTabActive ? "false" : "true");
+  const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
+  els.sidebarTitle.textContent = isTokenTabActive
+    ? "Usable Tokens"
+    : (isUpgradeTabActive ? "Upgrades" : "Word Panel");
+  els.openWordTabButton.setAttribute("aria-selected", isWordTabActive ? "true" : "false");
   els.openTokenTabButton.hidden = !tokensUnlocked;
   els.openTokenTabButton.setAttribute("aria-selected", isTokenTabActive ? "true" : "false");
+  els.openUpgradesTabButton.setAttribute("aria-selected", isUpgradeTabActive ? "true" : "false");
   els.openTokenTabButton.classList.toggle("sidebar-tab-flashing", shouldFlashTokenTab());
   els.sidebarPanels.forEach((panel) => {
     panel.hidden = panel.dataset.sidebarPanel !== state.activeSidebarTab;
   });
-  els.toggleGooglePickButton.hidden = isTokenTabActive;
+  els.toggleGooglePickButton.hidden = !isWordTabActive;
   els.toggleGooglePickButton.setAttribute("aria-pressed", state.googlePickMode ? "true" : "false");
   renderWordList();
   renderTokenPanel();
+  renderUpgradePanel();
   renderGarbageBin();
   renderEncyclopedia();
   renderQuest();
@@ -2583,6 +2877,7 @@ function getMixOutcomeMessage(
   isInEncyclopedia,
   wasDiscovered,
   {
+    coinReward = null,
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
@@ -2627,6 +2922,12 @@ function getMixOutcomeMessage(
 
   if (questResult?.completedQuest) {
     message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
+  const coinRewardText = getCoinRewardText(coinReward);
+  if (coinRewardText) {
+    message = `${message} ${coinRewardText}`;
     stateName = "reward";
   }
 
@@ -2690,6 +2991,7 @@ function getWildcardOutcomeMessage(
   isInEncyclopedia,
   wasDiscovered,
   {
+    coinReward = null,
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
@@ -2728,6 +3030,12 @@ function getWildcardOutcomeMessage(
     stateName = "reward";
   }
 
+  const coinRewardText = getCoinRewardText(coinReward);
+  if (coinRewardText) {
+    message = `${message} ${coinRewardText}`;
+    stateName = "reward";
+  }
+
   const rewardParts = getTokenRewardParts({
     newNegativeMixTokens,
     newBanWordTokens,
@@ -2758,6 +3066,7 @@ function getSpawnWordOutcomeMessage(
   isInEncyclopedia,
   wasDiscovered,
   {
+    coinReward = null,
     newNegativeMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
@@ -2790,6 +3099,12 @@ function getSpawnWordOutcomeMessage(
 
   if (questResult?.completedQuest) {
     message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    stateName = "reward";
+  }
+
+  const coinRewardText = getCoinRewardText(coinReward);
+  if (coinRewardText) {
+    message = `${message} ${coinRewardText}`;
     stateName = "reward";
   }
 
@@ -3073,6 +3388,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3081,7 +3397,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const noticePoint = clientPoint || getClientPointForWorldPosition(position);
@@ -3097,6 +3413,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   let status;
   if (shouldBlockSpawn) {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
+      coinReward,
       newNegativeMixTokens,
       newBanWordTokens,
       newWildcardTokens,
@@ -3110,6 +3427,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
+      coinReward,
       newNegativeMixTokens,
       newBanWordTokens,
       newWildcardTokens,
@@ -3151,6 +3469,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3159,7 +3478,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
@@ -3183,6 +3502,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       isInEncyclopedia,
       wasDiscovered,
       {
+        coinReward,
         newNegativeMixTokens,
         newBanWordTokens,
         newWildcardTokens,
@@ -3204,6 +3524,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       isInEncyclopedia,
       wasDiscovered,
       {
+        coinReward,
         newNegativeMixTokens,
         newBanWordTokens,
         newWildcardTokens,
@@ -3222,7 +3543,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
 }
 
-function rememberResult(result, normalized = result) {
+function rememberResult(result, normalized = result, metadata = {}) {
   const previousAvailableCount = getAvailableWordEntries().length;
   const previousUnlockedZones = getUnlockedPlayfieldZoneCount();
   const canonicalResult = getCanonicalWord(result, normalized);
@@ -3238,6 +3559,7 @@ function rememberResult(result, normalized = result) {
   let newWildcardTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
   let completedCategories = [];
+  let coinReward = null;
   let questResult = null;
 
   if (!existing && !canonicalIsStarter) {
@@ -3289,6 +3611,10 @@ function rememberResult(result, normalized = result) {
   }
 
   if (didDiscoverNewWord) {
+    coinReward = awardDiscoveryCoins({
+      zipf: metadata?.zipf,
+      isInEncyclopedia,
+    });
     const randomDiscoveryReward = awardRandomDiscoveryToken();
     newWildcardTokens += randomDiscoveryReward.newWildcardTokens;
     POSITION_TOKEN_RANKS.forEach((rank) => {
@@ -3328,7 +3654,7 @@ function rememberResult(result, normalized = result) {
     ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
     : null;
 
-  if (didDiscoverNewWord || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
+  if (didDiscoverNewWord || coinReward || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
     renderSidebar();
   }
 
@@ -3336,6 +3662,7 @@ function rememberResult(result, normalized = result) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3387,6 +3714,7 @@ async function runNegativeMix(clientPoint = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3395,7 +3723,7 @@ async function runNegativeMix(clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized);
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
   recordMatch(
     state.negativeMix.a,
     state.negativeMix.b,
@@ -3423,6 +3751,7 @@ async function runNegativeMix(clientPoint = null) {
       isInEncyclopedia,
       wasDiscovered,
       {
+        coinReward,
         newNegativeMixTokens,
         newBanWordTokens,
         newWildcardTokens,
@@ -3444,6 +3773,7 @@ async function runNegativeMix(clientPoint = null) {
       isInEncyclopedia,
       wasDiscovered,
       {
+        coinReward,
         newNegativeMixTokens,
         newBanWordTokens,
         newWildcardTokens,
@@ -3864,6 +4194,7 @@ async function promptSpawnWord() {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3872,12 +4203,13 @@ async function promptSpawnWord() {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(candidate.word, candidate.normalized);
+  } = rememberResult(candidate.word, candidate.normalized, { zipf: candidate.zipf });
 
   spawnWordOnField(canonicalResult);
   closeSettings();
 
   const status = getSpawnWordOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
+    coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
     newWildcardTokens,
@@ -3942,6 +4274,9 @@ function resetRun() {
   state.availableNegativeMixTokens = 0;
   state.totalNegativeMixTokensEarned = 0;
   state.progressNegativeMixTokensAwarded = 0;
+  state.coins = 0;
+  state.totalCoinsEarned = 0;
+  state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableWildcardTokens = 0;
@@ -4118,6 +4453,9 @@ function initEvents() {
   });
   els.openTokenTabButton.addEventListener("click", () => {
     setActiveSidebarTab("tokens");
+  });
+  els.openUpgradesTabButton.addEventListener("click", () => {
+    setActiveSidebarTab("upgrades");
   });
   els.resetButton.addEventListener("click", resetRun);
   els.clearFieldButton.addEventListener("click", clearField);

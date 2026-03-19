@@ -45,9 +45,15 @@
       <section class="main-layout">
         <section class="panel playfield-panel">
           <div class="panel-head">
-            <div>
-              <h2>Mixing Field</h2>
-              <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
+            <div class="playfield-heading">
+              <div>
+                <h2>Mixing Field</h2>
+                <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
+              </div>
+              <div class="coin-counter" aria-label="Coins">
+                <span class="coin-counter-value" data-coin-count>0</span>
+                <span class="coin-counter-icon" aria-hidden="true"></span>
+              </div>
             </div>
             <div class="playfield-actions">
               <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
@@ -113,6 +119,10 @@
               Usable Tokens
               <span class="section-count" data-token-count>0</span>
             </button>
+            <button type="button" class="sidebar-tab" data-action="open-upgrades-tab" data-sidebar-tab="upgrades" role="tab" aria-selected="false">
+              Upgrades
+              <span class="section-count" data-upgrade-count>0</span>
+            </button>
           </div>
           <div class="section-title-row sidebar-title-row">
             <h2 data-sidebar-title>Word Panel</h2>
@@ -156,6 +166,19 @@
             </div>
             <div class="token-list" data-token-list>
               <p class="source-word-empty">No tokens yet.</p>
+            </div>
+          </section>
+
+          <section class="sidebar-section" data-sidebar-panel="upgrades" role="tabpanel" hidden>
+            <div class="section-title-row">
+              <div>
+                <h3>Upgrades</h3>
+                <p class="muted upgrade-panel-copy"></p>
+              </div>
+              <span class="section-count" data-upgrade-coin-count>0 coins</span>
+            </div>
+            <div class="upgrade-list" data-upgrade-list>
+              <p class="source-word-empty">Loading shop...</p>
             </div>
           </section>
         </aside>

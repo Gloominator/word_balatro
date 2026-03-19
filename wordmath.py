@@ -13,6 +13,7 @@ from pathlib import Path
 import numpy as np
 import spacy
 from flask import Flask, jsonify, request, send_from_directory
+from wordfreq import zipf_frequency
 
 
 def get_app_root() -> Path:
@@ -177,6 +178,14 @@ def get_preferred_root(word: str) -> str:
     return candidates[0][-1] if candidates else word.strip().lower()
 
 
+@lru_cache(maxsize=8192)
+def get_word_zipf_frequency(word: str) -> float:
+    cleaned = word.strip().lower()
+    if not cleaned:
+        return 0.0
+    return round(float(zipf_frequency(cleaned, "en")), 2)
+
+
 def is_same_word_family(candidate: str, input_forms: set[str]) -> bool:
     return bool(get_word_family_forms(candidate) & input_forms)
 
@@ -253,6 +262,7 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
             "word": candidate,
             "normalized": candidate_form,
             "similarity": float(similarities[idx]),
+            "zipf": get_word_zipf_frequency(candidate),
         })
         seen_candidate_forms.add(candidate_form)
         if len(candidates) >= top_n:
@@ -289,7 +299,11 @@ def get_random_word_candidate() -> dict[str, str]:
             if is_profanity_like(candidate):
                 continue
             candidate_form = get_preferred_root(candidate)
-            return {"word": candidate, "normalized": candidate_form}
+            return {
+                "word": candidate,
+                "normalized": candidate_form,
+                "zipf": get_word_zipf_frequency(candidate),
+            }
 
     raise ValueError("No suitable random words found.")
 
@@ -311,6 +325,7 @@ def get_spawn_word_candidate(word: str) -> dict[str, str]:
     return {
         "word": candidate,
         "normalized": normalized,
+        "zipf": get_word_zipf_frequency(candidate),
     }
 
 
@@ -390,6 +405,7 @@ def random_word():
         "ok": True,
         "word": candidate["word"],
         "normalized": candidate["normalized"],
+        "zipf": candidate["zipf"],
     })
 
 
@@ -414,6 +430,7 @@ def spawn_word():
         "ok": True,
         "word": candidate["word"],
         "normalized": candidate["normalized"],
+        "zipf": candidate["zipf"],
     })
 
 
