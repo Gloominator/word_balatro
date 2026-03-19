@@ -127,6 +127,8 @@ const NEGATIVE_MIX_Z_INDEX = 5000;
 const DRAGGING_TILE_Z_INDEX = 6000;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
+const FLOATING_MATCH_PREVIEW_WIDTH = 190;
+const FLOATING_MATCH_PREVIEW_HEIGHT = 152;
 const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
@@ -389,6 +391,12 @@ let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
 let activeFloatingWordNotice = null;
 let activeFloatingWordNoticeTimeout = null;
+const associationPreviewCache = new Map();
+const dragMixPreviewState = {
+  pairKey: null,
+  clientPoint: null,
+  requestId: 0,
+};
 
 function getSafeCount(value, fallback = 0) {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
@@ -441,7 +449,7 @@ function isCommonDiscoveryZipf(zipf) {
 function getDiscoveryCoinBaseMultiplier(zipf) {
   const safeZipf = clamp(normalizeZipfFrequency(zipf), DISCOVERY_RARITY_MIN_ZIPF, DISCOVERY_RARITY_MAX_ZIPF);
   const progress = (DISCOVERY_RARITY_MAX_ZIPF - safeZipf) / (DISCOVERY_RARITY_MAX_ZIPF - DISCOVERY_RARITY_MIN_ZIPF);
-  return 1 + (Math.pow(progress, 2) * 19);
+  return 1 + (Math.pow(progress, 2) * 99);
 }
 
 function getDiscoveryCoinReward({ zipf, isInEncyclopedia = false } = {}) {
@@ -1691,6 +1699,44 @@ function clearFloatingCandidatePreview() {
   }
 }
 
+function setFloatingCandidatePreviewPosition(preview, clientPoint = null) {
+  if (!preview) {
+    return;
+  }
+
+  const playfieldRect = els.playfield.getBoundingClientRect();
+  const bounds = getPlayfieldBounds();
+  const localX = clientPoint
+    ? clientPoint.x - playfieldRect.left
+    : bounds.width / 2;
+  const localY = clientPoint
+    ? clientPoint.y - playfieldRect.top
+    : bounds.height / 2;
+  const x = clamp(
+    localX - (FLOATING_MATCH_PREVIEW_WIDTH / 2),
+    12,
+    Math.max(12, bounds.width - FLOATING_MATCH_PREVIEW_WIDTH - 12),
+  );
+  const y = clamp(
+    localY - FLOATING_MATCH_PREVIEW_HEIGHT - 26,
+    12,
+    Math.max(12, bounds.height - FLOATING_MATCH_PREVIEW_HEIGHT - 12),
+  );
+  preview.style.left = `${x}px`;
+  preview.style.top = `${y}px`;
+}
+
+function updateFloatingCandidatePreviewPosition(clientPoint = null) {
+  setFloatingCandidatePreviewPosition(activeFloatingCandidatePreview, clientPoint);
+}
+
+function clearDragMixPreview() {
+  dragMixPreviewState.pairKey = null;
+  dragMixPreviewState.clientPoint = null;
+  dragMixPreviewState.requestId += 1;
+  clearFloatingCandidatePreview();
+}
+
 function clearFloatingWordNotice() {
   if (activeFloatingWordNoticeTimeout !== null) {
     window.clearTimeout(activeFloatingWordNoticeTimeout);
@@ -1739,7 +1785,7 @@ function getClientPointForWorldPosition(position) {
   };
 }
 
-function showFloatingCandidatePreview(candidates, clientPoint = null) {
+function showFloatingCandidatePreview(candidates, clientPoint = null, { persistent = false } = {}) {
   if (!Array.isArray(candidates) || candidates.length === 0) {
     clearFloatingCandidatePreview();
     return;
@@ -1747,10 +1793,9 @@ function showFloatingCandidatePreview(candidates, clientPoint = null) {
 
   clearFloatingCandidatePreview();
 
-  const playfieldRect = els.playfield.getBoundingClientRect();
-  const bounds = getPlayfieldBounds();
   const preview = document.createElement("div");
   preview.className = "floating-match-preview";
+  preview.dataset.persistent = persistent ? "true" : "false";
 
   const title = document.createElement("div");
   title.className = "floating-match-preview-title";
@@ -1764,24 +1809,79 @@ function showFloatingCandidatePreview(candidates, clientPoint = null) {
     preview.append(line);
   });
 
-  const localX = clientPoint
-    ? clientPoint.x - playfieldRect.left
-    : bounds.width / 2;
-  const localY = clientPoint
-    ? clientPoint.y - playfieldRect.top
-    : bounds.height / 2;
-  const previewWidth = 190;
-  const previewHeight = 152;
-  const x = clamp(localX - (previewWidth / 2), 12, Math.max(12, bounds.width - previewWidth - 12));
-  const y = clamp(localY - previewHeight - 26, 12, Math.max(12, bounds.height - previewHeight - 12));
-  preview.style.left = `${x}px`;
-  preview.style.top = `${y}px`;
+  setFloatingCandidatePreviewPosition(preview, clientPoint);
 
   els.playfield.append(preview);
   activeFloatingCandidatePreview = preview;
-  activeFloatingCandidatePreviewTimeout = window.setTimeout(() => {
-    clearFloatingCandidatePreview();
-  }, 2500);
+  if (!persistent) {
+    activeFloatingCandidatePreviewTimeout = window.setTimeout(() => {
+      clearFloatingCandidatePreview();
+    }, 2500);
+  }
+}
+
+function getAssociationCacheKey(wordA, wordB, operation = "add") {
+  return `${operation}:${getWordKey(wordA)}:${getWordKey(wordB)}`;
+}
+
+async function getAssociationCached(wordA, wordB, operation = "add") {
+  const cacheKey = getAssociationCacheKey(wordA, wordB, operation);
+  if (!associationPreviewCache.has(cacheKey)) {
+    const request = getAssociation(wordA, wordB, operation)
+      .catch((error) => {
+        associationPreviewCache.delete(cacheKey);
+        throw error;
+      });
+    associationPreviewCache.set(cacheKey, request);
+  }
+  return associationPreviewCache.get(cacheKey);
+}
+
+async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
+  if (!sourceTile || !targetTile) {
+    clearDragMixPreview();
+    return;
+  }
+
+  const pairKey = `${sourceTile.id}:${targetTile.id}`;
+  dragMixPreviewState.clientPoint = clientPoint;
+
+  if (dragMixPreviewState.pairKey === pairKey) {
+    updateFloatingCandidatePreviewPosition(clientPoint);
+    return;
+  }
+
+  dragMixPreviewState.pairKey = pairKey;
+  const requestId = dragMixPreviewState.requestId + 1;
+  dragMixPreviewState.requestId = requestId;
+  clearFloatingCandidatePreview();
+
+  try {
+    const mix = await getAssociationCached(sourceTile.word, targetTile.word, "add");
+    if (
+      dragMixPreviewState.pairKey !== pairKey
+      || dragMixPreviewState.requestId !== requestId
+    ) {
+      return;
+    }
+
+    const selection = resolveCandidateSelection(mix.candidates, [sourceTile.id, targetTile.id]);
+    if (!selection.candidate) {
+      clearFloatingCandidatePreview();
+      return;
+    }
+
+    showFloatingCandidatePreview(selection.candidates, dragMixPreviewState.clientPoint, {
+      persistent: true,
+    });
+  } catch (error) {
+    if (
+      dragMixPreviewState.pairKey === pairKey
+      && dragMixPreviewState.requestId === requestId
+    ) {
+      clearFloatingCandidatePreview();
+    }
+  }
 }
 
 async function getAssociation(wordA, wordB, operation = "add") {
@@ -3977,6 +4077,7 @@ function startTileDrag(event, tileId) {
       tile.zIndex = state.nextZIndex;
       tileElement.classList.add("dragging");
       tileElement.style.zIndex = String(DRAGGING_TILE_Z_INDEX);
+      clearDragMixPreview();
     }
 
     const bounds = getPlayfieldBounds();
@@ -3985,12 +4086,23 @@ function startTileDrag(event, tileId) {
     tile.y = clamp(localPoint.y - pointerOffsetY, bounds.minY, bounds.maxY);
     tileElement.style.left = `${tile.x}px`;
     tileElement.style.top = `${tile.y}px`;
+
+    const targetTile = findMixTarget(tile);
+    if (targetTile) {
+      void updateDragMixPreview(tile, targetTile, {
+        x: moveEvent.clientX,
+        y: moveEvent.clientY,
+      });
+    } else {
+      clearDragMixPreview();
+    }
   };
 
   const end = async (endEvent) => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", end);
     tileElement.classList.remove("dragging");
+    clearDragMixPreview();
 
     if (!dragStarted) {
       tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
