@@ -137,6 +137,8 @@ const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
 const AVAILABLE_WORD_LIMIT = 25;
+const AVAILABLE_WORD_CAP_UPGRADE_STEP = 10;
+const AVAILABLE_WORD_CAP_UPGRADE_BASE_COST = 500;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
 const PLAYFIELD_WORDS_PER_ZONE_UNLOCK = 50;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
@@ -151,8 +153,6 @@ const DISCOVERY_RARITY_MAX_ZIPF = 6;
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const QUEST_INITIAL_DISCOVERY_TIMER = 60;
-const QUEST_TIMER_MIN = 50;
-const QUEST_TIMER_MAX = 70;
 const QUEST_COMPLETION_REWARD_COUNT = 5;
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
@@ -162,78 +162,10 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
   4: { title: "Fourth Result", shortLabel: "4th" },
   5: { title: "Fifth Result", shortLabel: "5th" },
 });
-const SHOP_WORD_BOOSTER_COST = 50;
+const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
 const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
-  {
-    id: "shop-match-2",
-    title: "Second Result Token",
-    cost: 20,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      addPositionTokens(2, 1);
-      return "Bought 1 Second Result token for 20 coins.";
-    },
-  },
-  {
-    id: "shop-match-3",
-    title: "Third Result Token",
-    cost: 30,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      addPositionTokens(3, 1);
-      return "Bought 1 Third Result token for 30 coins.";
-    },
-  },
-  {
-    id: "shop-match-4",
-    title: "Fourth Result Token",
-    cost: 40,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      addPositionTokens(4, 1);
-      return "Bought 1 Fourth Result token for 40 coins.";
-    },
-  },
-  {
-    id: "shop-match-5",
-    title: "Fifth Result Token",
-    cost: 50,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      addPositionTokens(5, 1);
-      return "Bought 1 Fifth Result token for 50 coins.";
-    },
-  },
-  {
-    id: "shop-ban-word",
-    title: "Ban Word Token",
-    cost: 60,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      state.availableBanWordTokens += 1;
-      state.totalBanWordTokensEarned += 1;
-      return "Bought 1 Ban Word token for 60 coins.";
-    },
-  },
-  {
-    id: "shop-minus-mix",
-    title: "Minus Mix Token",
-    cost: 30,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      state.availableNegativeMixTokens += 1;
-      state.totalNegativeMixTokensEarned += 1;
-      return "Bought 1 Minus Mix token for 30 coins.";
-    },
-  },
   {
     id: "shop-word-booster",
     title: "Word Booster",
@@ -251,14 +183,93 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-match-2",
+    title: "Second Result Token",
+    cost: 40,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(2, 1);
+      return "Bought 1 Second Result token for 40 coins.";
+    },
+  },
+  {
+    id: "shop-match-3",
+    title: "Third Result Token",
+    cost: 50,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(3, 1);
+      return "Bought 1 Third Result token for 50 coins.";
+    },
+  },
+  {
+    id: "shop-match-4",
+    title: "Fourth Result Token",
+    cost: 60,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(4, 1);
+      return "Bought 1 Fourth Result token for 60 coins.";
+    },
+  },
+  {
+    id: "shop-match-5",
+    title: "Fifth Result Token",
+    cost: 70,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      addPositionTokens(5, 1);
+      return "Bought 1 Fifth Result token for 70 coins.";
+    },
+  },
+  {
+    id: "shop-ban-word",
+    title: "Ban Word Token",
+    cost: 80,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableBanWordTokens += 1;
+      state.totalBanWordTokensEarned += 1;
+      return "Bought 1 Ban Word token for 80 coins.";
+    },
+  },
+  {
+    id: "shop-minus-mix",
+    title: "Minus Mix Token",
+    cost: 50,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableNegativeMixTokens += 1;
+      state.totalNegativeMixTokensEarned += 1;
+      return "Bought 1 Minus Mix token for 50 coins.";
+    },
+  },
+  {
+    id: "shop-available-word-cap",
+    title: "Available Words Cap +10",
+    cost: AVAILABLE_WORD_CAP_UPGRADE_BASE_COST,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.purchasedUpgrades.availableWordCap = getAvailableWordCapUpgradeLevel() + 1;
+      return `Available words cap increased to ${getAvailableWordLimit()}.`;
+    },
+  },
+  {
     id: "shop-quest-turn",
     title: "Quest Turn +1",
     cost: 100,
-    description: "Add 1 discovery turn to the current active quest.",
+    description: "Add 1 turn before you lose the current active quest.",
     canPurchase: () => Boolean(state.quest.targetWord) && !state.quest.isLost,
     purchase: () => {
       state.quest.remainingDiscoveries += 1;
-      return `Added 1 turn to the active quest. ${state.quest.remainingDiscoveries} discoveries left now.`;
+      return `Added 1 turn to the active quest. You now lose in ${state.quest.remainingDiscoveries} turns.`;
     },
   },
 ]);
@@ -331,6 +342,7 @@ const state = {
     y: 0,
   },
   quest: {
+    number: 1,
     targetWord: null,
     remainingDiscoveries: 0,
     isLost: false,
@@ -443,8 +455,36 @@ function normalizeSavedPurchasedUpgrades(value) {
   return value && typeof value === "object" ? value : createDefaultPurchasedUpgradeState();
 }
 
+function getAvailableWordCapUpgradeLevel() {
+  return getSafeCount(state.purchasedUpgrades.availableWordCap);
+}
+
+function getAvailableWordLimit() {
+  return AVAILABLE_WORD_LIMIT + (getAvailableWordCapUpgradeLevel() * AVAILABLE_WORD_CAP_UPGRADE_STEP);
+}
+
+function getAvailableWordCapUpgradeCost(level = getAvailableWordCapUpgradeLevel()) {
+  return AVAILABLE_WORD_CAP_UPGRADE_BASE_COST * (2 ** level);
+}
+
+function getShopItemCost(item) {
+  if (item.id === "shop-available-word-cap") {
+    return getAvailableWordCapUpgradeCost();
+  }
+  return item.cost;
+}
+
+function getShopItemDescription(item) {
+  if (item.id === "shop-available-word-cap") {
+    const currentCap = getAvailableWordLimit();
+    const nextCap = currentCap + AVAILABLE_WORD_CAP_UPGRADE_STEP;
+    return `Increase the available words cap by +${AVAILABLE_WORD_CAP_UPGRADE_STEP}. Current cap ${currentCap}, next cap ${nextCap}.`;
+  }
+  return item.description;
+}
+
 function getAffordableShopItemCount() {
-  return SHOP_ITEM_DEFINITIONS.filter((item) => state.coins >= item.cost && item.canPurchase()).length;
+  return SHOP_ITEM_DEFINITIONS.filter((item) => state.coins >= getShopItemCost(item) && item.canPurchase()).length;
 }
 
 function getDiscoveryRarityLabel(zipf) {
@@ -784,15 +824,25 @@ function sampleQuestWord(previousWord = null) {
   return fallbackPool[Math.floor(Math.random() * fallbackPool.length)] ?? null;
 }
 
-function getRandomQuestDiscoveryTimer() {
-  return QUEST_TIMER_MIN + Math.floor(Math.random() * ((QUEST_TIMER_MAX - QUEST_TIMER_MIN) + 1));
+function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) {
+  const safeQuestNumber = Math.max(1, getSafeCount(questNumber, 1));
+  if (safeQuestNumber === 1) {
+    return 40;
+  }
+  if (safeQuestNumber === 2) {
+    return 20;
+  }
+  return 10;
 }
 
-function assignNewQuest({ initial = false, previousTargetWord = null } = {}) {
+function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
+  state.quest.number = initial ? 1 : Math.max(2, getSafeCount(state.quest.number, 1) + 1);
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
-  state.quest.remainingDiscoveries = initial ? QUEST_INITIAL_DISCOVERY_TIMER : getRandomQuestDiscoveryTimer();
+  const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
+  state.quest.remainingDiscoveries = baseTurns + getSafeCount(carryOverTurns);
   state.quest.isLost = false;
   return {
+    number: state.quest.number,
     targetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
   };
@@ -831,7 +881,7 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   return rewardSummary;
 }
 
-function advanceQuest(canonicalResult, { didDiscoverNewWord = false } = {}) {
+function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatchedWord = canonicalResult } = {}) {
   const questResult = {
     completedQuest: false,
     failedQuest: false,
@@ -851,12 +901,14 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false } = {}) {
     state.quest.remainingDiscoveries = Math.max(0, state.quest.remainingDiscoveries - 1);
   }
 
-  if (canonicalResult === state.quest.targetWord) {
+  if (questMatchedWord === state.quest.targetWord) {
     const rewardSummary = awardQuestCompletionTokens();
     const completedTargetWord = state.quest.targetWord;
+    const carryOverTurns = state.quest.remainingDiscoveries;
     const nextQuest = assignNewQuest({
       initial: false,
       previousTargetWord: completedTargetWord,
+      carryOverTurns,
     });
     questResult.completedQuest = true;
     questResult.completedTargetWord = completedTargetWord;
@@ -961,6 +1013,7 @@ function buildProgressSnapshot() {
     playfieldZoom: state.playfieldZoom,
     playfieldCamera: { ...state.playfieldCamera },
     quest: {
+      number: state.quest.number,
       targetWord: state.quest.targetWord,
       remainingDiscoveries: state.quest.remainingDiscoveries,
       isLost: state.quest.isLost,
@@ -1184,9 +1237,11 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     && ENCYCLOPEDIA_LOOKUP.has(snapshot.quest.targetWord)
     ? snapshot.quest.targetWord
     : null;
+  const savedQuestNumber = Math.max(1, getSafeCount(snapshot.quest?.number, 1));
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
   const savedQuestLost = Boolean(snapshot.quest?.isLost);
   if (savedQuestTarget && (savedQuestRemaining > 0 || savedQuestLost)) {
+    state.quest.number = savedQuestNumber;
     state.quest.targetWord = savedQuestTarget;
     state.quest.remainingDiscoveries = savedQuestRemaining;
     state.quest.isLost = savedQuestLost;
@@ -1523,7 +1578,22 @@ function getAvailableEntryForWord(word, normalized = word) {
 }
 
 function getEncyclopediaEntry(word, normalized = word) {
-  return ENCYCLOPEDIA_LOOKUP.get(normalized) || ENCYCLOPEDIA_LOOKUP.get(word.toLowerCase()) || null;
+  const exactEntry = ENCYCLOPEDIA_LOOKUP.get(normalized) || ENCYCLOPEDIA_LOOKUP.get(word.toLowerCase());
+  if (exactEntry) {
+    return exactEntry;
+  }
+
+  const candidateForms = new Set([
+    ...getWordFamilyForms(normalized),
+    ...getWordFamilyForms(word),
+  ]);
+  for (const form of candidateForms) {
+    const entry = ENCYCLOPEDIA_LOOKUP.get(form);
+    if (entry) {
+      return entry;
+    }
+  }
+  return null;
 }
 
 function getDiscoveredEncyclopediaWords() {
@@ -2607,15 +2677,16 @@ function getOldestTrackedAvailableEntry() {
 }
 
 function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCount) {
-  if (previousAvailableCount < AVAILABLE_WORD_LIMIT
-    || currentAvailableCount <= AVAILABLE_WORD_LIMIT) {
+  const availableWordLimit = getAvailableWordLimit();
+  if (previousAvailableCount < availableWordLimit
+    || currentAvailableCount <= availableWordLimit) {
     return null;
   }
 
   const oldestTrackedEntry = getOldestTrackedAvailableEntry();
   if (!oldestTrackedEntry) {
     return {
-      message: `You have more than ${AVAILABLE_WORD_LIMIT} available words, but none of your last ${RECENT_DISCOVERED_WORD_LIMIT} discovered words could be auto-binned.`,
+      message: `You have more than ${availableWordLimit} available words, but none of your last ${RECENT_DISCOVERED_WORD_LIMIT} discovered words could be auto-binned.`,
       stateName: "error",
     };
   }
@@ -2630,7 +2701,7 @@ function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCou
     : "";
 
   return {
-    message: `${titleCase(oldestTrackedEntry.word)} was automatically binned to keep your available words at ${AVAILABLE_WORD_LIMIT}.${rewardSuffix}`,
+    message: `${titleCase(oldestTrackedEntry.word)} was automatically binned to keep your available words at ${availableWordLimit}.${rewardSuffix}`,
     stateName: "error",
   };
 }
@@ -2880,10 +2951,11 @@ function getShopItemPurchaseState(item) {
       reason: state.shopWordBooster.isLoading ? "Rolling words..." : "",
     };
   }
-  if (state.coins < item.cost) {
+  const itemCost = getShopItemCost(item);
+  if (state.coins < itemCost) {
     return {
       canBuy: false,
-      reason: `Need ${item.cost - state.coins} more coins.`,
+      reason: `Need ${itemCost - state.coins} more coins.`,
     };
   }
   if (!item.canPurchase()) {
@@ -2921,6 +2993,7 @@ async function purchaseShopItem(itemId) {
     setStatus(purchaseState.reason, "error");
     return;
   }
+  const itemCost = getShopItemCost(item);
 
   const isWordBooster = item.id === "shop-word-booster";
   if (isWordBooster) {
@@ -2930,7 +3003,7 @@ async function purchaseShopItem(itemId) {
     try {
       const message = await item.purchase();
       if (willRollNewBooster) {
-        state.coins -= item.cost;
+        state.coins -= itemCost;
       }
       renderSidebar();
       queueProgressSave();
@@ -2946,7 +3019,7 @@ async function purchaseShopItem(itemId) {
 
   try {
     const message = await item.purchase();
-    state.coins -= item.cost;
+    state.coins -= itemCost;
     renderSidebar();
     queueProgressSave();
     setStatus(message, "reward");
@@ -2961,6 +3034,7 @@ function renderUpgradePanel() {
   SHOP_ITEM_DEFINITIONS.forEach((item) => {
     const purchaseState = getShopItemPurchaseState(item);
     const isPendingWordBooster = item.id === "shop-word-booster" && hasPendingShopWordBooster();
+    const itemCost = getShopItemCost(item);
 
     const card = document.createElement("article");
     card.className = "upgrade-card";
@@ -2980,12 +3054,12 @@ function renderUpgradePanel() {
 
     const price = document.createElement("div");
     price.className = "upgrade-cost";
-    price.textContent = item.cost.toString();
+    price.textContent = itemCost.toString();
     head.append(price);
 
     const blurb = document.createElement("p");
     blurb.className = "upgrade-card-text";
-    blurb.textContent = item.description;
+    blurb.textContent = getShopItemDescription(item);
 
     const effect = document.createElement("p");
     effect.className = "upgrade-card-effect";
@@ -2996,7 +3070,7 @@ function renderUpgradePanel() {
     button.type = "button";
     button.className = "upgrade-buy-button";
     button.disabled = !purchaseState.canBuy;
-    button.textContent = isPendingWordBooster ? "View Booster" : `Buy for ${item.cost} coins`;
+    button.textContent = isPendingWordBooster ? "View Booster" : `Buy for ${itemCost} coins`;
     button.addEventListener("click", () => {
       purchaseShopItem(item.id);
     });
@@ -3025,7 +3099,7 @@ function renderSidebar() {
   const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
   els.sidebarTitle.textContent = isTokenTabActive
     ? "Usable Tokens"
-    : (isUpgradeTabActive ? "Upgrades" : "Word Panel");
+    : (isUpgradeTabActive ? "Shop" : "Word Panel");
   els.openWordTabButton.setAttribute("aria-selected", isWordTabActive ? "true" : "false");
   els.openTokenTabButton.hidden = !tokensUnlocked;
   els.openTokenTabButton.setAttribute("aria-selected", isTokenTabActive ? "true" : "false");
@@ -3168,7 +3242,7 @@ function getMixOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
     stateName = "reward";
   }
 
@@ -3273,7 +3347,7 @@ function getWildcardOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
     stateName = "reward";
   }
 
@@ -3345,7 +3419,7 @@ function getSpawnWordOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
     stateName = "reward";
   }
 
@@ -3417,7 +3491,7 @@ function getShopWordBoosterOutcomeMessage(
   }
 
   if (questResult?.completedQuest) {
-    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} with ${questResult.remainingDiscoveries} discoveries left.`;
+    message = `${message} Quest complete: you found ${titleCase(questResult.completedTargetWord)}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
     stateName = "reward";
   }
 
@@ -3941,7 +4015,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     });
   }
 
-  questResult = advanceQuest(canonicalResult, { didDiscoverNewWord });
+  questResult = advanceQuest(canonicalResult, {
+    didDiscoverNewWord,
+    questMatchedWord: discoveryKey,
+  });
   newNegativeMixTokensFromCompletion += questResult.newNegativeMixTokens;
   newBanWordTokens += questResult.newBanWordTokens;
   newWildcardTokens += questResult.newWildcardTokens;
@@ -4687,6 +4764,7 @@ function resetRun() {
   state.unseenTokenRewards = 0;
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
+  state.quest.number = 1;
   state.shopWordBooster.isOpen = false;
   state.shopWordBooster.isLoading = false;
   state.shopWordBooster.options = [];
@@ -4722,7 +4800,7 @@ function resetRun() {
     ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
     : starterNames[0];
   setStatus(
-    `New game started with ${starterSummary}. Your first quest is ${titleCase(state.quest.targetWord)} and you have ${state.quest.remainingDiscoveries} discoveries to find it.`,
+    `New game started with ${starterSummary}. Your first quest is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
     "ok",
   );
 }
