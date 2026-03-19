@@ -185,18 +185,18 @@ const SHOP_WORD_BOOSTER_SOURCE_PATH = "./russianmostcommon.json";
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-word-booster",
-    title: "Усилитель слов",
+    title: "10 слов бустер",
     cost: SHOP_WORD_BOOSTER_COST,
     description: "Выпадение 10 случайных слов из списка, выберите 1 для открытия.",
     canPurchase: () => !state.shopWordBooster.isLoading,
     purchase: async () => {
       if (hasPendingShopWordBooster()) {
         openShopWordBooster();
-        return "Снова открыт ваш усилитель слов.";
+        return "Снова открыт ваш 10 слов бустер.";
       }
       state.shopWordBooster.options = await rollShopWordBoosterOptions();
       openShopWordBooster();
-      return `Куплен усилитель слов за ${SHOP_WORD_BOOSTER_COST} монет. Выберите 1 из выпавших слов.`;
+      return `Куплен 10 слов бустер за ${SHOP_WORD_BOOSTER_COST} монет. Выберите 1 из выпавших слов.`;
     },
   },
   {
@@ -3851,13 +3851,13 @@ function getShopWordBoosterOutcomeMessage(
   let stateName;
 
   if (wasDiscovered) {
-    message = `Усилитель слов показал ${titleCase(canonicalResult)}, но слово уже было открыто.`;
+    message = `10 слов бустер показал ${titleCase(canonicalResult)}, но слово уже было открыто.`;
     stateName = "ok";
   } else if (isInEncyclopedia) {
-    message = `Усилитель слов открыл ${titleCase(canonicalResult)} и добавил в энциклопедию.`;
+    message = `10 слов бустер открыл ${titleCase(canonicalResult)} и добавил в энциклопедию.`;
     stateName = "success";
   } else {
-    message = `Усилитель слов открыл ${titleCase(canonicalResult)} и добавил в доступные слова.`;
+    message = `10 слов бустер открыл ${titleCase(canonicalResult)} и добавил в доступные слова.`;
     stateName = "success";
   }
 
