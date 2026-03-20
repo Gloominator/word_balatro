@@ -19,17 +19,39 @@
         <div class="topbar-brand">
           <h1>King Minus Man</h1>
         </div>
-        <nav class="topbar-nav">
-          <button type="button" data-action="reset">New Game</button>
-          <button type="button" class="encyclopedia-button" data-action="open-history">
-            Match History
-            <span class="encyclopedia-count" data-history-count>0</span>
-          </button>
-          <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
-            Encyclopedia
-            <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
-          </button>
-        </nav>
+        <div class="topbar-main">
+          <div class="gameplay-actions-bar" aria-label="Purchases">
+            <div class="coin-counter topbar-coin-counter" aria-label="Your coins">
+              <span class="coin-counter-icon" aria-hidden="true"></span>
+              <span class="coin-counter-value" data-topbar-coin-count>0</span>
+            </div>
+            <div class="purchase-tokens-root" data-purchase-tokens-root>
+              <button type="button" class="purchase-tokens-trigger" data-action="toggle-purchase-tokens" aria-expanded="false" aria-haspopup="listbox" id="purchase-tokens-trigger">
+                <span class="purchase-tokens-trigger-label">Purchase Tokens</span>
+                <span class="material-symbols-outlined purchase-tokens-chevron" aria-hidden="true">expand_more</span>
+              </button>
+              <div class="purchase-tokens-menu" data-purchase-tokens-menu role="listbox" aria-labelledby="purchase-tokens-trigger" hidden></div>
+            </div>
+            <button type="button" class="word-booster-top-btn" data-action="buy-word-booster">
+              <span class="word-booster-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-outlined word-booster-sparkle" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+              </span>
+              <span class="word-booster-top-label">Word Booster</span>
+              <span class="word-booster-cost-badge"><span data-word-booster-cost>70</span>G</span>
+            </button>
+          </div>
+          <nav class="topbar-nav">
+            <button type="button" data-action="reset">New Game</button>
+            <button type="button" class="encyclopedia-button" data-action="open-history">
+              Match History
+              <span class="encyclopedia-count" data-history-count>0</span>
+            </button>
+            <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
+              Encyclopedia
+              <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
+            </button>
+          </nav>
+        </div>
         <div class="topbar-actions">
           <button type="button" class="theme-toggle" data-action="toggle-theme" aria-label="Toggle theme">
             <span class="material-symbols-outlined">dark_mode</span>
@@ -54,10 +76,6 @@
                 <h2>Mixing Field</h2>
                 <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
               </div>
-              <div class="coin-counter" aria-label="Coins">
-                <span class="coin-counter-icon" aria-hidden="true"></span>
-                <span class="coin-counter-value" data-coin-count>0</span>
-              </div>
             </div>
             <div class="playfield-actions">
               <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
@@ -70,23 +88,6 @@
               </div>
               <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
             </div>
-          </div>
-
-          <div class="gameplay-actions-bar" aria-label="Purchases">
-            <div class="purchase-tokens-root" data-purchase-tokens-root>
-              <button type="button" class="purchase-tokens-trigger" data-action="toggle-purchase-tokens" aria-expanded="false" aria-haspopup="listbox" id="purchase-tokens-trigger">
-                <span class="purchase-tokens-trigger-label">Purchase Tokens</span>
-                <span class="material-symbols-outlined purchase-tokens-chevron" aria-hidden="true">expand_more</span>
-              </button>
-              <div class="purchase-tokens-menu" data-purchase-tokens-menu role="listbox" aria-labelledby="purchase-tokens-trigger" hidden></div>
-            </div>
-            <button type="button" class="word-booster-top-btn" data-action="buy-word-booster">
-              <span class="word-booster-icon-wrap" aria-hidden="true">
-                <span class="material-symbols-outlined word-booster-sparkle" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-              </span>
-              <span class="word-booster-top-label">Word Booster</span>
-              <span class="word-booster-cost-badge"><span data-word-booster-cost>70</span>G</span>
-            </button>
           </div>
 
           <div class="quest-manuscript-shell">

@@ -14,6 +14,12 @@ if ($PythonVersion -notin @("3.11", "3.12")) {
     throw "Unsupported Python version $PythonVersion. Use Python 3.11 or 3.12 for this build."
 }
 
+# Local @font-face assets (Material Symbols + text fonts); must ship beside APP_ROOT in frozen builds.
+$FontsDir = Join-Path $ProjectRoot "fonts"
+if (-not (Test-Path $FontsDir)) {
+    throw "Fonts directory not found: $FontsDir"
+}
+
 $StaticFiles = @(
     "wordmath.html",
     "wordmath_app.js",
@@ -57,6 +63,8 @@ try {
     foreach ($file in $StaticFiles) {
         $PyInstallerArgs += @("--add-data", "$file;.")
     }
+
+    $PyInstallerArgs += @("--add-data", "fonts;fonts")
 
     if (-not (Test-Path $WordfreqDataSource)) {
         throw "Could not locate wordfreq data directory: $WordfreqDataSource"

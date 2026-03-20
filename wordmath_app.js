@@ -507,7 +507,7 @@ const els = {
   openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
   openTokenTabButton: document.querySelector("[data-action='open-token-tab']"),
   openUpgradesTabButton: document.querySelector("[data-action='open-upgrades-tab']"),
-  coinCount: document.querySelector("[data-coin-count]"),
+  topbarCoinCount: document.querySelector("[data-topbar-coin-count]"),
   tokenCount: document.querySelector("[data-token-count]"),
   tokenPanelCount: document.querySelector("[data-token-panel-count]"),
   tokenList: document.querySelector("[data-token-list]"),
@@ -1600,7 +1600,15 @@ function getMinimumUnlockedZoom() {
   if (getPlayfieldUpgradeTier() < 1) {
     return 1;
   }
-  return Math.max(MIN_PLAYFIELD_ZOOM, 1 / getUnlockedPlayfieldZoneCount());
+  const zoneCount = Math.max(1, getUnlockedPlayfieldZoneCount());
+  const frontierMin = Math.max(MIN_PLAYFIELD_ZOOM, 1 / zoneCount);
+  const { width: vw, height: vh } = getPlayfieldViewportSize();
+  const { width: ww, height: wh } = getPlayfieldWorldSize();
+  if (!vw || !vh || !ww || !wh) {
+    return frontierMin;
+  }
+  const fitWholeFieldZoom = Math.min(vw / ww, vh / wh);
+  return Math.max(MIN_PLAYFIELD_ZOOM, Math.min(frontierMin, fitWholeFieldZoom));
 }
 
 function getNormalizedPlayfieldZoom(value) {
@@ -2584,7 +2592,9 @@ function updateCounts() {
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
   els.historyCount.textContent = state.matchHistory.length.toString();
   const totalUsableTokenCount = getTotalUsableTokenCount();
-  els.coinCount.textContent = state.coins.toString();
+  if (els.topbarCoinCount) {
+    els.topbarCoinCount.textContent = state.coins.toString();
+  }
   els.tokenCount.textContent = totalUsableTokenCount.toString();
   els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
   els.upgradeCount.textContent = getAffordableSidebarShopItemCount().toString();
