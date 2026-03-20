@@ -121,6 +121,10 @@ const ENCYCLOPEDIA_LOOKUP = new Map(
 
 const TILE_WIDTH = 152;
 const TILE_HEIGHT = 76;
+/** Visual tilt for "tossed" word cards on the field (degrees). */
+const TILE_TILT_MIN = -5.5;
+const TILE_TILT_MAX = 5.5;
+const tileIdsNeedingPaperSettle = new Set();
 const NEGATIVE_MIX_WIDTH = 168;
 const NEGATIVE_MIX_HEIGHT = 132;
 const NEGATIVE_MIX_Z_INDEX = 5000;
@@ -1207,6 +1211,7 @@ function buildProgressSnapshot() {
       x: tile.x,
       y: tile.y,
       zIndex: tile.zIndex,
+      tiltDeg: clampStoredTileTiltDeg(tile.tiltDeg),
     })),
     negativeMix: { ...state.negativeMix },
     negativeMixSources: { ...state.negativeMixSources },
@@ -1321,6 +1326,7 @@ function normalizeSavedTiles(value) {
       x: Number.isFinite(tile.x) ? tile.x : 0,
       y: Number.isFinite(tile.y) ? tile.y : 0,
       zIndex: getSafeCount(tile.zIndex, 1),
+      tiltDeg: Number.isFinite(tile.tiltDeg) ? normalizeTileTiltDeg(tile.tiltDeg) : randomTileTiltDeg(),
     }))
     .filter((tile) => tile.id > 0);
 }
@@ -1575,6 +1581,28 @@ function shuffle(array) {
 
 function sampleStarters() {
   return shuffle(STARTER_POOL).slice(0, 2).sort((a, b) => a.localeCompare(b));
+}
+
+function randomTileTiltDeg() {
+  return TILE_TILT_MIN + Math.random() * (TILE_TILT_MAX - TILE_TILT_MIN);
+}
+
+function normalizeTileTiltDeg(value) {
+  if (!Number.isFinite(value)) {
+    return randomTileTiltDeg();
+  }
+  return clamp(value, TILE_TILT_MIN, TILE_TILT_MAX);
+}
+
+/** Stable tilt for display / save (never re-rolls random). */
+function clampStoredTileTiltDeg(value) {
+  return clamp(Number.isFinite(value) ? value : 0, TILE_TILT_MIN, TILE_TILT_MAX);
+}
+
+function requestTilePaperSettle(tileId) {
+  if (Number.isFinite(tileId)) {
+    tileIdsNeedingPaperSettle.add(tileId);
+  }
 }
 
 function clamp(value, min, max) {
@@ -4328,6 +4356,7 @@ function makeTile(word, x, y) {
     x: clamp(x, bounds.minX, bounds.maxX),
     y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
+    tiltDeg: randomTileTiltDeg(),
   };
 }
 
@@ -4350,6 +4379,7 @@ function spawnWordOnField(word, position = null) {
   state.tiles.push(newTile);
   state.nextTileId += 1;
   state.nextZIndex += 1;
+  requestTilePaperSettle(newTile.id);
   renderTiles();
   queueProgressSave();
 }
@@ -5183,6 +5213,7 @@ function startTileDrag(event, tileId) {
       return;
     }
 
+    requestTilePaperSettle(tile.id);
     renderTiles();
   };
 
@@ -5207,6 +5238,18 @@ function renderTiles() {
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
+      tileElement.style.setProperty("--tile-tilt", `${clampStoredTileTiltDeg(tile.tiltDeg).toFixed(2)}deg`);
+      if (tileIdsNeedingPaperSettle.has(tile.id)) {
+        tileIdsNeedingPaperSettle.delete(tile.id);
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          tileElement.classList.add("tile--paper-settle");
+          tileElement.addEventListener("animationend", (event) => {
+            if (event.target === tileElement && event.animationName === "tile-paper-settle") {
+              tileElement.classList.remove("tile--paper-settle");
+            }
+          }, { once: true });
+        }
+      }
       tileElement.addEventListener("pointerdown", (event) => startTileDrag(event, tile.id));
       tileElement.addEventListener("dragover", (event) => {
         const dragTypes = Array.from(event.dataTransfer.types || []);

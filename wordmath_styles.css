@@ -1273,6 +1273,27 @@ input:focus {
 
 /* --- Tiles ------------------------------------------------------------- */
 
+@keyframes tile-paper-settle {
+  0% {
+    transform: rotate(calc(var(--tile-tilt, 0deg) + 2.8deg)) translateY(-4px);
+  }
+  18% {
+    transform: rotate(calc(var(--tile-tilt, 0deg) - 2deg)) translateY(3px);
+  }
+  38% {
+    transform: rotate(calc(var(--tile-tilt, 0deg) + 1.1deg)) translateY(-2px);
+  }
+  58% {
+    transform: rotate(calc(var(--tile-tilt, 0deg) - 0.55deg)) translateY(1px);
+  }
+  78% {
+    transform: rotate(calc(var(--tile-tilt, 0deg) + 0.28deg)) translateY(0);
+  }
+  100% {
+    transform: rotate(var(--tile-tilt, 0deg));
+  }
+}
+
 .tile {
   position: absolute;
   width: 152px;
@@ -1285,11 +1306,13 @@ input:focus {
   user-select: none;
   cursor: grab;
   touch-action: none;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transform: rotate(var(--tile-tilt, 0deg));
+  transform-origin: center center;
+  transition: box-shadow 120ms ease, transform 120ms ease;
 }
 
 .tile:hover {
-  transform: translateY(-2px);
+  transform: translateY(-2px) rotate(var(--tile-tilt, 0deg));
   box-shadow: 0 10px 24px rgba(27, 29, 14, 0.15);
 }
 
@@ -1331,6 +1354,19 @@ input:focus {
   border-color: var(--accent);
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.25);
   z-index: 100;
+  transform: translateY(-1px) rotate(var(--tile-tilt, 0deg)) scale(1.02);
+  transition: box-shadow 120ms ease;
+}
+
+.tile--paper-settle {
+  animation: tile-paper-settle 0.52s cubic-bezier(0.33, 1.18, 0.55, 1) forwards;
+  transition: box-shadow 120ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile--paper-settle {
+    animation: none;
+  }
 }
 
 .tile-tag {
