@@ -290,6 +290,22 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
   },
 ]);
 
+/** Token purchases only (Purchase Tokens dropdown). Word Booster is the top bar button. */
+const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
+  "shop-match-2",
+  "shop-match-3",
+  "shop-match-4",
+  "shop-match-5",
+  "shop-ban-word",
+  "shop-minus-mix",
+]);
+
+/** Cap / quest upgrades stay in the sidebar Shop tab. */
+const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
+  "shop-available-word-cap",
+  "shop-quest-turn",
+]);
+
 const state = {
   starters: [],
   discovered: new Map(),
@@ -443,6 +459,11 @@ const els = {
   questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
   questWinModal: document.querySelector("[data-quest-win-modal]"),
   questGoAgainButton: document.querySelector("[data-action='quest-go-again']"),
+  purchaseTokensRoot: document.querySelector("[data-purchase-tokens-root]"),
+  purchaseTokensToggle: document.querySelector("[data-action='toggle-purchase-tokens']"),
+  purchaseTokensMenu: document.querySelector("[data-purchase-tokens-menu]"),
+  wordBoosterTopButton: document.querySelector("[data-action='buy-word-booster']"),
+  wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
 };
 
 let pendingProgressSave = null;
@@ -506,8 +527,12 @@ function getShopItemDescription(item) {
   return item.description;
 }
 
-function getAffordableShopItemCount() {
-  return SHOP_ITEM_DEFINITIONS.filter((item) => state.coins >= getShopItemCost(item) && item.canPurchase()).length;
+function getAffordableSidebarShopItemCount() {
+  return SHOP_ITEM_DEFINITIONS.filter(
+    (item) => SHOP_ITEM_IDS_SIDEBAR_SHOP.has(item.id)
+      && state.coins >= getShopItemCost(item)
+      && item.canPurchase(),
+  ).length;
 }
 
 function getDiscoveryRarityLabel(zipf) {
@@ -2379,7 +2404,7 @@ function updateCounts() {
   els.coinCount.textContent = state.coins.toString();
   els.tokenCount.textContent = totalUsableTokenCount.toString();
   els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
-  els.upgradeCount.textContent = getAffordableShopItemCount().toString();
+  els.upgradeCount.textContent = getAffordableSidebarShopItemCount().toString();
   els.upgradeCoinCount.textContent = `${state.coins} coin${state.coins === 1 ? "" : "s"}`;
 }
 
@@ -3277,12 +3302,95 @@ async function purchaseShopItem(itemId) {
   }
 }
 
+function closePurchaseTokensMenu() {
+  if (els.purchaseTokensMenu) {
+    els.purchaseTokensMenu.hidden = true;
+  }
+  if (els.purchaseTokensRoot) {
+    els.purchaseTokensRoot.classList.remove("is-open");
+  }
+  if (els.purchaseTokensToggle) {
+    els.purchaseTokensToggle.setAttribute("aria-expanded", "false");
+  }
+}
+
+function openPurchaseTokensMenu() {
+  if (els.purchaseTokensMenu) {
+    els.purchaseTokensMenu.hidden = false;
+  }
+  if (els.purchaseTokensRoot) {
+    els.purchaseTokensRoot.classList.add("is-open");
+  }
+  if (els.purchaseTokensToggle) {
+    els.purchaseTokensToggle.setAttribute("aria-expanded", "true");
+  }
+}
+
+function togglePurchaseTokensMenu() {
+  if (!els.purchaseTokensMenu) {
+    return;
+  }
+  if (els.purchaseTokensMenu.hidden) {
+    openPurchaseTokensMenu();
+  } else {
+    closePurchaseTokensMenu();
+  }
+}
+
+function renderTopBarShop() {
+  if (!els.purchaseTokensMenu || !els.wordBoosterTopButton) {
+    return;
+  }
+
+  els.purchaseTokensMenu.innerHTML = "";
+  SHOP_ITEM_DEFINITIONS.filter((item) => SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU.has(item.id)).forEach((item) => {
+    const purchaseState = getShopItemPurchaseState(item);
+    const itemCost = getShopItemCost(item);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "purchase-tokens-menu-item";
+    row.setAttribute("role", "option");
+    row.disabled = !purchaseState.canBuy;
+    const desc = getShopItemDescription(item);
+    const hint = [desc, purchaseState.reason].filter(Boolean).join(" ");
+    row.title = hint;
+    const titleSpan = document.createElement("span");
+    titleSpan.className = "purchase-tokens-menu-item-title";
+    titleSpan.textContent = item.title;
+    const costSpan = document.createElement("span");
+    costSpan.className = "purchase-tokens-menu-item-cost";
+    costSpan.textContent = `${itemCost}G`;
+    row.append(titleSpan, costSpan);
+    row.addEventListener("click", async () => {
+      if (row.disabled) {
+        return;
+      }
+      closePurchaseTokensMenu();
+      await purchaseShopItem(item.id);
+    });
+    els.purchaseTokensMenu.append(row);
+  });
+
+  const booster = SHOP_ITEM_DEFINITIONS.find((entry) => entry.id === "shop-word-booster");
+  if (booster) {
+    const boosterState = getShopItemPurchaseState(booster);
+    const boosterCost = getShopItemCost(booster);
+    if (els.wordBoosterCost) {
+      els.wordBoosterCost.textContent = boosterCost.toString();
+    }
+    els.wordBoosterTopButton.disabled = !boosterState.canBuy;
+    const pending = hasPendingShopWordBooster();
+    els.wordBoosterTopButton.title = pending
+      ? "Open your pending Word Booster picks."
+      : (boosterState.reason || `Buy for ${boosterCost} coins.`);
+  }
+}
+
 function renderUpgradePanel() {
   els.upgradeList.innerHTML = "";
 
-  SHOP_ITEM_DEFINITIONS.forEach((item) => {
+  SHOP_ITEM_DEFINITIONS.filter((item) => SHOP_ITEM_IDS_SIDEBAR_SHOP.has(item.id)).forEach((item) => {
     const purchaseState = getShopItemPurchaseState(item);
-    const isPendingWordBooster = item.id === "shop-word-booster" && hasPendingShopWordBooster();
     const itemCost = getShopItemCost(item);
 
     const card = document.createElement("article");
@@ -3312,14 +3420,14 @@ function renderUpgradePanel() {
 
     const effect = document.createElement("p");
     effect.className = "upgrade-card-effect";
-    effect.textContent = isPendingWordBooster ? "Your rolled booster is waiting." : purchaseState.reason;
-    effect.hidden = !(isPendingWordBooster || purchaseState.reason);
+    effect.textContent = purchaseState.reason;
+    effect.hidden = !purchaseState.reason;
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "upgrade-buy-button";
     button.disabled = !purchaseState.canBuy;
-    button.textContent = isPendingWordBooster ? "View Booster" : `Buy for ${itemCost} coins`;
+    button.textContent = `Buy for ${itemCost} coins`;
     button.addEventListener("click", () => {
       purchaseShopItem(item.id);
     });
@@ -3359,6 +3467,7 @@ function renderSidebar() {
   });
   els.toggleGooglePickButton.hidden = !isWordTabActive;
   els.toggleGooglePickButton.setAttribute("aria-pressed", state.googlePickMode ? "true" : "false");
+  renderTopBarShop();
   renderWordList();
   renderTokenPanel();
   renderUpgradePanel();
@@ -5176,6 +5285,23 @@ function initGarbageBinDropzone() {
 }
 
 function initEvents() {
+  if (els.purchaseTokensToggle) {
+    els.purchaseTokensToggle.addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePurchaseTokensMenu();
+    });
+  }
+  document.addEventListener("click", (event) => {
+    if (els.purchaseTokensRoot && !els.purchaseTokensRoot.contains(event.target)) {
+      closePurchaseTokensMenu();
+    }
+  }, true);
+  if (els.wordBoosterTopButton) {
+    els.wordBoosterTopButton.addEventListener("click", () => {
+      purchaseShopItem("shop-word-booster");
+    });
+  }
+
   els.negativePanel.addEventListener("pointerdown", startNegativeMixDrag);
   els.negativePanel.addEventListener("contextmenu", (event) => {
     event.preventDefault();
@@ -5308,6 +5434,9 @@ function initEvents() {
   els.playfield.addEventListener("pointerdown", startPlayfieldPan);
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.purchaseTokensRoot && els.purchaseTokensRoot.classList.contains("is-open")) {
+      closePurchaseTokensMenu();
+    }
     if (event.key === "Escape" && !els.historyModal.hidden) {
       closeHistory();
     }

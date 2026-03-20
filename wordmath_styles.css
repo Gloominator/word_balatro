@@ -491,20 +491,10 @@ input:focus {
   gap: 0.75rem;
 }
 
-/* --- Quest Strip ------------------------------------------------------- */
+/* --- Quest Strip ( manuscript plate styles below ) -------------------- */
 
 .quest-strip {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  margin: 0.75rem 0;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--quest-border);
-  border-radius: var(--radius-xl);
-  background: var(--quest-bg);
-  box-shadow: var(--shadow-lg);
-  color: #ffffff;
+  box-sizing: border-box;
 }
 
 .quest-label {
@@ -524,33 +514,12 @@ input:focus {
   font-family: var(--font-headline);
 }
 
-.quest-word {
-  font-size: 2rem;
-  font-weight: 700;
-}
-
 .quest-countdown-panel {
   min-width: 120px;
   padding: 0.6rem 0.85rem;
   border-radius: var(--radius);
   background: rgba(0, 0, 0, 0.2);
   text-align: right;
-}
-
-.quest-countdown {
-  color: var(--quest-countdown-color);
-  font-weight: 900;
-  font-size: 1.8rem;
-}
-
-.quest-strip[data-state="warning"] {
-  border-color: #9a6a34;
-  background: linear-gradient(135deg, rgba(84, 54, 24, 0.92), rgba(50, 38, 20, 0.96));
-}
-
-.quest-strip[data-state="danger"] {
-  border-color: var(--bad-border);
-  background: linear-gradient(135deg, rgba(120, 30, 37, 0.94), rgba(60, 18, 22, 0.98));
 }
 
 .quest-strip.quest-strip-celebrating {
@@ -804,15 +773,7 @@ input:focus {
 }
 
 .purchase-tokens-menu[hidden] {
-  display: none !important;
-}
-
-.purchase-tokens-root.is-open .purchase-tokens-menu {
-  display: block;
-}
-
-.purchase-tokens-root.is-open .purchase-tokens-menu[hidden] {
-  display: block !important;
+  display: none;
 }
 
 .purchase-tokens-menu-item {
@@ -820,10 +781,11 @@ input:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75remmargin: 0;
+  gap: 0.75rem;
+  margin: 0;
   margin-bottom: 0.25rem;
   padding: 0.65rem 0.85rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius);
   border: 0;
   background: transparent;
   color: var(--text);
@@ -990,6 +952,9 @@ input:focus {
   color: var(--text-muted);
   letter-spacing: 0.2em;
   font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-family: var(--font-body);
 }
 
 .quest-label-ink {
@@ -997,6 +962,9 @@ input:focus {
   color: var(--manuscript-ink-label);
   letter-spacing: 0.12em;
   font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-family: var(--font-body);
 }
 
 .quest-manuscript-plate .quest-word {
@@ -2237,5 +2205,26 @@ input:focus {
 
   .playfield {
     min-height: 440px;
+  }
+
+  .gameplay-actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .purchase-tokens-root {
+    max-width: none;
+  }
+
+  .word-booster-top-btn {
+    justify-content: center;
+  }
+
+  .quest-ink-row {
+    justify-content: center;
+  }
+
+  .quest-countdown-manuscript {
+    text-align: center;
   }
 }
