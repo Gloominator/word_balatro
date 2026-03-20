@@ -1085,6 +1085,10 @@ input:focus {
   cursor: grabbing;
 }
 
+.playfield[data-pan-locked="true"] {
+  cursor: default;
+}
+
 .playfield[data-drag-over="true"] {
   border-color: var(--playfield-hover-border);
   box-shadow: inset 0 0 0 1px rgba(122, 164, 255, 0.25);

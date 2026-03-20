@@ -156,6 +156,10 @@ const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
 const PLAYFIELD_ZOOM_STEP = 0.12;
 const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1;
+/** Applied to world scale when playfield tier 2 (Expand) is owned. */
+const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
+const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
+const SHOP_PLAYFIELD_EXPAND_COST = 600;
 const STORAGE_KEY = "wordmath-progress-v1";
 const DISCOVERY_COIN_BASE_REWARD = 1;
 const DISCOVERY_RARITY_MIN_ZIPF = 2;
@@ -181,6 +185,18 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
 const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
+/** Each repeat purchase of the same shop line costs +5% over the last paid price (integer, rounded up). */
+const SHOP_INCREMENTAL_PRICE_NUM = 105;
+const SHOP_INCREMENTAL_PRICE_DEN = 100;
+const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
+  "shop-match-2",
+  "shop-match-3",
+  "shop-match-4",
+  "shop-match-5",
+  "shop-ban-word",
+  "shop-minus-mix",
+  "shop-quest-turn",
+]);
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-word-booster",
@@ -206,7 +222,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(2, 1);
-      return "Bought 1 Second Result token for 40 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-2"));
+      return `Bought 1 Second Result token for ${cost} coins.`;
     },
   },
   {
@@ -217,7 +234,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(3, 1);
-      return "Bought 1 Third Result token for 50 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-3"));
+      return `Bought 1 Third Result token for ${cost} coins.`;
     },
   },
   {
@@ -228,7 +246,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(4, 1);
-      return "Bought 1 Fourth Result token for 60 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-4"));
+      return `Bought 1 Fourth Result token for ${cost} coins.`;
     },
   },
   {
@@ -239,7 +258,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => true,
     purchase: () => {
       addPositionTokens(5, 1);
-      return "Bought 1 Fifth Result token for 70 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-5"));
+      return `Bought 1 Fifth Result token for ${cost} coins.`;
     },
   },
   {
@@ -251,7 +271,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       state.availableBanWordTokens += 1;
       state.totalBanWordTokensEarned += 1;
-      return "Bought 1 Ban Word token for 80 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-ban-word"));
+      return `Bought 1 Ban Word token for ${cost} coins.`;
     },
   },
   {
@@ -263,7 +284,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       state.availableNegativeMixTokens += 1;
       state.totalNegativeMixTokensEarned += 1;
-      return "Bought 1 Minus Mix token for 50 coins.";
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-minus-mix"));
+      return `Bought 1 Minus Mix token for ${cost} coins.`;
     },
   },
   {
@@ -278,6 +300,28 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-playfield-pan-zoom",
+    title: "Field Pan & Zoom",
+    cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
+    description: "Unlock dragging the view and zooming so you can use the full mixing field (including tiers earned from word discoveries).",
+    canPurchase: () => getPlayfieldUpgradeTier() < 1,
+    purchase: () => {
+      state.purchasedUpgrades.playfieldTier = 1;
+      return "Unlocked pan and zoom on the mixing field.";
+    },
+  },
+  {
+    id: "shop-playfield-expand",
+    title: "Expand Mixing Field +50%",
+    cost: SHOP_PLAYFIELD_EXPAND_COST,
+    description: "Increase playfield size by 50% (requires Field Pan & Zoom).",
+    canPurchase: () => getPlayfieldUpgradeTier() === 1,
+    purchase: () => {
+      state.purchasedUpgrades.playfieldTier = 2;
+      return "Mixing field expanded by +50%.";
+    },
+  },
+  {
     id: "shop-quest-turn",
     title: "Quest Turn +1",
     cost: 100,
@@ -285,10 +329,13 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => Boolean(state.quest.targetWord) && !state.quest.isLost,
     purchase: () => {
       state.quest.remainingDiscoveries += 1;
-      return `Added 1 turn to the active quest. You now lose in ${state.quest.remainingDiscoveries} turns.`;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-quest-turn"));
+      return `Paid ${cost} coins. Added 1 turn to the active quest. You now lose in ${state.quest.remainingDiscoveries} turns.`;
     },
   },
 ]);
+
+const SHOP_ITEM_BY_ID = new Map(SHOP_ITEM_DEFINITIONS.map((entry) => [entry.id, entry]));
 
 /** Token purchases only (Purchase Tokens dropdown). Word Booster is the top bar button. */
 const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
@@ -303,6 +350,8 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
 /** Cap / quest upgrades stay in the sidebar Shop tab. */
 const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-available-word-cap",
+  "shop-playfield-pan-zoom",
+  "shop-playfield-expand",
   "shop-quest-turn",
 ]);
 
@@ -351,6 +400,7 @@ const state = {
   coins: 0,
   totalCoinsEarned: 0,
   purchasedUpgrades: createDefaultPurchasedUpgradeState(),
+  shopPurchaseCounts: {},
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableWildcardTokens: 0,
@@ -499,6 +549,14 @@ function normalizeSavedPurchasedUpgrades(value) {
   return value && typeof value === "object" ? value : createDefaultPurchasedUpgradeState();
 }
 
+function getPlayfieldUpgradeTier() {
+  return clamp(getSafeCount(state.purchasedUpgrades.playfieldTier, 0), 0, 2);
+}
+
+function getMaximumPlayfieldZoom() {
+  return getPlayfieldUpgradeTier() < 1 ? 1 : MAX_PLAYFIELD_ZOOM;
+}
+
 function getAvailableWordCapUpgradeLevel() {
   return getSafeCount(state.purchasedUpgrades.availableWordCap);
 }
@@ -508,12 +566,51 @@ function getAvailableWordLimit() {
 }
 
 function getAvailableWordCapUpgradeCost(level = getAvailableWordCapUpgradeLevel()) {
-  return AVAILABLE_WORD_CAP_UPGRADE_BASE_COST * (2 ** level);
+  return AVAILABLE_WORD_CAP_UPGRADE_BASE_COST * (level + 1);
+}
+
+function normalizeSavedShopPurchaseCounts(value) {
+  const out = {};
+  if (!value || typeof value !== "object") {
+    return out;
+  }
+  SHOP_ITEM_IDS_INCREMENTAL_PRICE.forEach((id) => {
+    const n = getSafeCount(value[id], 0);
+    if (n > 0) {
+      out[id] = n;
+    }
+  });
+  return out;
+}
+
+function getShopPurchaseCount(itemId) {
+  return getSafeCount(state.shopPurchaseCounts[itemId], 0);
+}
+
+function getIncrementalShopPrice(baseCost, completedPurchases) {
+  let price = baseCost;
+  for (let i = 0; i < completedPurchases; i += 1) {
+    price = Math.ceil((price * SHOP_INCREMENTAL_PRICE_NUM) / SHOP_INCREMENTAL_PRICE_DEN);
+  }
+  return price;
+}
+
+function recordIncrementalShopPurchase(itemId) {
+  if (!SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(itemId)) {
+    return;
+  }
+  state.shopPurchaseCounts[itemId] = getShopPurchaseCount(itemId) + 1;
 }
 
 function getShopItemCost(item) {
+  if (!item) {
+    return 0;
+  }
   if (item.id === "shop-available-word-cap") {
     return getAvailableWordCapUpgradeCost();
+  }
+  if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
+    return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id));
   }
   return item.cost;
 }
@@ -1062,7 +1159,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 3,
+    version: 4,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     selfMatchedWords: [...state.selfMatchedWords],
@@ -1106,6 +1203,7 @@ function buildProgressSnapshot() {
     coins: state.coins,
     totalCoinsEarned: state.totalCoinsEarned,
     purchasedUpgrades: { ...state.purchasedUpgrades },
+    shopPurchaseCounts: { ...state.shopPurchaseCounts },
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableWildcardTokens: state.availableWildcardTokens,
@@ -1306,7 +1404,13 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   );
   state.coins = getSafeCount(snapshot.coins);
   state.totalCoinsEarned = Math.max(state.coins, getSafeCount(snapshot.totalCoinsEarned, state.coins));
-  state.purchasedUpgrades = normalizeSavedPurchasedUpgrades(snapshot.purchasedUpgrades);
+  const loadedPurchases = normalizeSavedPurchasedUpgrades(snapshot.purchasedUpgrades);
+  const snapshotVersion = getSafeCount(snapshot.version, 0);
+  if (snapshotVersion < 4 && loadedPurchases.playfieldTier === undefined) {
+    loadedPurchases.playfieldTier = 2;
+  }
+  state.purchasedUpgrades = loadedPurchases;
+  state.shopPurchaseCounts = normalizeSavedShopPurchaseCounts(snapshot.shopPurchaseCounts);
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableWildcardTokens = getSafeCount(snapshot.availableWildcardTokens);
@@ -1467,27 +1571,48 @@ function getMaxWorldScaleForZoneCount(zoneCount) {
 }
 
 function getMinimumUnlockedZoom() {
+  if (getPlayfieldUpgradeTier() < 1) {
+    return 1;
+  }
   return Math.max(MIN_PLAYFIELD_ZOOM, 1 / getUnlockedPlayfieldZoneCount());
 }
 
 function getNormalizedPlayfieldZoom(value) {
   const fallback = 1;
   const parsed = Number.isFinite(value) ? value : fallback;
-  return clamp(roundTo(parsed), getMinimumUnlockedZoom(), MAX_PLAYFIELD_ZOOM);
+  return clamp(roundTo(parsed), getMinimumUnlockedZoom(), getMaximumPlayfieldZoom());
 }
 
 function getPlayfieldWorldSize() {
   const { width, height } = getPlayfieldViewportSize();
-  const unlockedScale = getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount());
+  if (getPlayfieldUpgradeTier() < 1) {
+    return { width, height };
+  }
+  let unlockedScale = getMaxWorldScaleForZoneCount(getUnlockedPlayfieldZoneCount());
+  if (getPlayfieldUpgradeTier() >= 2) {
+    unlockedScale *= PLAYFIELD_EXPAND_MULTIPLIER;
+  }
   return {
     width: Math.max(width, Math.round(width * unlockedScale)),
     height: Math.max(height, Math.round(height * unlockedScale)),
   };
 }
 
+function appendNewPlayfieldZonesNotice(message, newZonesUnlocked) {
+  if (newZonesUnlocked <= 0) {
+    return message;
+  }
+  if (getPlayfieldUpgradeTier() >= 1) {
+    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
+    return `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+  }
+  return `${message} New field tiers will appear after you buy Field Pan & Zoom in the Shop.`;
+}
+
 function getPlayfieldVisibleWorldSize(zoom = state.playfieldZoom) {
   const { width, height } = getPlayfieldViewportSize();
-  const safeZoom = clamp(zoom, MIN_PLAYFIELD_ZOOM, MAX_PLAYFIELD_ZOOM);
+  const maxZ = getMaximumPlayfieldZoom();
+  const safeZoom = clamp(zoom, MIN_PLAYFIELD_ZOOM, maxZ);
   return {
     width: width / safeZoom,
     height: height / safeZoom,
@@ -1522,7 +1647,7 @@ function setPlayfieldCamera(nextCamera, { queueSave = false } = {}) {
 }
 
 function getActivePlayfieldZoneCount(zoom = state.playfieldZoom) {
-  const visibleScale = 1 / clamp(zoom, MIN_PLAYFIELD_ZOOM, MAX_PLAYFIELD_ZOOM);
+  const visibleScale = 1 / clamp(zoom, MIN_PLAYFIELD_ZOOM, getMaximumPlayfieldZoom());
   if (visibleScale <= 1.01) {
     return 1;
   }
@@ -1603,25 +1728,42 @@ function updatePlayfieldCamera() {
   state.playfieldCamera = clampPlayfieldCamera(state.playfieldCamera);
   els.playfieldSurface.style.transform = `translate(${-state.playfieldCamera.x * state.playfieldZoom}px, ${-state.playfieldCamera.y * state.playfieldZoom}px) scale(${state.playfieldZoom})`;
 
+  const tier = getPlayfieldUpgradeTier();
+  if (els.playfield) {
+    els.playfield.dataset.panLocked = tier < 1 ? "true" : "false";
+  }
+
   const unlockedZones = getUnlockedPlayfieldZoneCount();
   const visibleZones = getActivePlayfieldZoneCount();
   const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+  const maxZ = getMaximumPlayfieldZoom();
 
-  els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
-  els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words`;
-  els.zoomOutButton.disabled = state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
-  els.zoomInButton.disabled = state.playfieldZoom >= MAX_PLAYFIELD_ZOOM - 0.001;
+  if (tier < 1) {
+    els.playfieldZoomValue.textContent = "Locked";
+    els.playfieldZoneValue.textContent = `${unlockedZones} field tier${unlockedZones === 1 ? "" : "s"} banked • buy Field Pan & Zoom in Shop`;
+  } else {
+    els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
+    els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words`
+      + (tier >= 2 ? " • +50% field" : "");
+  }
+  els.zoomOutButton.disabled = tier < 1 || state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
+  els.zoomInButton.disabled = tier < 1 || state.playfieldZoom >= maxZ - 0.001;
 }
 
 function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
   const minZoom = getMinimumUnlockedZoom();
-  const clampedZoom = clamp(roundTo(nextZoom), minZoom, MAX_PLAYFIELD_ZOOM);
+  const maxZoom = getMaximumPlayfieldZoom();
+  const clampedZoom = clamp(roundTo(nextZoom), minZoom, maxZoom);
   const hitLockedFrontier = nextZoom < minZoom - 0.001;
   if (Math.abs(clampedZoom - state.playfieldZoom) < 0.001) {
     if (hitLockedFrontier && !silent) {
-      const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
-      if (nextUnlockAt) {
-        setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+      if (getPlayfieldUpgradeTier() < 1) {
+        setStatus("Pan and zoom unlock in the Shop: Field Pan & Zoom.", "error");
+      } else {
+        const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+        if (nextUnlockAt) {
+          setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+        }
       }
     }
     updatePlayfieldCamera();
@@ -1643,13 +1785,25 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
   queueProgressSave();
 
   if (hitLockedFrontier && !silent) {
-    const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
-    if (nextUnlockAt) {
-      setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+    if (getPlayfieldUpgradeTier() < 1) {
+      setStatus("Pan and zoom unlock in the Shop: Field Pan & Zoom.", "error");
+    } else {
+      const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
+      if (nextUnlockAt) {
+        setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
+      }
     }
   }
 
   return true;
+}
+
+function refreshPlayfieldAfterTierUpgrade() {
+  state.playfieldZoom = getNormalizedPlayfieldZoom(state.playfieldZoom);
+  state.playfieldCamera = clampPlayfieldCamera(getDefaultPlayfieldCamera(state.playfieldZoom));
+  clampTilesToPlayfieldBounds();
+  updatePlayfieldCamera();
+  renderTiles();
 }
 
 function adjustPlayfieldZoom(delta) {
@@ -3245,6 +3399,22 @@ function getShopItemPurchaseState(item) {
         reason: state.quest.isLost ? "Quest already failed." : "No active quest.",
       };
     }
+    if (item.id === "shop-playfield-pan-zoom") {
+      return {
+        canBuy: false,
+        reason: getPlayfieldUpgradeTier() >= 1 ? "Already unlocked." : "Unavailable right now.",
+      };
+    }
+    if (item.id === "shop-playfield-expand") {
+      const tier = getPlayfieldUpgradeTier();
+      if (tier < 1) {
+        return { canBuy: false, reason: "Buy Field Pan & Zoom first." };
+      }
+      if (tier >= 2) {
+        return { canBuy: false, reason: "Already expanded." };
+      }
+      return { canBuy: false, reason: "Unavailable right now." };
+    }
     return {
       canBuy: false,
       reason: "Unavailable right now.",
@@ -3294,6 +3464,10 @@ async function purchaseShopItem(itemId) {
   try {
     const message = await item.purchase();
     state.coins -= itemCost;
+    recordIncrementalShopPurchase(item.id);
+    if (item.id === "shop-playfield-pan-zoom" || item.id === "shop-playfield-expand") {
+      refreshPlayfieldAfterTierUpgrade();
+    }
     renderSidebar();
     queueProgressSave();
     setStatus(message, "reward");
@@ -3622,8 +3796,7 @@ function getMixOutcomeMessage(
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = appendNewPlayfieldZonesNotice(message, newZonesUnlocked);
     stateName = "reward";
   }
 
@@ -3744,8 +3917,7 @@ function getWildcardOutcomeMessage(
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = appendNewPlayfieldZonesNotice(message, newZonesUnlocked);
     stateName = "reward";
   }
 
@@ -3816,8 +3988,7 @@ function getSpawnWordOutcomeMessage(
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = appendNewPlayfieldZonesNotice(message, newZonesUnlocked);
     stateName = "reward";
   }
 
@@ -3888,8 +4059,7 @@ function getShopWordBoosterOutcomeMessage(
   }
 
   if (newZonesUnlocked > 0) {
-    const zoneSuffix = newZonesUnlocked === 1 ? "zone" : "zones";
-    message = `${message} Your kingdom expanded with ${newZonesUnlocked} new field ${zoneSuffix}.`;
+    message = appendNewPlayfieldZonesNotice(message, newZonesUnlocked);
     stateName = "reward";
   }
 
@@ -4667,6 +4837,9 @@ function startPlayfieldPan(event) {
   if (event.button !== 0) {
     return;
   }
+  if (getPlayfieldUpgradeTier() < 1) {
+    return;
+  }
   if (event.target.closest(".tile, .negative-mix-panel")) {
     return;
   }
@@ -5117,6 +5290,7 @@ function resetRun() {
   state.coins = 0;
   state.totalCoinsEarned = 0;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
+  state.shopPurchaseCounts = {};
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableWildcardTokens = 0;
@@ -5427,6 +5601,9 @@ function initEvents() {
   });
 
   els.playfield.addEventListener("wheel", (event) => {
+    if (getPlayfieldUpgradeTier() < 1) {
+      return;
+    }
     event.preventDefault();
     const direction = event.deltaY > 0 ? -1 : 1;
     adjustPlayfieldZoom(direction * PLAYFIELD_ZOOM_STEP);
