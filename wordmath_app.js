@@ -92,7 +92,7 @@ const ENCYCLOPEDIA_CATEGORIES = [
   },
   {
     name: "Gestures",
-    words: ["wave", "nod", "clap", "beckon", "salute"],
+    words: ["wave", "nod", "clap", "bow", "wink"],
   },
   {
     name: "Illness",
@@ -508,12 +508,10 @@ const els = {
   toggleGooglePickButton: document.querySelector("[data-action='toggle-google-pick']"),
   sidebarTitle: document.querySelector("[data-sidebar-title]"),
   openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
-  openTokenTabButton: document.querySelector("[data-action='open-token-tab']"),
   openUpgradesTabButton: document.querySelector("[data-action='open-upgrades-tab']"),
   topbarCoinCount: document.querySelector("[data-topbar-coin-count]"),
-  tokenCount: document.querySelector("[data-token-count]"),
-  tokenPanelCount: document.querySelector("[data-token-panel-count]"),
-  tokenList: document.querySelector("[data-token-list]"),
+  tokenDock: document.querySelector("[data-token-dock]"),
+  tokenDockOuter: document.querySelector("[data-token-dock-outer]"),
   upgradeCount: document.querySelector("[data-upgrade-count]"),
   upgradeCoinCount: document.querySelector("[data-upgrade-coin-count]"),
   upgradeList: document.querySelector("[data-upgrade-list]"),
@@ -724,7 +722,7 @@ function getCoinRewardText(coinReward) {
   }
 
   const coinSuffix = coinReward.coins === 1 ? "coin" : "coins";
-  return `You earned ${coinReward.coins} ${coinSuffix} for discovering a ${coinReward.rarityLabel} word (${coinReward.multiplier.toFixed(1)}x base payout).`;
+  return `You earned ${coinReward.coins} ${coinSuffix} for discovering a ${coinReward.rarityLabel} word.`;
 }
 
 function getStringList(value) {
@@ -1473,9 +1471,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
       )),
   );
   state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
-  if (snapshot.activeSidebarTab === "tokens" && hasUnlockedAnyTokenType()) {
-    state.activeSidebarTab = "tokens";
-  } else if (snapshot.activeSidebarTab === "upgrades") {
+  if (snapshot.activeSidebarTab === "upgrades") {
     state.activeSidebarTab = "upgrades";
   } else {
     state.activeSidebarTab = "words";
@@ -1991,8 +1987,17 @@ function hasUnlockedAnyTokenType() {
     || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
 }
 
-function shouldFlashTokenTab() {
-  return state.unseenTokenRewards > 0 && getTotalUsableTokenCount() > 0 && state.activeSidebarTab !== "tokens";
+function shouldFlashTokenDock() {
+  return state.unseenTokenRewards > 0 && getTotalUsableTokenCount() > 0;
+}
+
+function markTokenRewardsSeen() {
+  if (state.unseenTokenRewards <= 0) {
+    return;
+  }
+  state.unseenTokenRewards = 0;
+  queueProgressSave();
+  els.tokenDockOuter?.classList.remove("token-dock-flashing");
 }
 
 function getTileById(tileId) {
@@ -2647,12 +2652,9 @@ function updateCounts() {
   if (els.historyCount) {
     els.historyCount.textContent = state.matchHistory.length.toString();
   }
-  const totalUsableTokenCount = getTotalUsableTokenCount();
   if (els.topbarCoinCount) {
     els.topbarCoinCount.textContent = state.coins.toString();
   }
-  els.tokenCount.textContent = totalUsableTokenCount.toString();
-  els.tokenPanelCount.textContent = totalUsableTokenCount.toString();
   els.upgradeCount.textContent = getAffordableSidebarShopItemCount().toString();
   els.upgradeCoinCount.textContent = `${state.coins} coin${state.coins === 1 ? "" : "s"}`;
 }
@@ -2931,10 +2933,11 @@ function renderEncyclopedia() {
 }
 
 function setActiveSidebarTab(tab) {
-  state.activeSidebarTab = tab;
   if (tab === "tokens") {
-    state.unseenTokenRewards = 0;
+    tab = "words";
+    markTokenRewardsSeen();
   }
+  state.activeSidebarTab = tab;
   renderSidebar();
   queueProgressSave();
 }
@@ -3031,9 +3034,6 @@ function handleDeadEndMixError(error, sources = []) {
   const rewardedToken = rollGarbageRewardToken();
 
   state.unseenTokenRewards += 1;
-  if (state.activeSidebarTab === "tokens") {
-    state.unseenTokenRewards = 0;
-  }
 
   renderSidebar();
   renderTiles();
@@ -3154,9 +3154,6 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
     state.unseenTokenRewards += 1;
     statusMessage = `${statusMessage} The garbage bin paid out a ${rewardedToken} token.`;
     statusState = "reward";
-    if (state.activeSidebarTab === "tokens") {
-      state.unseenTokenRewards = 0;
-    }
   }
 
   return {
@@ -3354,7 +3351,33 @@ function hideNegativeMixAfterUse() {
   queueProgressSave();
 }
 
-function buildTokenButton({
+function getTokenDockEmoji(dragType) {
+  if (dragType === "minus-mix") {
+    return "➖";
+  }
+  if (dragType === "ban-word") {
+    return "🚫";
+  }
+  if (dragType === "wildcard") {
+    return "🃏";
+  }
+  const rank = getPositionTokenRankFromDragType(dragType);
+  if (rank === 2) {
+    return "2️⃣";
+  }
+  if (rank === 3) {
+    return "3️⃣";
+  }
+  if (rank === 4) {
+    return "4️⃣";
+  }
+  if (rank === 5) {
+    return "5️⃣";
+  }
+  return "●";
+}
+
+function buildTokenDockPill({
   title,
   description,
   count,
@@ -3363,22 +3386,30 @@ function buildTokenButton({
 }) {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "token-button";
+  button.className = "token-dock-pill";
   button.draggable = Boolean(dragType);
+  button.title = `${title}: ${description}`;
+  button.setAttribute("aria-label", `${title}, ${count} remaining. ${description}`);
+  const emoji = getTokenDockEmoji(dragType);
   button.innerHTML = `
-    <span class="token-button-copy">
-      <span class="token-button-title">${title}</span>
-      <span class="token-button-text">${description}</span>
-    </span>
-    <span class="token-chip">${count}</span>
+    <span class="token-dock-pill-emoji" aria-hidden="true">${emoji}</span>
+    <span class="token-dock-pill-count">×${count}</span>
   `;
 
   if (onClick) {
-    button.addEventListener("click", onClick);
+    button.addEventListener("click", () => {
+      markTokenRewardsSeen();
+      onClick();
+    });
+  } else {
+    button.addEventListener("click", () => {
+      markTokenRewardsSeen();
+    });
   }
 
   if (dragType) {
     button.addEventListener("dragstart", (event) => {
+      markTokenRewardsSeen();
       button.classList.add("is-dragging");
       event.dataTransfer.setData("application/x-token-type", dragType);
       event.dataTransfer.effectAllowed = "copy";
@@ -3392,20 +3423,28 @@ function buildTokenButton({
 }
 
 function renderTokenPanel() {
-  els.tokenList.innerHTML = "";
+  if (!els.tokenDock || !els.tokenDockOuter) {
+    return;
+  }
+
+  els.tokenDock.innerHTML = "";
+  const tokensUnlocked = hasUnlockedAnyTokenType();
+  els.tokenDockOuter.hidden = !tokensUnlocked;
+
+  if (!tokensUnlocked) {
+    return;
+  }
 
   if (getTotalUsableTokenCount() <= 0) {
     const empty = document.createElement("p");
-    empty.className = "source-word-empty";
-    empty.textContent = hasUnlockedAnyTokenType()
-      ? "No unused tokens right now."
-      : "No tokens yet.";
-    els.tokenList.append(empty);
+    empty.className = "token-dock-empty";
+    empty.textContent = "No unused tokens right now.";
+    els.tokenDock.append(empty);
     return;
   }
 
   if (state.availableNegativeMixTokens > 0) {
-    els.tokenList.append(buildTokenButton({
+    els.tokenDock.append(buildTokenDockPill({
       title: "Minus Mix",
       description: "Click or drag onto the field to unlock one A - B mix.",
       count: state.availableNegativeMixTokens,
@@ -3417,7 +3456,7 @@ function renderTokenPanel() {
   }
 
   if (state.availableBanWordTokens > 0) {
-    els.tokenList.append(buildTokenButton({
+    els.tokenDock.append(buildTokenDockPill({
       title: "Ban Word",
       description: "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool (no tile, no discovery).",
       count: state.availableBanWordTokens,
@@ -3429,7 +3468,7 @@ function renderTokenPanel() {
   }
 
   if (state.availableWildcardTokens > 0) {
-    els.tokenList.append(buildTokenButton({
+    els.tokenDock.append(buildTokenDockPill({
       title: "Wildcard",
       description: "Drag onto the field to reveal a random dictionary word.",
       count: state.availableWildcardTokens,
@@ -3451,7 +3490,7 @@ function renderTokenPanel() {
       ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
       : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
 
-    els.tokenList.append(buildTokenButton({
+    els.tokenDock.append(buildTokenDockPill({
       title,
       description,
       count,
@@ -3733,18 +3772,11 @@ function renderGarbageBin() {
 function renderSidebar() {
   updateCounts();
   updatePlayfieldCamera();
-  const tokensUnlocked = hasUnlockedAnyTokenType();
   const isWordTabActive = state.activeSidebarTab === "words";
-  const isTokenTabActive = state.activeSidebarTab === "tokens";
   const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
-  els.sidebarTitle.textContent = isTokenTabActive
-    ? "Usable Tokens"
-    : (isUpgradeTabActive ? "Shop" : "Word Panel");
+  els.sidebarTitle.textContent = isUpgradeTabActive ? "Shop" : "Word Panel";
   els.openWordTabButton.setAttribute("aria-selected", isWordTabActive ? "true" : "false");
-  els.openTokenTabButton.hidden = !tokensUnlocked;
-  els.openTokenTabButton.setAttribute("aria-selected", isTokenTabActive ? "true" : "false");
   els.openUpgradesTabButton.setAttribute("aria-selected", isUpgradeTabActive ? "true" : "false");
-  els.openTokenTabButton.classList.toggle("sidebar-tab-flashing", shouldFlashTokenTab());
   els.sidebarPanels.forEach((panel) => {
     panel.hidden = panel.dataset.sidebarPanel !== state.activeSidebarTab;
   });
@@ -3753,6 +3785,7 @@ function renderSidebar() {
   renderTopBarShop();
   renderWordList();
   renderTokenPanel();
+  els.tokenDockOuter?.classList.toggle("token-dock-flashing", shouldFlashTokenDock());
   renderUpgradePanel();
   renderGarbageBin();
   renderEncyclopedia();
@@ -3849,7 +3882,6 @@ function getMixOutcomeMessage(
     questResult = null,
     usedShift = 0,
     refundedTagCount = 0,
-    mixAutoBanned = false,
   } = {},
 ) {
   const operator = operation === "subtract" ? "-" : "+";
@@ -3865,13 +3897,6 @@ function getMixOutcomeMessage(
   } else {
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. `;
     stateName = "ok";
-  }
-
-  if (mixAutoBanned) {
-    const banNote = isInEncyclopedia && !wasDiscovered
-      ? ` Your encyclopedia Ban Word was applied immediately: ${titleCase(canonicalResult)} will not appear as a mix result again.`
-      : ` ${titleCase(canonicalResult)} was auto-banned and will not appear as a mix result again.`;
-    message = `${message}${banNote}`;
   }
 
   if (usedShift > 0) {
@@ -4466,7 +4491,6 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     completedCategories,
     questResult,
     vocabularyOverflow,
-    mixAutoBanned,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
@@ -4495,7 +4519,6 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
-      mixAutoBanned,
     });
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
@@ -4510,7 +4533,6 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
-      mixAutoBanned,
     });
     if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
@@ -4563,7 +4585,6 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-    mixAutoBanned,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
@@ -4601,7 +4622,6 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
-        mixAutoBanned,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -4624,7 +4644,6 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
-        mixAutoBanned,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -4652,7 +4671,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let completedCategories = [];
   let coinReward = null;
   let questResult = null;
-  let mixAutoBanned = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -4668,7 +4686,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   }
 
   if (didDiscoverNewWord && metadata.fromMix) {
-    mixAutoBanned = applyAutoBanForNewMixDiscovery(canonicalResult);
+    applyAutoBanForNewMixDiscovery(canonicalResult);
   }
 
   const unlockedNegativeMixTokenCount = getUnlockedNegativeMixTokenCount();
@@ -4744,11 +4762,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
   const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
   const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
-  if (totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
-    if (state.activeSidebarTab === "tokens") {
-      state.unseenTokenRewards = 0;
-    }
-  }
 
   const vocabularyOverflow = didDiscoverNewWord
     ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
@@ -4771,7 +4784,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-    mixAutoBanned,
   };
 }
 
@@ -4837,7 +4849,6 @@ async function runNegativeMix(clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-    mixAutoBanned,
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
@@ -4880,7 +4891,6 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
-        mixAutoBanned,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -4903,7 +4913,6 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
-        mixAutoBanned,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -5678,12 +5687,17 @@ function initEvents() {
   els.openWordTabButton.addEventListener("click", () => {
     setActiveSidebarTab("words");
   });
-  els.openTokenTabButton.addEventListener("click", () => {
-    setActiveSidebarTab("tokens");
-  });
   els.openUpgradesTabButton.addEventListener("click", () => {
     setActiveSidebarTab("upgrades");
   });
+  if (els.tokenDockOuter) {
+    els.tokenDockOuter.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".token-tooltip-bubble")) {
+        return;
+      }
+      markTokenRewardsSeen();
+    });
+  }
   els.resetButton.addEventListener("click", resetRun);
   els.clearFieldButton.addEventListener("click", clearField);
   els.zoomOutButton.addEventListener("click", () => {

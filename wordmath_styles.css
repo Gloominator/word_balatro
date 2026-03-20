@@ -495,6 +495,129 @@ input:focus {
   border-color: var(--bad-border);
 }
 
+/* --- Token dock (under status pill, sticky with top bar) --------------- */
+
+.token-dock-outer {
+  box-sizing: border-box;
+  max-width: 1420px;
+  margin: 0 auto 0.65rem;
+  padding: 0 1.5rem;
+}
+
+.token-dock-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface-bright);
+  box-shadow: 0 1px 6px var(--shadow-color);
+}
+
+[data-theme="dark"] .token-dock-inner {
+  background: var(--surface-high);
+}
+
+.token-dock-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.token-dock-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+}
+
+.token-tooltip--dock .token-tooltip-trigger {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.token-dock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.token-dock-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* Compact tiles (fixed footprint — avoids stretched “bar” pills) */
+.token-dock-pill {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0.2rem 0.15rem 0.18rem;
+  flex: 0 0 auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--token-border);
+  background: var(--token-bg);
+  color: var(--token-text);
+  font-family: var(--font-body);
+  font-weight: 700;
+  cursor: grab;
+  box-shadow: 0 1px 2px var(--shadow-color);
+  transform: none;
+}
+
+.token-dock-pill:hover {
+  filter: brightness(1.05);
+}
+
+.token-dock-pill:active {
+  cursor: grabbing;
+  transform: translateY(1px);
+}
+
+.token-dock-pill.is-dragging {
+  opacity: 0.72;
+}
+
+.token-dock-pill-emoji {
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+}
+
+.token-dock-pill-count {
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  padding: 0.12rem 0.35rem;
+  border-radius: 999px;
+  background: var(--token-chip-bg);
+  flex-shrink: 0;
+}
+
+.token-dock-flashing .token-dock-inner {
+  animation: token-tab-flash 1.1s ease-in-out infinite;
+}
+
 /* --- Panel ------------------------------------------------------------- */
 
 .panel {

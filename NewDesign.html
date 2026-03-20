@@ -92,6 +92,13 @@
 }
 .brass-gradient {
     background: linear-gradient(145deg, #d4af37 0%, #f5f5dc 100%)
+    }
+#mixing-field.is-drop-target {
+    box-shadow: inset 0 0 0 2px rgba(59, 105, 52, 0.45), 0 0 0 1px rgba(59, 105, 52, 0.2);
+    border-color: rgba(59, 105, 52, 0.35);
+    }
+body.is-dragging-token #mixing-field .word-tile {
+    pointer-events: none;
     }</style>
 </head>
 <body class="bg-background text-on-surface selection:bg-secondary-container selection:text-on-secondary-container overflow-hidden">
@@ -110,7 +117,37 @@
 </button>
 </div>
 </header>
-<main class="flex h-[calc(100vh-72px)] overflow-hidden">
+<!-- Available tokens: draggable dock (sticky below header) -->
+<div class="sticky top-[72px] z-40 w-full border-b border-primary/10 bg-gradient-to-b from-[#f5f5dc] to-[#f0edd8]/95 shadow-[0_4px_12px_rgba(27,29,14,0.06)]" id="token-dock">
+<div class="max-w-7xl mx-auto px-6 py-2.5 flex flex-wrap items-center gap-2 gap-y-2">
+<span class="text-[10px] font-label font-bold uppercase tracking-[0.2em] text-on-surface-variant shrink-0 mr-1">Available</span>
+<button type="button" draggable="true" data-draggable-token="2" data-token-label="Any 2-letter" title="Any 2-letter word — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container-lowest border border-primary/15 shadow-sm hover:border-secondary/40 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">2️⃣</span>
+<span class="text-[10px] font-black text-primary tabular-nums bg-primary/5 px-1.5 py-0.5 rounded-full">×2</span>
+</button>
+<button type="button" draggable="true" data-draggable-token="3" data-token-label="Any 3-letter" title="Any 3-letter word — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container-lowest border border-primary/15 shadow-sm hover:border-secondary/40 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">3️⃣</span>
+<span class="text-[10px] font-black text-primary tabular-nums bg-primary/5 px-1.5 py-0.5 rounded-full">×1</span>
+</button>
+<button type="button" draggable="true" data-draggable-token="4" data-token-label="Any 4-letter" title="Any 4-letter word — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container-lowest border border-primary/15 shadow-sm hover:border-secondary/40 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">4️⃣</span>
+<span class="text-[10px] font-black text-primary tabular-nums bg-primary/5 px-1.5 py-0.5 rounded-full">×3</span>
+</button>
+<button type="button" draggable="true" data-draggable-token="5" data-token-label="Any 5-letter" title="Any 5-letter word — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-container-lowest border border-primary/15 shadow-sm hover:border-secondary/40 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">5️⃣</span>
+<span class="text-[10px] font-black text-primary tabular-nums bg-primary/5 px-1.5 py-0.5 rounded-full">×1</span>
+</button>
+<button type="button" draggable="true" data-draggable-token="ban" data-token-label="Ban word" title="Ban a word from play — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-error-container/30 border border-error/25 shadow-sm hover:border-error/50 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">🚫</span>
+<span class="text-[10px] font-black text-error tabular-nums bg-white/70 px-1.5 py-0.5 rounded-full">×1</span>
+</button>
+<button type="button" draggable="true" data-draggable-token="minus" data-token-label="Minus ink" title="Remove ink from the manuscript — drag to desk" class="group flex items-center gap-1.5 pl-2.5 pr-2 py-1 rounded-full bg-surface-tint/15 border border-surface-tint/30 shadow-sm hover:border-surface-tint/50 hover:shadow-md cursor-grab active:cursor-grabbing transition-all select-none">
+<span class="text-base leading-none" aria-hidden="true">➖</span>
+<span class="text-[10px] font-black text-primary tabular-nums bg-primary/5 px-1.5 py-0.5 rounded-full">×2</span>
+</button>
+</div>
+</div>
+<main class="flex h-[calc(100vh-72px-52px)] min-h-0 overflow-hidden">
 <!-- Main Game Canvas -->
 <section class="flex-grow relative flex flex-col items-center p-6 desk-surface overflow-hidden">
 <!-- Gameplay Actions Bar -->
@@ -152,35 +189,35 @@
 </div>
 </div>
 </div>
-<!-- Mixing Field (The Desktop) -->
-<div class="w-full h-full relative p-8 bg-black/5 rounded-[3rem] border-2 border-primary/5 inner-shadow-lg cursor-default">
+<!-- Mixing Field (The Desktop) — drop zone for tokens -->
+<div id="mixing-field" class="w-full h-full relative p-8 bg-black/5 rounded-[3rem] border-2 border-primary/5 inner-shadow-lg cursor-default transition-[box-shadow,border-color] duration-150">
 <!-- Scattered Word Tiles -->
 <!-- These are styled to look like cards on a desk -->
-<button class="absolute top-[10%] left-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute top-[10%] left-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Sunlight</span>
 </button>
-<button class="absolute top-[25%] left-[45%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute top-[25%] left-[45%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Sunshine</span>
 </button>
-<button class="absolute top-[15%] right-[10%] group bg-tertiary-container shadow-2xl px-10 py-6 rounded-lg border-b-4 border-r-4 border-black/20 transform rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute top-[15%] right-[10%] group bg-tertiary-container shadow-2xl px-10 py-6 rounded-lg border-b-4 border-r-4 border-black/20 transform rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-tertiary-fixed font-black">Earth</span>
 </button>
-<button class="absolute bottom-[20%] left-[10%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute bottom-[20%] left-[10%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Cloudy</span>
 </button>
-<button class="absolute top-[50%] left-[30%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute top-[50%] left-[30%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Falling</span>
 </button>
-<button class="absolute bottom-[15%] right-[25%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute bottom-[15%] right-[25%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Up</span>
 </button>
-<button class="absolute bottom-[40%] right-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-6 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute bottom-[40%] right-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-6 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Down</span>
 </button>
-<button class="absolute top-[60%] right-[40%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-4 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute top-[60%] right-[40%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-4 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Heaven</span>
 </button>
-<button class="absolute bottom-[45%] left-[55%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<button type="button" class="word-tile absolute bottom-[45%] left-[55%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
 <span class="font-headline text-2xl text-primary font-bold">Sky</span>
 </button>
 </div>
@@ -201,7 +238,6 @@
 <!-- Tabs -->
 <div class="flex gap-1 bg-surface-container-highest/30 p-1 rounded-xl mb-8">
 <button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter text-[#1B263B]/60">Discovered</button>
-<button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter text-[#1B263B]/60">Tokens</button>
 <button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter bg-[#1B263B] text-[#f5f5dc] rounded-lg shadow-md">Shop</button>
 </div>
 </div>
@@ -239,4 +275,71 @@
 </div>
 </aside>
 </main>
+<script>
+(function () {
+  var field = document.getElementById("mixing-field");
+  var dock = document.getElementById("token-dock");
+  if (!field || !dock) return;
+
+  function tokenEmoji(id) {
+    var map = { "2": "2️⃣", "3": "3️⃣", "4": "4️⃣", "5": "5️⃣", ban: "🚫", minus: "➖" };
+    return map[id] || "●";
+  }
+
+  function clearDropTarget() {
+    field.classList.remove("is-drop-target");
+  }
+
+  dock.querySelectorAll("[data-draggable-token]").forEach(function (btn) {
+    btn.addEventListener("dragstart", function (e) {
+      document.body.classList.add("is-dragging-token");
+      e.dataTransfer.setData("text/plain", btn.getAttribute("data-draggable-token"));
+      e.dataTransfer.setData("application/x-token-label", btn.getAttribute("data-token-label") || "");
+      e.dataTransfer.effectAllowed = "copy";
+      btn.classList.add("opacity-60", "scale-95");
+    });
+    btn.addEventListener("dragend", function () {
+      document.body.classList.remove("is-dragging-token");
+      btn.classList.remove("opacity-60", "scale-95");
+      clearDropTarget();
+    });
+  });
+
+  field.addEventListener("dragenter", function (e) {
+    e.preventDefault();
+    field.classList.add("is-drop-target");
+  });
+  field.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  field.addEventListener("dragleave", function (e) {
+    if (!field.contains(e.relatedTarget)) clearDropTarget();
+  });
+  field.addEventListener("drop", function (e) {
+    e.preventDefault();
+    clearDropTarget();
+    var id = e.dataTransfer.getData("text/plain");
+    var label = e.dataTransfer.getData("application/x-token-label");
+    if (!id) return;
+
+    var rect = field.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+    x = Math.max(16, Math.min(x, rect.width - 16));
+    y = Math.max(16, Math.min(y, rect.height - 16));
+
+    var chip = document.createElement("div");
+    chip.className = "absolute flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-lowest border-2 border-secondary/40 shadow-lg text-sm font-bold text-primary pointer-events-none z-10 animate-pulse";
+    chip.style.left = x + "px";
+    chip.style.top = y + "px";
+    chip.style.transform = "translate(-50%, -50%)";
+    chip.innerHTML = "<span aria-hidden=\"true\">" + tokenEmoji(id) + "</span><span class=\"text-xs font-body font-semibold max-w-[140px] truncate\">" + (label || id) + "</span>";
+    field.appendChild(chip);
+    window.setTimeout(function () {
+      chip.classList.remove("animate-pulse");
+    }, 600);
+  });
+})();
+</script>
 </body></html>

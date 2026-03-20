@@ -61,6 +61,19 @@
       <div class="status-pill" data-status data-state="ok">
         Drop a word onto the field to start mixing.
       </div>
+
+      <div class="token-dock-outer" data-token-dock-outer hidden>
+        <div class="token-dock-inner">
+          <div class="token-dock-head">
+            <span class="token-dock-label">Tokens</span>
+            <span class="token-tooltip token-tooltip--dock">
+              <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip">How tokens work</span>
+              <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip">Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced.</span>
+            </span>
+          </div>
+          <div class="token-dock" data-token-dock></div>
+        </div>
+      </div>
     </div>
 
     <main class="game-shell">
@@ -155,10 +168,6 @@
             <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true">
               Discovered
             </button>
-            <button type="button" class="sidebar-tab" data-action="open-token-tab" data-sidebar-tab="tokens" role="tab" aria-selected="false" hidden>
-              Tokens
-              <span class="section-count" data-token-count>0</span>
-            </button>
             <button type="button" class="sidebar-tab" data-action="open-upgrades-tab" data-sidebar-tab="upgrades" role="tab" aria-selected="false">
               Shop
               <span class="section-count" data-upgrade-count>0</span>
@@ -195,19 +204,6 @@
               </div>
             </div>
             <div class="word-list" data-word-list></div>
-          </section>
-
-          <section class="sidebar-section" data-sidebar-panel="tokens" role="tabpanel" hidden>
-            <div class="section-title-row">
-              <h3 class="token-tooltip">
-                <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip">Usable Tokens</span>
-                <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip">Encyclopedia discoveries earn Ban Word tokens. Drag one onto a field word to charge a Ban line: the next mix using that word strikes the mix result from the pool (no new tile, no discovery). Minus-mix tokens arrive at 5 words, then again at 15, 30, 45, and so on. A guaranteed Second Result token arrives at 10 words. Every new word discovery also has a 10% total drop chance split evenly across Wildcard, Third Result, Fourth Result, and Fifth Result tokens.</span>
-              </h3>
-              <span class="section-count" data-token-panel-count>0</span>
-            </div>
-            <div class="token-list" data-token-list>
-              <p class="source-word-empty">No tokens yet.</p>
-            </div>
           </section>
 
           <section class="sidebar-section" data-sidebar-panel="upgrades" role="tabpanel" hidden>
