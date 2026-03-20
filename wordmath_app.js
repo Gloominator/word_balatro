@@ -485,7 +485,6 @@ const els = {
   zoomOutButton: document.querySelector("[data-action='zoom-out']"),
   zoomInButton: document.querySelector("[data-action='zoom-in']"),
   playfieldZoomValue: document.querySelector("[data-playfield-zoom-value]"),
-  playfieldZoneValue: document.querySelector("[data-playfield-zone-value]"),
   garbagePanel: document.querySelector("[data-garbage-panel]"),
   garbageBin: document.querySelector("[data-garbage-bin]"),
   garbageProgress: document.querySelector("[data-garbage-progress]"),
@@ -1779,17 +1778,12 @@ function updatePlayfieldCamera() {
     els.playfield.dataset.panLocked = tier < 1 ? "true" : "false";
   }
 
-  const unlockedZones = getUnlockedPlayfieldZoneCount();
-  const visibleZones = getActivePlayfieldZoneCount();
   const maxZ = getMaximumPlayfieldZoom();
 
   if (tier < 1) {
     els.playfieldZoomValue.textContent = "Locked";
-    els.playfieldZoneValue.textContent = "Buy Field Pan & Zoom in the Shop.";
   } else {
     els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
-    const expandSuffix = tier >= 3 ? " • +50% +50%" : (tier >= 2 ? " • +50%" : "");
-    els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones (Shop only)${expandSuffix}`;
   }
   els.zoomOutButton.disabled = tier < 1 || state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
   els.zoomInButton.disabled = tier < 1 || state.playfieldZoom >= maxZ - 0.001;
@@ -2650,7 +2644,9 @@ function updateCounts() {
   els.discoveredCount.textContent = state.discovered.size.toString();
   els.availableCount.textContent = getAvailableWordEntries().length.toString();
   els.encyclopediaCount.textContent = `${getEncyclopediaDiscoveryCount()} / ${ENCYCLOPEDIA_WORDS.length}`;
-  els.historyCount.textContent = state.matchHistory.length.toString();
+  if (els.historyCount) {
+    els.historyCount.textContent = state.matchHistory.length.toString();
+  }
   const totalUsableTokenCount = getTotalUsableTokenCount();
   if (els.topbarCoinCount) {
     els.topbarCoinCount.textContent = state.coins.toString();
@@ -5734,7 +5730,9 @@ function initEvents() {
       setStatus(error.message, "error");
     }
   });
-  els.openHistoryButton.addEventListener("click", openHistory);
+  if (els.openHistoryButton) {
+    els.openHistoryButton.addEventListener("click", openHistory);
+  }
   els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);

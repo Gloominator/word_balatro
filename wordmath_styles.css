@@ -1093,12 +1093,6 @@ input:focus {
   pointer-events: none;
 }
 
-.playfield-zoom-readout {
-  display: grid;
-  justify-items: end;
-  gap: 0.2rem;
-}
-
 /* --- Playfield --------------------------------------------------------- */
 
 .playfield {
@@ -2303,8 +2297,7 @@ input:focus {
     grid-template-columns: repeat(3, 1fr);
   }
 
-  .playfield-actions,
-  .playfield-zoom-readout {
+  .playfield-actions {
     justify-content: flex-start;
     justify-items: start;
   }
