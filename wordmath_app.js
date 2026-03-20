@@ -150,7 +150,6 @@ const AVAILABLE_WORD_LIMIT = 50;
 const AVAILABLE_WORD_CAP_UPGRADE_STEP = 10;
 const AVAILABLE_WORD_CAP_UPGRADE_BASE_COST = 500;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
-const PLAYFIELD_WORDS_PER_ZONE_UNLOCK = 50;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
 const PLAYFIELD_ZOOM_STEP = 0.12;
@@ -304,7 +303,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     id: "shop-playfield-pan-zoom",
     title: "Field Pan & Zoom",
     cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
-    description: "Unlock dragging the view and zooming so you can use the full mixing field (including tiers earned from word discoveries).",
+    description: "Unlock dragging the view and zooming on the full mixing field. Further size comes from Expand purchases in the Shop.",
     canPurchase: () => getPlayfieldUpgradeTier() < 1,
     purchase: () => {
       state.purchasedUpgrades.playfieldTier = 1;
@@ -1104,7 +1103,11 @@ function awardQuestCompletionCoins(turnsTaken = state.quest.turnsTaken) {
   };
 }
 
-function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatchedWord = canonicalResult } = {}) {
+function advanceQuest(canonicalResult, {
+  didDiscoverNewWord = false,
+  questMatchedWord = canonicalResult,
+  countQuestDiscoveryTurn = true,
+} = {}) {
   const questResult = {
     completedQuest: false,
     failedQuest: false,
@@ -1125,7 +1128,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
     return questResult;
   }
 
-  if (didDiscoverNewWord) {
+  if (didDiscoverNewWord && countQuestDiscoveryTurn) {
     state.quest.remainingDiscoveries = Math.max(0, state.quest.remainingDiscoveries - 1);
     state.quest.turnsTaken += 1;
     questResult.turnsTaken = state.quest.turnsTaken;
@@ -1158,7 +1161,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
   }
 
   questResult.remainingDiscoveries = state.quest.remainingDiscoveries;
-  if (didDiscoverNewWord && state.quest.remainingDiscoveries <= 0) {
+  if (didDiscoverNewWord && countQuestDiscoveryTurn && state.quest.remainingDiscoveries <= 0) {
     state.quest.isLost = true;
     questResult.failedQuest = true;
   }
@@ -1587,11 +1590,7 @@ function getPlayfieldViewportSize() {
 }
 
 function getUnlockedPlayfieldZoneCount() {
-  return 1 + Math.floor(state.discovered.size / PLAYFIELD_WORDS_PER_ZONE_UNLOCK);
-}
-
-function getNextPlayfieldZoneUnlockWordCount() {
-  return getUnlockedPlayfieldZoneCount() * PLAYFIELD_WORDS_PER_ZONE_UNLOCK;
+  return 1;
 }
 
 function getMaxWorldScaleForZoneCount(zoneCount) {
@@ -1774,7 +1773,6 @@ function updatePlayfieldCamera() {
 
   const unlockedZones = getUnlockedPlayfieldZoneCount();
   const visibleZones = getActivePlayfieldZoneCount();
-  const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
   const maxZ = getMaximumPlayfieldZoom();
 
   if (tier < 1) {
@@ -1783,7 +1781,7 @@ function updatePlayfieldCamera() {
   } else {
     els.playfieldZoomValue.textContent = `${Math.round(state.playfieldZoom * 100)}%`;
     const expandSuffix = tier >= 3 ? " • +50% +50%" : (tier >= 2 ? " • +50%" : "");
-    els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones • next at ${nextUnlockAt} words${expandSuffix}`;
+    els.playfieldZoneValue.textContent = `${visibleZones} / ${unlockedZones} zones (Shop only)${expandSuffix}`;
   }
   els.zoomOutButton.disabled = tier < 1 || state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
   els.zoomInButton.disabled = tier < 1 || state.playfieldZoom >= maxZ - 0.001;
@@ -1798,11 +1796,10 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
     if (hitLockedFrontier && !silent) {
       if (getPlayfieldUpgradeTier() < 1) {
         setStatus("Pan and zoom unlock in the Shop: Field Pan & Zoom.", "error");
+      } else if (getPlayfieldUpgradeTier() >= 3) {
+        setStatus("You're at minimum zoom for this field.", "error");
       } else {
-        const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
-        if (nextUnlockAt) {
-          setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
-        }
+        setStatus("Zoom frontier reached. Buy Expand Mixing Field in the Shop for a larger field and more zoom-out.", "error");
       }
     }
     updatePlayfieldCamera();
@@ -1826,11 +1823,10 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
   if (hitLockedFrontier && !silent) {
     if (getPlayfieldUpgradeTier() < 1) {
       setStatus("Pan and zoom unlock in the Shop: Field Pan & Zoom.", "error");
+    } else if (getPlayfieldUpgradeTier() >= 3) {
+      setStatus("You're at minimum zoom for this field.", "error");
     } else {
-      const nextUnlockAt = getNextPlayfieldZoneUnlockWordCount();
-      if (nextUnlockAt) {
-        setStatus(`The next field frontier unlocks at ${nextUnlockAt} discovered words.`, "error");
-      }
+      setStatus("Zoom frontier reached. Buy Expand Mixing Field in the Shop for a larger field and more zoom-out.", "error");
     }
   }
 
@@ -4720,6 +4716,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   questResult = advanceQuest(canonicalResult, {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
+    countQuestDiscoveryTurn: metadata.countQuestDiscoveryTurn !== false,
   });
   newNegativeMixTokensFromCompletion += questResult.newNegativeMixTokens;
   newBanWordTokens += questResult.newBanWordTokens;
@@ -4839,6 +4836,7 @@ async function runNegativeMix(clientPoint = null) {
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
+    countQuestDiscoveryTurn: false,
   });
   recordMatch(
     state.negativeMix.a,
