@@ -146,7 +146,7 @@ const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
-const AVAILABLE_WORD_LIMIT = 25;
+const AVAILABLE_WORD_LIMIT = 50;
 const AVAILABLE_WORD_CAP_UPGRADE_STEP = 10;
 const AVAILABLE_WORD_CAP_UPGRADE_BASE_COST = 500;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
@@ -1195,6 +1195,7 @@ function buildProgressSnapshot() {
       word: tile.word,
       secondResultTagged: getTileTagRank(tile) === 2,
       resultTagRank: getTileTagRank(tile),
+      pendingBan: Boolean(tile.pendingBan),
       x: tile.x,
       y: tile.y,
       zIndex: tile.zIndex,
@@ -1308,6 +1309,7 @@ function normalizeSavedTiles(value) {
       resultTagRank: Number.isFinite(tile.resultTagRank)
         ? getSafeCount(tile.resultTagRank)
         : (tile.secondResultTagged ? 2 : 0),
+      pendingBan: Boolean(tile.pendingBan),
       x: Number.isFinite(tile.x) ? tile.x : 0,
       y: Number.isFinite(tile.y) ? tile.y : 0,
       zIndex: getSafeCount(tile.zIndex, 1),
@@ -2120,6 +2122,60 @@ function isCandidateRemoved(candidate) {
 
 function filterRemovedCandidates(candidates) {
   return candidates.filter((candidate) => !isCandidateRemoved(candidate));
+}
+
+/** Adds canonicalResult to the global removed-result pool (idempotent). */
+function applyAutoBanForNewMixDiscovery(canonicalResult) {
+  const removalKeys = getRemovalKeysForWord(canonicalResult);
+  if (removalKeys.size === 0) {
+    return false;
+  }
+  const hadAll = [...removalKeys].every((key) => state.removedResultWords.has(key));
+  removalKeys.forEach((key) => state.removedResultWords.add(key));
+  if (state.lastMix?.candidates?.length) {
+    state.lastMix.candidates = filterRemovedCandidates(state.lastMix.candidates);
+  }
+  queueProgressSave();
+  return !hadAll;
+}
+
+function resolvePendingBanMixIfNeeded({
+  firstTile = null,
+  secondTile = null,
+  operation,
+  leftWord,
+  rightWord,
+  selection,
+  clientPoint = null,
+}) {
+  const tiles = [firstTile, secondTile].filter(Boolean);
+  if (!tiles.some((t) => t.pendingBan)) {
+    return false;
+  }
+  const selectedCandidate = selection.candidate;
+  if (!selectedCandidate) {
+    return false;
+  }
+  const canonicalResult = getCanonicalWord(selectedCandidate.word, selectedCandidate.normalized);
+  const newlyStruck = applyAutoBanForNewMixDiscovery(canonicalResult);
+  const chargedTile = tiles.find((t) => t.pendingBan);
+  if (chargedTile) {
+    chargedTile.pendingBan = false;
+  }
+  renderTiles();
+  renderSidebar();
+  if (clientPoint) {
+    showFloatingWordNotice(newlyStruck ? "🚫" : "✓", newlyStruck ? "reward" : "ok", clientPoint);
+  }
+  const op = operation === "subtract" ? "-" : "+";
+  const strikeNote = newlyStruck
+    ? `${titleCase(canonicalResult)} was struck from future mix results (nothing spawned or discovered).`
+    : `${titleCase(canonicalResult)} was already struck from results; your Ban line was cleared anyway.`;
+  applyOutcomeStatus({
+    message: `${titleCase(leftWord)} ${op} ${titleCase(rightWord)} consumed a Ban line. ${strikeNote}`,
+    stateName: "reward",
+  }, {});
+  return true;
 }
 
 function getSelectedCandidate(candidates, shift) {
@@ -3207,10 +3263,8 @@ function banTileWordFromResults(tileId) {
     setStatus("Drop that token onto a word on the field.", "error");
     return;
   }
-
-  const removalKeys = getRemovalKeysForWord(tile.word);
-  if ([...removalKeys].some((key) => state.removedResultWords.has(key))) {
-    setStatus(`${titleCase(tile.word)} is already permanently removed from future results.`, "ok");
+  if (tile.pendingBan) {
+    setStatus(`${titleCase(tile.word)} already has a Ban line. Mix with it to strike the result from the pool.`, "ok");
     return;
   }
   if (state.availableBanWordTokens <= 0) {
@@ -3219,13 +3273,11 @@ function banTileWordFromResults(tileId) {
   }
 
   state.availableBanWordTokens -= 1;
-  removalKeys.forEach((key) => {
-    state.removedResultWords.add(key);
-  });
-  state.lastMix.candidates = filterRemovedCandidates(state.lastMix.candidates);
+  tile.pendingBan = true;
   renderSidebar();
+  renderTiles();
   queueProgressSave();
-  setStatus(`${titleCase(tile.word)} will no longer appear in future mix results this run.`, "reward");
+  setStatus(`${titleCase(tile.word)} is charged with a Ban line: the next mix using it strikes the mix result from the pool (no spawn, no discovery).`, "reward");
 }
 
 async function useWildcardToken(position = null) {
@@ -3367,11 +3419,11 @@ function renderTokenPanel() {
   if (state.availableBanWordTokens > 0) {
     els.tokenList.append(buildTokenButton({
       title: "Ban Word",
-      description: "Drag onto a field word to permanently remove that word from future mix results.",
+      description: "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool (no tile, no discovery).",
       count: state.availableBanWordTokens,
       dragType: "ban-word",
       onClick: () => {
-        setStatus("Drag a Ban Word token onto a word on the field.", "ok");
+        setStatus("Drag a Ban Word token onto a field word to charge a Ban line.", "ok");
       },
     }));
   }
@@ -3796,6 +3848,7 @@ function getMixOutcomeMessage(
     questResult = null,
     usedShift = 0,
     refundedTagCount = 0,
+    mixAutoBanned = false,
   } = {},
 ) {
   const operator = operation === "subtract" ? "-" : "+";
@@ -3811,6 +3864,13 @@ function getMixOutcomeMessage(
   } else {
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. `;
     stateName = "ok";
+  }
+
+  if (mixAutoBanned) {
+    const banNote = isInEncyclopedia && !wasDiscovered
+      ? ` Your encyclopedia Ban Word was applied immediately: ${titleCase(canonicalResult)} will not appear as a mix result again.`
+      : ` ${titleCase(canonicalResult)} was auto-banned and will not appear as a mix result again.`;
+    message = `${message}${banNote}`;
   }
 
   if (usedShift > 0) {
@@ -4238,6 +4298,7 @@ function makeTile(word, x, y) {
     id: state.nextTileId,
     word,
     resultTagRank: 0,
+    pendingBan: false,
     x: clamp(x, bounds.minX, bounds.maxX),
     y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
@@ -4378,6 +4439,19 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     showFloatingCandidatePreview(selection.candidates);
   }
   const selectedCandidate = selection.candidate;
+  const noticePoint = clientPoint || getClientPointForWorldPosition(position);
+  const selfTile = tileId ? getTileById(tileId) : state.tiles.find((t) => t.word.toLowerCase() === word.toLowerCase()) || null;
+  if (resolvePendingBanMixIfNeeded({
+    firstTile: selfTile,
+    secondTile: selfTile,
+    operation: "add",
+    leftWord: word,
+    rightWord: word,
+    selection,
+    clientPoint: noticePoint,
+  })) {
+    return;
+  }
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -4391,10 +4465,13 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
+    mixAutoBanned,
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
+    zipf: selectedCandidate.zipf,
+    fromMix: true,
+  });
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const noticePoint = clientPoint || getClientPointForWorldPosition(position);
   const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", noticePoint);
@@ -4417,6 +4494,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
+      mixAutoBanned,
     });
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
@@ -4431,6 +4509,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
+      mixAutoBanned,
     });
     if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
@@ -4459,6 +4538,17 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
   showFloatingCandidatePreview(selection.candidates, clientPoint);
   const selectedCandidate = selection.candidate;
+  if (resolvePendingBanMixIfNeeded({
+    firstTile,
+    secondTile,
+    operation: "add",
+    leftWord: firstTile.word,
+    rightWord: secondTile.word,
+    selection,
+    clientPoint,
+  })) {
+    return;
+  }
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -4472,7 +4562,11 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
+    mixAutoBanned,
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
+    zipf: selectedCandidate.zipf,
+    fromMix: true,
+  });
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
@@ -4506,6 +4600,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        mixAutoBanned,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -4528,6 +4623,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        mixAutoBanned,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -4555,6 +4651,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let completedCategories = [];
   let coinReward = null;
   let questResult = null;
+  let mixAutoBanned = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -4567,6 +4664,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
   if (discoveryKey !== normalized && state.discovered.has(normalized)) {
     replaceTrackedDiscoveredWordKey(normalized, discoveryKey);
     state.discovered.delete(normalized);
+  }
+
+  if (didDiscoverNewWord && metadata.fromMix) {
+    mixAutoBanned = applyAutoBanForNewMixDiscovery(canonicalResult);
   }
 
   const unlockedNegativeMixTokenCount = getUnlockedNegativeMixTokenCount();
@@ -4668,6 +4769,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     completedCategories,
     questResult,
     vocabularyOverflow,
+    mixAutoBanned,
   };
 }
 
@@ -4706,7 +4808,20 @@ async function runNegativeMix(clientPoint = null) {
   }
   setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", selection.candidates);
   const selectedCandidate = selection.candidate;
-  const existingAvailableResult = getAvailableEntryForWord(selectedCandidate.word, selectedCandidate.normalized);
+  const negTileA = Number.isFinite(state.negativeMixSources.a) ? getTileById(state.negativeMixSources.a) : null;
+  const negTileB = Number.isFinite(state.negativeMixSources.b) ? getTileById(state.negativeMixSources.b) : null;
+  if (resolvePendingBanMixIfNeeded({
+    firstTile: negTileA,
+    secondTile: negTileB,
+    operation: "subtract",
+    leftWord: state.negativeMix.a,
+    rightWord: state.negativeMix.b,
+    selection,
+    clientPoint,
+  })) {
+    hideNegativeMixAfterUse();
+    return;
+  }
   const {
     canonicalResult,
     isInEncyclopedia,
@@ -4720,7 +4835,11 @@ async function runNegativeMix(clientPoint = null) {
     completedCategories,
     questResult,
     vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, { zipf: selectedCandidate.zipf });
+    mixAutoBanned,
+  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
+    zipf: selectedCandidate.zipf,
+    fromMix: true,
+  });
   recordMatch(
     state.negativeMix.a,
     state.negativeMix.b,
@@ -4758,6 +4877,7 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        mixAutoBanned,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -4780,6 +4900,7 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        mixAutoBanned,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -5070,6 +5191,7 @@ function renderTiles() {
       tileElement.dataset.kind = "discovered";
       tileElement.dataset.tileId = String(tile.id);
       tileElement.dataset.tagged = getTileTagRank(tile) >= 2 ? "true" : "false";
+      tileElement.dataset.pendingBan = tile.pendingBan ? "true" : "false";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
@@ -5129,13 +5251,18 @@ function renderTiles() {
       tagElement.textContent = getPositionTokenShortLabel(getTileTagRank(tile));
       tagElement.hidden = getTileTagRank(tile) < 2;
 
+      const banLineElement = document.createElement("div");
+      banLineElement.className = "tile-ban-line";
+      banLineElement.textContent = "Ban line";
+      banLineElement.hidden = !tile.pendingBan;
+
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
       const categoryName = getVisibleCategoryNameForWord(tile.word);
       metaElement.textContent = categoryName;
       metaElement.hidden = !categoryName;
 
-      tileElement.append(tagElement, wordElement, metaElement);
+      tileElement.append(tagElement, banLineElement, wordElement, metaElement);
       els.playfieldSurface.append(tileElement);
     });
 }
@@ -5321,6 +5448,9 @@ function resetRun() {
   state.tiles = [];
   state.search = "";
   state.removedResultWords = new Set();
+  state.starters.forEach((word) => {
+    getRemovalKeysForWord(word).forEach((key) => state.removedResultWords.add(key));
+  });
   state.negativeMix.a = null;
   state.negativeMix.b = null;
   state.negativeMixSources.a = null;
@@ -5407,7 +5537,7 @@ function resetRun() {
     ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
     : starterNames[0];
   setStatus(
-    `New game started with ${starterSummary}. Your first quest is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
+    `New game started with ${starterSummary}. Those starters are struck from the mix-result pool. Your first quest is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
     "ok",
   );
 }
@@ -5433,7 +5563,7 @@ function initPlayfieldDropzone() {
       return;
     }
     if (tokenType === "ban-word") {
-      setStatus("Drop a Ban Word token onto a word on the field.", "error");
+      setStatus("Drop a Ban Word token onto a word on the field to charge a Ban line.", "error");
       return;
     }
     const bounds = getPlayfieldBounds();
