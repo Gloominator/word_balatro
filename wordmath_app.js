@@ -185,10 +185,14 @@ const POSITION_TOKEN_CONFIG = Object.freeze({
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
 const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
-/** Each repeat purchase of the same shop line costs +5% over the last paid price (integer, rounded up). */
-const SHOP_INCREMENTAL_PRICE_NUM = 105;
-const SHOP_INCREMENTAL_PRICE_DEN = 100;
+/** Per completed purchase: token-like shop lines cost +10% over the last paid price (integer, rounded up). */
+const SHOP_INCREMENTAL_STANDARD_NUM = 110;
+const SHOP_INCREMENTAL_STANDARD_DEN = 100;
+/** Word Booster paid rolls: +20% over the last paid price (same scaling pattern, steeper step). */
+const SHOP_INCREMENTAL_WORD_BOOSTER_NUM = 120;
+const SHOP_INCREMENTAL_WORD_BOOSTER_DEN = 100;
 const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
+  "shop-word-booster",
   "shop-match-2",
   "shop-match-3",
   "shop-match-4",
@@ -211,7 +215,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
       }
       state.shopWordBooster.options = await rollShopWordBoosterOptions();
       openShopWordBooster();
-      return `Bought a Word Booster for ${SHOP_WORD_BOOSTER_COST} coins. Pick 1 rolled word to discover it.`;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-word-booster"));
+      return `Bought a Word Booster for ${cost} coins. Pick 1 rolled word to discover it.`;
     },
   },
   {
@@ -611,10 +616,13 @@ function getShopPurchaseCount(itemId) {
   return getSafeCount(state.shopPurchaseCounts[itemId], 0);
 }
 
-function getIncrementalShopPrice(baseCost, completedPurchases) {
+function getIncrementalShopPrice(baseCost, completedPurchases, itemId) {
+  const isBooster = itemId === "shop-word-booster";
+  const num = isBooster ? SHOP_INCREMENTAL_WORD_BOOSTER_NUM : SHOP_INCREMENTAL_STANDARD_NUM;
+  const den = isBooster ? SHOP_INCREMENTAL_WORD_BOOSTER_DEN : SHOP_INCREMENTAL_STANDARD_DEN;
   let price = baseCost;
   for (let i = 0; i < completedPurchases; i += 1) {
-    price = Math.ceil((price * SHOP_INCREMENTAL_PRICE_NUM) / SHOP_INCREMENTAL_PRICE_DEN);
+    price = Math.ceil((price * num) / den);
   }
   return price;
 }
@@ -634,7 +642,7 @@ function getShopItemCost(item) {
     return getAvailableWordCapUpgradeCost();
   }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
-    return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id));
+    return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id), item.id);
   }
   return item.cost;
 }
@@ -3548,6 +3556,7 @@ async function purchaseShopItem(itemId) {
       const message = await item.purchase();
       if (willRollNewBooster) {
         state.coins -= itemCost;
+        recordIncrementalShopPurchase(item.id);
       }
       renderSidebar();
       queueProgressSave();
