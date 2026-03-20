@@ -320,12 +320,17 @@ p {
   gap: 1rem;
 }
 
-/* --- Top Bar ----------------------------------------------------------- */
-
-.topbar {
+/* Header + status pill stick together while the page scrolls */
+.app-sticky-top {
   position: sticky;
   top: 0;
   z-index: 50;
+  background: var(--bg);
+}
+
+/* --- Top Bar ----------------------------------------------------------- */
+
+.topbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -446,14 +451,16 @@ input:focus {
 /* --- Status Pill ------------------------------------------------------- */
 
 .status-pill {
+  box-sizing: border-box;
   max-width: 1420px;
-  margin: 0 auto 0.75rem;
+  margin: 0.5rem auto 0.75rem;
   padding: 0.7rem 1.5rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--surface-container);
   font-size: 0.92rem;
   color: var(--text);
+  box-shadow: 0 2px 8px var(--shadow-color);
 }
 
 .status-pill[data-state="success"] {

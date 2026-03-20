@@ -14,33 +14,35 @@
       })();
     </script>
 
-    <header class="topbar">
-      <div class="topbar-brand">
-        <h1>King Minus Man</h1>
-      </div>
-      <nav class="topbar-nav">
-        <button type="button" data-action="reset">New Game</button>
-        <button type="button" class="encyclopedia-button" data-action="open-history">
-          Match History
-          <span class="encyclopedia-count" data-history-count>0</span>
-        </button>
-        <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
-          Encyclopedia
-          <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
-        </button>
-      </nav>
-      <div class="topbar-actions">
-        <button type="button" class="theme-toggle" data-action="toggle-theme" aria-label="Toggle theme">
-          <span class="material-symbols-outlined">dark_mode</span>
-        </button>
-        <button type="button" class="ghost-button" data-action="open-settings">
-          <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;">settings</span>
-        </button>
-      </div>
-    </header>
+    <div class="app-sticky-top">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <h1>King Minus Man</h1>
+        </div>
+        <nav class="topbar-nav">
+          <button type="button" data-action="reset">New Game</button>
+          <button type="button" class="encyclopedia-button" data-action="open-history">
+            Match History
+            <span class="encyclopedia-count" data-history-count>0</span>
+          </button>
+          <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
+            Encyclopedia
+            <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
+          </button>
+        </nav>
+        <div class="topbar-actions">
+          <button type="button" class="theme-toggle" data-action="toggle-theme" aria-label="Toggle theme">
+            <span class="material-symbols-outlined">dark_mode</span>
+          </button>
+          <button type="button" class="ghost-button" data-action="open-settings">
+            <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;">settings</span>
+          </button>
+        </div>
+      </header>
 
-    <div class="status-pill" data-status data-state="ok">
-      Drop a word onto the field to start mixing.
+      <div class="status-pill" data-status data-state="ok">
+        Drop a word onto the field to start mixing.
+      </div>
     </div>
 
     <main class="game-shell">
