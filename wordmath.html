@@ -1,47 +1,49 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>King Minus Man</title>
+    <title>WordMath Mixer</title>
     <link rel="stylesheet" href="./wordmath_styles.css">
   </head>
   <body>
-    <main class="game-shell">
-      <header class="topbar">
-        <div>
-          <h1>WordMath Mixer</h1>
-          <p class="subtitle"></p>
-        </div>
-        <div class="topbar-actions">
-          <button type="button" class="ghost-button" data-action="open-settings">Settings</button>
-          <button type="button" data-action="reset">New Game</button>
-          <button type="button" class="encyclopedia-button" data-action="open-history">
-            Match History
-            <span class="encyclopedia-count" data-history-count>0</span>
-          </button>
-          <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
-            Encyclopedia
-            <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
-          </button>
-        </div>
-      </header>
+    <script>
+      (function() {
+        var t = localStorage.getItem('wordmath-theme') || 'light';
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
 
-      <div class="status-pill" data-status data-state="ok">
-        Drop a word onto the field to start mixing.
+    <header class="topbar">
+      <div class="topbar-brand">
+        <h1>WordMath Mixer</h1>
       </div>
+      <nav class="topbar-nav">
+        <button type="button" data-action="reset">New Game</button>
+        <button type="button" class="encyclopedia-button" data-action="open-history">
+          Match History
+          <span class="encyclopedia-count" data-history-count>0</span>
+        </button>
+        <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
+          Encyclopedia
+          <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
+        </button>
+      </nav>
+      <div class="topbar-actions">
+        <button type="button" class="theme-toggle" data-action="toggle-theme" aria-label="Toggle theme">
+          <span class="material-symbols-outlined">dark_mode</span>
+        </button>
+        <button type="button" class="ghost-button" data-action="open-settings">
+          <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;">settings</span>
+        </button>
+      </div>
+    </header>
 
-      <section class="quest-strip" aria-label="Current quest">
-        <div>
-          <p class="quest-label">Quest Target</p>
-          <strong class="quest-word" data-quest-word>Loading...</strong>
-        </div>
-        <div class="quest-countdown-panel">
-          <p class="quest-label">Lose in turns</p>
-          <strong class="quest-countdown" data-quest-countdown>0</strong>
-        </div>
-      </section>
+    <div class="status-pill" data-status data-state="ok">
+      Drop a word onto the field to start mixing.
+    </div>
 
+    <main class="game-shell">
       <section class="main-layout">
         <section class="panel playfield-panel">
           <div class="panel-head">
@@ -51,8 +53,8 @@
                 <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
               </div>
               <div class="coin-counter" aria-label="Coins">
-                <span class="coin-counter-value" data-coin-count>0</span>
                 <span class="coin-counter-icon" aria-hidden="true"></span>
+                <span class="coin-counter-value" data-coin-count>0</span>
               </div>
             </div>
             <div class="playfield-actions">
@@ -67,6 +69,42 @@
               <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
             </div>
           </div>
+
+          <div class="gameplay-actions-bar" aria-label="Purchases">
+            <div class="purchase-tokens-root" data-purchase-tokens-root>
+              <button type="button" class="purchase-tokens-trigger" data-action="toggle-purchase-tokens" aria-expanded="false" aria-haspopup="listbox" id="purchase-tokens-trigger">
+                <span class="purchase-tokens-trigger-label">Purchase Tokens</span>
+                <span class="material-symbols-outlined purchase-tokens-chevron" aria-hidden="true">expand_more</span>
+              </button>
+              <div class="purchase-tokens-menu" data-purchase-tokens-menu role="listbox" aria-labelledby="purchase-tokens-trigger" hidden></div>
+            </div>
+            <button type="button" class="word-booster-top-btn" data-action="buy-word-booster">
+              <span class="word-booster-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-outlined word-booster-sparkle" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+              </span>
+              <span class="word-booster-top-label">Word Booster</span>
+              <span class="word-booster-cost-badge"><span data-word-booster-cost>70</span>G</span>
+            </button>
+          </div>
+
+          <div class="quest-manuscript-shell">
+            <div class="quest-manuscript-frame">
+              <section class="quest-strip quest-manuscript-plate" aria-label="Current quest">
+                <div class="quest-manuscript-left">
+                  <p class="quest-label quest-label-manuscript">Objective Manuscript</p>
+                  <strong class="quest-word" data-quest-word>Loading...</strong>
+                </div>
+                <div class="quest-countdown-panel quest-countdown-manuscript">
+                  <p class="quest-label quest-label-ink">Ink Remaining</p>
+                  <div class="quest-ink-row">
+                    <strong class="quest-countdown" data-quest-countdown>0</strong>
+                    <span class="material-symbols-outlined quest-ink-icon" aria-hidden="true">history_edu</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+
           <div class="playfield" data-playfield>
             <div class="playfield-surface" data-playfield-surface>
               <section class="negative-mix-panel" data-negative-panel hidden>
@@ -74,7 +112,7 @@
                   <div class="negative-mix-title">Minus Mix Board</div>
                   <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Refund minus-mix token">Refund</button>
                 </div>
-                <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A - B</strong>. Right-click the board to refund the token.</p>
+                <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A &minus; B</strong>. Right-click the board to refund the token.</p>
                 <div class="negative-mix-slots">
                   <div class="negative-slot" data-negative-slot="a">
                     <span class="negative-slot-label">A</span>
@@ -87,7 +125,7 @@
                 </div>
                 <div class="negative-mix-actions">
                   <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
-                  <button type="button" data-action="run-negative">Mix A - B</button>
+                  <button type="button" data-action="run-negative">Mix A &minus; B</button>
                 </div>
               </section>
             </div>
@@ -95,28 +133,34 @@
               Drag a starter or discovered word here.
             </div>
           </div>
+
           <section class="garbage-panel" data-garbage-panel hidden>
             <div class="section-title-row">
               <div>
                 <h3>Garbage Bin</h3>
-                <p class="muted garbage-copy">🗑️words to hide them forever. They can still be mixed</p>
+                <p class="muted garbage-copy">Drag words here to hide them forever. They can still be mixed.</p>
               </div>
               <span class="section-count" data-garbage-progress>0/15</span>
             </div>
             <div class="garbage-bin" data-garbage-bin>
-              <div class="garbage-bin-title">🗑️ 🗑️🗑️🗑️🗑️🗑️🗑️🗑️</div>
+              <div class="garbage-bin-title">Garbage Bin</div>
               <div class="garbage-bin-text"></div>
             </div>
           </section>
         </section>
 
         <aside class="panel sidebar">
+          <div class="sidebar-header">
+            <h2>Library Archives</h2>
+            <p class="muted">Curator's Collection</p>
+          </div>
+
           <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
             <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true">
-              Word Panel
+              Discovered
             </button>
             <button type="button" class="sidebar-tab" data-action="open-token-tab" data-sidebar-tab="tokens" role="tab" aria-selected="false" hidden>
-              Usable Tokens
+              Tokens
               <span class="section-count" data-token-count>0</span>
             </button>
             <button type="button" class="sidebar-tab" data-action="open-upgrades-tab" data-sidebar-tab="upgrades" role="tab" aria-selected="false">
@@ -124,6 +168,7 @@
               <span class="section-count" data-upgrade-count>0</span>
             </button>
           </div>
+
           <div class="section-title-row sidebar-title-row">
             <h2 data-sidebar-title>Word Panel</h2>
             <button type="button" class="ghost-button google-button" data-action="toggle-google-pick" aria-pressed="false" title="Click, then pick a word to search Google">
@@ -173,7 +218,7 @@
             <div class="section-title-row">
               <div>
                 <h3>Shop</h3>
-                <p class="muted upgrade-panel-copy"></p>
+                <p class="muted upgrade-panel-copy">Token packs and upgrades are in <strong>Purchase Tokens</strong> and <strong>Word Booster</strong> above the manuscript.</p>
               </div>
               <span class="section-count" data-upgrade-coin-count>0 coins</span>
             </div>
@@ -235,7 +280,7 @@
           <button type="button" data-action="export-save">Debug Export Save JSON</button>
           <button type="button" class="ghost-button" data-action="import-save">Load Saved Game JSON</button>
         </div>
-        <p class="muted settings-copy">The exported file includes the full game snapshot, including `discovered`, so discovered words can be extracted from it later.</p>
+        <p class="muted settings-copy">The exported file includes the full game snapshot, including discovered words, so they can be extracted later.</p>
         <input type="file" accept="application/json,.json" data-save-file-input hidden>
       </section>
     </div>
@@ -283,6 +328,16 @@
       </section>
     </div>
 
+    <script>
+      document.querySelector('[data-action="toggle-theme"]').addEventListener('click', function() {
+        var html = document.documentElement;
+        var next = html.dataset.theme === 'dark' ? 'light' : 'dark';
+        html.dataset.theme = next;
+        localStorage.setItem('wordmath-theme', next);
+        this.querySelector('.material-symbols-outlined').textContent =
+          next === 'dark' ? 'light_mode' : 'dark_mode';
+      });
+    </script>
     <script type="module" src="./wordmath_app.js"></script>
   </body>
 </html>
