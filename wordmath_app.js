@@ -129,6 +129,16 @@ const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
 const FLOATING_MATCH_PREVIEW_WIDTH = 190;
 const FLOATING_MATCH_PREVIEW_HEIGHT = 152;
+const QUEST_COMPLETION_NOTICE_MS = 3600;
+const QUEST_COMPLETION_FIREWORK_BURSTS = 5;
+const QUEST_COMPLETION_FIREWORK_PARTICLES = 12;
+const QUEST_COMPLETION_FIREWORK_COLORS = [
+  "#ffd86b",
+  "#9af0ad",
+  "#7aa4ff",
+  "#f5a6ff",
+  "#ff9cab",
+];
 const DEFAULT_CATEGORY_ID = "uncategorized";
 const MATCH_HISTORY_LIMIT = 100;
 const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
@@ -353,6 +363,7 @@ const state = {
     remainingDiscoveries: 0,
     turnsTaken: 0,
     isLost: false,
+    isWon: false,
   },
   shopWordBooster: {
     isOpen: false,
@@ -430,6 +441,8 @@ const els = {
   questLossModal: document.querySelector("[data-quest-loss-modal]"),
   questLossWord: document.querySelector("[data-quest-loss-word]"),
   questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
+  questWinModal: document.querySelector("[data-quest-win-modal]"),
+  questGoAgainButton: document.querySelector("[data-action='quest-go-again']"),
 };
 
 let pendingProgressSave = null;
@@ -437,6 +450,9 @@ let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
 let activeFloatingWordNotice = null;
 let activeFloatingWordNoticeTimeout = null;
+let activeQuestCompletionNotice = null;
+let activeQuestCompletionNoticeTimeout = null;
+let activeQuestStripCelebrationTimeout = null;
 let cachedShopWordBoosterPool = null;
 let shopWordBoosterPoolPromise = null;
 const associationPreviewCache = new Map();
@@ -821,14 +837,39 @@ function mergePositionTokenRewardSummary(target, source) {
   });
 }
 
+function getUndiscoveredEncyclopediaWords() {
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  return ENCYCLOPEDIA_WORDS
+    .map((entry) => entry.word)
+    .filter((word) => !discoveredWords.has(word));
+}
+
 function sampleQuestWord(previousWord = null) {
+  const undiscoveredWords = getUndiscoveredEncyclopediaWords();
+  if (!undiscoveredWords.length) {
+    return null;
+  }
   const pool = previousWord
-    ? ENCYCLOPEDIA_WORDS
-      .map((entry) => entry.word)
-      .filter((word) => word !== previousWord)
-    : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
-  const fallbackPool = pool.length > 0 ? pool : ENCYCLOPEDIA_WORDS.map((entry) => entry.word);
+    ? undiscoveredWords.filter((word) => word !== previousWord)
+    : undiscoveredWords;
+  const fallbackPool = pool.length > 0 ? pool : undiscoveredWords;
   return fallbackPool[Math.floor(Math.random() * fallbackPool.length)] ?? null;
+}
+
+function setQuestVictoryState({ questNumber = state.quest.number } = {}) {
+  state.quest.number = Math.max(1, getSafeCount(questNumber, 1));
+  state.quest.targetWord = null;
+  state.quest.remainingDiscoveries = 0;
+  state.quest.turnsTaken = 0;
+  state.quest.isLost = false;
+  state.quest.isWon = true;
+  return {
+    number: state.quest.number,
+    targetWord: null,
+    remainingDiscoveries: 0,
+    turnsTaken: 0,
+    isWon: true,
+  };
 }
 
 function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) {
@@ -845,15 +886,20 @@ function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) 
 function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
   state.quest.number = initial ? 1 : Math.max(2, getSafeCount(state.quest.number, 1) + 1);
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
+  if (!state.quest.targetWord) {
+    return setQuestVictoryState({ questNumber: state.quest.number });
+  }
   const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
   state.quest.remainingDiscoveries = baseTurns + getSafeCount(carryOverTurns);
   state.quest.turnsTaken = 0;
   state.quest.isLost = false;
+  state.quest.isWon = false;
   return {
     number: state.quest.number,
     targetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
     turnsTaken: state.quest.turnsTaken,
+    isWon: false,
   };
 }
 
@@ -914,6 +960,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
   const questResult = {
     completedQuest: false,
     failedQuest: false,
+    completedEncyclopedia: false,
     completedTargetWord: state.quest.targetWord,
     nextTargetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
@@ -926,7 +973,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
     questSpeedBonusCoins: 0,
     questTotalCoins: 0,
   };
-  if (!state.quest.targetWord || state.quest.isLost) {
+  if (!state.quest.targetWord || state.quest.isLost || state.quest.isWon) {
     return questResult;
   }
 
@@ -947,6 +994,7 @@ function advanceQuest(canonicalResult, { didDiscoverNewWord = false, questMatche
       carryOverTurns,
     });
     questResult.completedQuest = true;
+    questResult.completedEncyclopedia = Boolean(nextQuest.isWon);
     questResult.completedTargetWord = completedTargetWord;
     questResult.nextTargetWord = nextQuest.targetWord;
     questResult.remainingDiscoveries = nextQuest.remainingDiscoveries;
@@ -1058,6 +1106,7 @@ function buildProgressSnapshot() {
       remainingDiscoveries: state.quest.remainingDiscoveries,
       turnsTaken: state.quest.turnsTaken,
       isLost: state.quest.isLost,
+      isWon: state.quest.isWon,
     },
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
@@ -1282,12 +1331,17 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
   const savedQuestTurnsTaken = Math.max(0, getSafeCount(snapshot.quest?.turnsTaken));
   const savedQuestLost = Boolean(snapshot.quest?.isLost);
-  if (savedQuestTarget && (savedQuestRemaining > 0 || savedQuestLost)) {
+  const savedQuestWon = Boolean(snapshot.quest?.isWon);
+  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+  if (getUndiscoveredEncyclopediaWords().length === 0 || savedQuestWon) {
+    setQuestVictoryState({ questNumber: savedQuestNumber });
+  } else if (savedQuestTarget && !discoveredEncyclopediaWords.has(savedQuestTarget) && (savedQuestRemaining > 0 || savedQuestLost)) {
     state.quest.number = savedQuestNumber;
     state.quest.targetWord = savedQuestTarget;
     state.quest.remainingDiscoveries = savedQuestRemaining;
     state.quest.turnsTaken = savedQuestTurnsTaken;
     state.quest.isLost = savedQuestLost;
+    state.quest.isWon = false;
   } else {
     assignNewQuest({ initial: true });
   }
@@ -1907,6 +1961,154 @@ function setStatus(message, stateName = "ok") {
   els.status.dataset.state = stateName;
 }
 
+function clearQuestCompletionNotice() {
+  if (activeQuestCompletionNoticeTimeout !== null) {
+    window.clearTimeout(activeQuestCompletionNoticeTimeout);
+    activeQuestCompletionNoticeTimeout = null;
+  }
+  if (activeQuestCompletionNotice) {
+    activeQuestCompletionNotice.remove();
+    activeQuestCompletionNotice = null;
+  }
+}
+
+function triggerQuestStripCelebration() {
+  if (!els.questStrip) {
+    return;
+  }
+  if (activeQuestStripCelebrationTimeout !== null) {
+    window.clearTimeout(activeQuestStripCelebrationTimeout);
+    activeQuestStripCelebrationTimeout = null;
+  }
+  els.questStrip.classList.remove("quest-strip-celebrating");
+  void els.questStrip.offsetWidth;
+  els.questStrip.classList.add("quest-strip-celebrating");
+  activeQuestStripCelebrationTimeout = window.setTimeout(() => {
+    els.questStrip?.classList.remove("quest-strip-celebrating");
+    activeQuestStripCelebrationTimeout = null;
+  }, 1200);
+}
+
+function showQuestCompletionNotice(questResult, overflowMessage = "") {
+  if (!questResult?.completedQuest) {
+    return;
+  }
+
+  clearQuestCompletionNotice();
+
+  const notice = document.createElement("section");
+  notice.className = "quest-complete-toast";
+  notice.setAttribute("role", "status");
+  notice.setAttribute("aria-live", "polite");
+
+  const title = document.createElement("div");
+  title.className = "quest-complete-toast-title";
+  title.textContent = "Quest Complete!";
+
+  const body = document.createElement("div");
+  body.className = "quest-complete-toast-body";
+  body.textContent = `${titleCase(questResult.completedTargetWord)} found. +${questResult.questTotalCoins} coins.`;
+
+  const next = document.createElement("div");
+  next.className = "quest-complete-toast-next";
+  next.textContent = questResult.completedEncyclopedia
+    ? "Encyclopedia complete. Run finished."
+    : `Next target: ${titleCase(questResult.nextTargetWord)}.`;
+
+  notice.append(title, body, next);
+
+  if (overflowMessage) {
+    const extra = document.createElement("div");
+    extra.className = "quest-complete-toast-extra";
+    extra.textContent = overflowMessage;
+    notice.append(extra);
+  }
+
+  document.body.append(notice);
+  activeQuestCompletionNotice = notice;
+  window.requestAnimationFrame(() => {
+    notice.dataset.visible = "true";
+  });
+  activeQuestCompletionNoticeTimeout = window.setTimeout(() => {
+    clearQuestCompletionNotice();
+  }, QUEST_COMPLETION_NOTICE_MS);
+}
+
+function showQuestCompletionFireworks() {
+  const layer = document.createElement("div");
+  layer.className = "quest-fireworks-layer";
+
+  for (let burstIndex = 0; burstIndex < QUEST_COMPLETION_FIREWORK_BURSTS; burstIndex += 1) {
+    const burst = document.createElement("div");
+    burst.className = "quest-firework-burst";
+    burst.style.left = `${16 + (burstIndex * 17) + ((Math.random() * 6) - 3)}%`;
+    burst.style.top = `${18 + (((burstIndex + 1) % 2) * 10) + (Math.random() * 7)}%`;
+    burst.style.setProperty("--particle-delay", `${burstIndex * 90}ms`);
+
+    for (let particleIndex = 0; particleIndex < QUEST_COMPLETION_FIREWORK_PARTICLES; particleIndex += 1) {
+      const particle = document.createElement("span");
+      particle.className = "quest-firework-particle";
+      particle.style.setProperty(
+        "--angle",
+        `${((360 / QUEST_COMPLETION_FIREWORK_PARTICLES) * particleIndex) + ((Math.random() * 12) - 6)}deg`,
+      );
+      particle.style.setProperty("--distance", `${54 + Math.random() * 34}px`);
+      particle.style.setProperty("--particle-delay", `${burstIndex * 90}ms`);
+      particle.style.setProperty("--particle-duration", `${760 + Math.random() * 240}ms`);
+      particle.style.setProperty(
+        "--particle-color",
+        QUEST_COMPLETION_FIREWORK_COLORS[(particleIndex + burstIndex) % QUEST_COMPLETION_FIREWORK_COLORS.length],
+      );
+      burst.append(particle);
+    }
+
+    layer.append(burst);
+  }
+
+  document.body.append(layer);
+  window.setTimeout(() => {
+    layer.remove();
+  }, 1800);
+}
+
+function resolveOutcomeStatus(status, { vocabularyOverflow = null, questResult = null } = {}) {
+  if (!vocabularyOverflow) {
+    return {
+      message: status.message,
+      stateName: status.stateName,
+      overflowMessage: "",
+    };
+  }
+
+  if (questResult?.completedQuest) {
+    return {
+      message: `${status.message} ${vocabularyOverflow.message}`.trim(),
+      stateName: "reward",
+      overflowMessage: vocabularyOverflow.message,
+    };
+  }
+
+  return {
+    message: vocabularyOverflow.message,
+    stateName: vocabularyOverflow.stateName || status.stateName,
+    overflowMessage: "",
+  };
+}
+
+function applyOutcomeStatus(status, { vocabularyOverflow = null, questResult = null } = {}) {
+  const resolvedStatus = resolveOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+  });
+  setStatus(resolvedStatus.message, resolvedStatus.stateName);
+
+  if (questResult?.completedQuest) {
+    triggerQuestStripCelebration();
+    showQuestCompletionNotice(questResult, resolvedStatus.overflowMessage);
+    showQuestCompletionFireworks();
+  }
+}
+
 function clearFloatingCandidatePreview() {
   if (activeFloatingCandidatePreviewTimeout !== null) {
     window.clearTimeout(activeFloatingCandidatePreviewTimeout);
@@ -2182,10 +2384,14 @@ function updateCounts() {
 }
 
 function renderQuest() {
-  const targetWord = state.quest.targetWord ? titleCase(state.quest.targetWord) : "None";
-  const countdown = state.quest.remainingDiscoveries;
+  const targetWord = state.quest.isWon
+    ? "Encyclopedia complete"
+    : (state.quest.targetWord ? titleCase(state.quest.targetWord) : "None");
+  const countdown = state.quest.isWon ? "0" : state.quest.remainingDiscoveries;
   let questState = "active";
-  if (state.quest.isLost) {
+  if (state.quest.isWon) {
+    questState = "active";
+  } else if (state.quest.isLost) {
     questState = "danger";
   } else if (countdown <= 10) {
     questState = "danger";
@@ -2198,6 +2404,7 @@ function renderQuest() {
   els.questStrip.dataset.state = questState;
   els.questLossWord.textContent = targetWord;
   els.questLossModal.hidden = !state.quest.isLost;
+  els.questWinModal.hidden = !state.quest.isWon;
 }
 
 function getWordKey(word) {
@@ -2852,7 +3059,7 @@ async function useWildcardToken(position = null) {
       questResult,
     },
   );
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function refundNegativeMixToken() {
@@ -3357,6 +3564,10 @@ function getQuestCompletionMessage(questResult) {
   let rewardText = `${questResult.questTotalCoins} coins`;
   if (questResult.questSpeedBonusCoins > 0) {
     rewardText = `${rewardText}, including a ${questResult.questSpeedBonusCoins}-coin speed bonus for finishing in ${questResult.turnsTaken} turns`;
+  }
+
+  if (questResult.completedEncyclopedia) {
+    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Encyclopedia complete. Run finished.`;
   }
 
   return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
@@ -3890,7 +4101,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       status.stateName = "success";
     }
   }
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 async function handleMix(firstTile, secondTile, clientPoint = null) {
@@ -3988,7 +4199,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       status.stateName = "success";
     }
   }
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function rememberResult(result, normalized = result, metadata = {}) {
@@ -4241,7 +4452,7 @@ async function runNegativeMix(clientPoint = null) {
     }
   }
   hideNegativeMixAfterUse();
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 function clearNegativeMix() {
@@ -4639,7 +4850,7 @@ function renderShopWordBooster() {
         completedCategories,
         questResult,
       });
-      setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+      applyOutcomeStatus(status, { vocabularyOverflow, questResult });
     });
     els.shopWordBoosterGrid.append(button);
   });
@@ -4738,7 +4949,7 @@ async function promptSpawnWord() {
     completedCategories,
     questResult,
   });
-  setStatus(vocabularyOverflow?.message || status.message, vocabularyOverflow?.stateName || status.stateName);
+  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
 async function importSaveSnapshotFromFile(file) {
@@ -4820,6 +5031,7 @@ function resetRun() {
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
   state.quest.number = 1;
+  state.quest.isWon = false;
   state.shopWordBooster.isOpen = false;
   state.shopWordBooster.isLoading = false;
   state.shopWordBooster.options = [];
@@ -4828,6 +5040,7 @@ function resetRun() {
   state.nextZIndex = 1;
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
+  els.questWinModal.hidden = true;
 
   updatePlayfieldCamera();
   renderSidebar();
@@ -5043,6 +5256,7 @@ function initEvents() {
   els.exportSaveButton.addEventListener("click", exportSaveSnapshot);
   els.importSaveButton.addEventListener("click", promptSaveImport);
   els.questTryAgainButton.addEventListener("click", resetRun);
+  els.questGoAgainButton.addEventListener("click", resetRun);
   els.spawnExistingWordsToggle.addEventListener("change", () => {
     state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
     queueProgressSave();

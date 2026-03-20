@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WordMath Mixer - The Scholarly Editorial</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,900&amp;family=Work+Sans:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "tertiary-fixed": "#ffdad7",
+              "inverse-surface": "#303221",
+              "error-container": "#ffdad6",
+              "primary-fixed": "#d7e2ff",
+              "on-primary-container": "#828da7",
+              "secondary-fixed": "#bcf0ae",
+              "surface-bright": "#fbfbe2",
+              "tertiary-container": "#3a1e1c",
+              "on-error-container": "#93000a",
+              "outline": "#75777d",
+              "secondary-container": "#b9eeab",
+              "primary-fixed-dim": "#bbc6e2",
+              "tertiary": "#210a09",
+              "on-secondary": "#ffffff",
+              "on-tertiary": "#ffffff",
+              "surface-variant": "#e4e4cc",
+              "inverse-on-surface": "#f2f2d9",
+              "inverse-primary": "#bbc6e2",
+              "on-tertiary-fixed": "#2e1413",
+              "on-primary-fixed": "#101b30",
+              "primary-container": "#1b263b",
+              "surface-dim": "#dbdcc3",
+              "on-tertiary-fixed-variant": "#5f3e3c",
+              "on-primary-fixed-variant": "#3c475d",
+              "tertiary-fixed-dim": "#eabcb8",
+              "surface": "#fbfbe2",
+              "on-surface-variant": "#45474d",
+              "error": "#ba1a1a",
+              "on-error": "#ffffff",
+              "on-secondary-fixed-variant": "#23501e",
+              "on-secondary-fixed": "#002201",
+              "surface-tint": "#545e76",
+              "surface-container-highest": "#e4e4cc",
+              "on-background": "#1b1d0e",
+              "surface-container-low": "#f5f5dc",
+              "background": "#fbfbe2",
+              "surface-container-lowest": "#ffffff",
+              "secondary-fixed-dim": "#a1d494",
+              "primary": "#051125",
+              "on-surface": "#1b1d0e",
+              "on-primary": "#ffffff",
+              "secondary": "#3b6934",
+              "surface-container": "#efefd7",
+              "on-tertiary-container": "#ac8380",
+              "outline-variant": "#c5c6cd",
+              "on-secondary-container": "#3f6d38",
+              "surface-container-high": "#eaead1"
+            },
+            fontFamily: {
+              "headline": ["Noto Serif"],
+              "body": ["Work Sans"],
+              "label": ["Work Sans"]
+            },
+            borderRadius: {"DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"},
+          },
+        },
+      }
+    </script>
+<style>body {
+    background-color: #fbfbe2;
+    color: #1b1d0e;
+    font-family: "Work Sans", sans-serif
+    }
+.material-symbols-outlined {
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24
+    }
+.parchment-texture {
+    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuAF_FR6yO1GosZWrW4W9l5gNThclJ8Lfwor8Jg7FHu8fuFGzoRzMMJsjldxYNJ3nL2dwcOnqIQ8BS47Xx0AtLCnsOyvmsGCmfmUdgqDYIlRC5dYYwT4N95UZ5oyHm8-swbLCiYZSDn4ZYfZzJZHlhwswQcW_Z4KTMkPCF3R8u9W-xZ3T6bqLfMmUaPPP5ubkkwP272hEtx3rygX-d8lqyKXx7DH9vt6pXKRRZXkXBAOdyf9trESqCl0id3pO32fYLOlnwwZyTBx0-o)
+    }
+.desk-surface {
+    background-color: #f5f5dc;
+    background-image: 
+        radial-gradient(#1b1d0e08 1px, transparent 0),
+        url(https://lh3.googleusercontent.com/aida-public/AB6AXuAF_FR6yO1GosZWrW4W9l5gNThclJ8Lfwor8Jg7FHu8fuFGzoRzMMJsjldxYNJ3nL2dwcOnqIQ8BS47Xx0AtLCnsOyvmsGCmfmUdgqDYIlRC5dYYwT4N95UZ5oyHm8-swbLCiYZSDn4ZYfZzJZHlhwswQcW_Z4KTMkPCF3R8u9W-xZ3T6bqLfMmUaPPP5ubkkwP272hEtx3rygX-d8lqyKXx7DH9vt6pXKRRZXkXBAOdyf9trESqCl0id3pO32fYLOlnwwZyTBx0-o);
+    background-size: 40px 40px, auto;
+    background-blend-mode: multiply;
+}
+.brass-gradient {
+    background: linear-gradient(145deg, #d4af37 0%, #f5f5dc 100%)
+    }</style>
+</head>
+<body class="bg-background text-on-surface selection:bg-secondary-container selection:text-on-secondary-container overflow-hidden">
+<!-- TopAppBar Shell -->
+<header class="w-full top-0 sticky z-50 bg-gradient-to-b from-[#fbfbe2] to-[#f5f5dc] shadow-sm flex justify-between items-center px-8 py-4 max-w-none">
+<div class="flex items-center gap-8">
+<span class="font-serif italic font-black text-[#1B263B] text-2xl tracking-tight">WordMath Mixer</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-[#1B263B] border-b-2 border-[#1B263B] pb-1 font-serif text-sm font-bold" href="#">New Game</a>
+<a class="text-[#1B263B]/60 hover:text-[#1B263B] transition-colors font-serif text-sm" href="#">Match History</a>
+<a class="text-[#1B263B]/60 hover:text-[#1B263B] transition-colors font-serif text-sm" href="#">Encyclopedia (1/80)</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="p-2 rounded-full hover:bg-[#f5f5dc]/50 transition-colors text-[#1B263B] scale-95 active:scale-90 transition-transform">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</header>
+<main class="flex h-[calc(100vh-72px)] overflow-hidden">
+<!-- Main Game Canvas -->
+<section class="flex-grow relative flex flex-col items-center p-6 desk-surface overflow-hidden">
+<!-- Gameplay Actions Bar -->
+<div class="w-full max-w-4xl flex items-center justify-between gap-4 mb-6">
+<div class="flex-1 max-w-xs relative group">
+<select class="w-full bg-surface-container-lowest border-2 border-primary/10 rounded-xl py-2.5 px-5 text-sm font-body font-semibold shadow-sm focus:ring-2 focus:ring-secondary appearance-none cursor-pointer">
+<option>Purchase Tokens</option>
+<option>Common Edition</option>
+<option>Rare Manuscript</option>
+<option>Epic Volume</option>
+<option>Legendary Tome</option>
+</select>
+<span class="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-outline">expand_more</span>
+</div>
+<button class="bg-tertiary-container hover:bg-tertiary-container/90 transition-all duration-200 px-6 py-2.5 rounded-xl flex items-center gap-3 shadow-md border-b-2 border-black/20">
+<div class="w-6 h-6 rounded bg-[#d4af37]/20 flex items-center justify-center text-[#d4af37]">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+</div>
+<span class="font-body font-bold text-tertiary-fixed text-sm">Word Booster</span>
+<div class="bg-surface-tint text-white px-2 py-0.5 rounded text-[10px] font-black">50G</div>
+</button>
+</div>
+<!-- Quest Target Area (The Brass Plaque) -->
+<div class="w-full max-w-3xl mb-8">
+<div class="relative bg-tertiary-container rounded-xl p-1 shadow-2xl">
+<div class="bg-gradient-to-br from-[#d4af37]/20 to-transparent absolute inset-0 rounded-xl pointer-events-none"></div>
+<div class="flex items-center justify-between px-10 py-8 rounded-lg bg-surface-container-high relative overflow-hidden">
+<div class="flex flex-col">
+<span class="text-xs font-label uppercase tracking-[0.2em] text-on-surface-variant font-bold">Objective Manuscript</span>
+<h1 class="font-headline text-5xl font-bold text-primary tracking-tight">Airplane</h1>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-xs font-label uppercase tracking-widest text-error font-bold">Ink Remaining</span>
+<div class="flex items-center gap-3">
+<span class="font-headline text-4xl font-black text-tertiary">19</span>
+<span class="material-symbols-outlined text-tertiary text-3xl">history_edu</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Mixing Field (The Desktop) -->
+<div class="w-full h-full relative p-8 bg-black/5 rounded-[3rem] border-2 border-primary/5 inner-shadow-lg cursor-default">
+<!-- Scattered Word Tiles -->
+<!-- These are styled to look like cards on a desk -->
+<button class="absolute top-[10%] left-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Sunlight</span>
+</button>
+<button class="absolute top-[25%] left-[45%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Sunshine</span>
+</button>
+<button class="absolute top-[15%] right-[10%] group bg-tertiary-container shadow-2xl px-10 py-6 rounded-lg border-b-4 border-r-4 border-black/20 transform rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-tertiary-fixed font-black">Earth</span>
+</button>
+<button class="absolute bottom-[20%] left-[10%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-3 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Cloudy</span>
+</button>
+<button class="absolute top-[50%] left-[30%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-1 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Falling</span>
+</button>
+<button class="absolute bottom-[15%] right-[25%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Up</span>
+</button>
+<button class="absolute bottom-[40%] right-[15%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-6 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Down</span>
+</button>
+<button class="absolute top-[60%] right-[40%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform -rotate-4 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Heaven</span>
+</button>
+<button class="absolute bottom-[45%] left-[55%] group bg-surface-container-lowest shadow-xl px-8 py-5 rounded-lg border-b-4 border-r-4 border-black/10 transform rotate-2 hover:-translate-y-1 hover:rotate-0 transition-all cursor-grab active:cursor-grabbing">
+<span class="font-headline text-2xl text-primary font-bold">Sky</span>
+</button>
+</div>
+</section>
+<!-- SideNavBar (Library Archives) -->
+<aside class="w-80 h-full bg-[#f5f5dc] border-l border-[#1B263B]/10 shadow-[-10px_0_30px_rgba(27,29,14,0.06)] flex flex-col shrink-0">
+<div class="p-8 pb-4">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h2 class="font-headline font-bold text-[#1B263B] text-xl">Library Archives</h2>
+<p class="font-body text-xs uppercase tracking-widest text-[#1B263B]/60 font-medium">Curator's Collection</p>
+</div>
+<div class="flex items-center gap-2 bg-white/50 px-3 py-1.5 rounded-full shadow-sm border border-primary/5">
+<span class="material-symbols-outlined text-[#d4af37]" style="font-variation-settings: 'FILL' 1;">monetization_on</span>
+<span class="font-headline font-bold text-[#1B263B]">142</span>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex gap-1 bg-surface-container-highest/30 p-1 rounded-xl mb-8">
+<button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter text-[#1B263B]/60">Discovered</button>
+<button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter text-[#1B263B]/60">Tokens</button>
+<button class="flex-1 py-2 text-xs font-label font-bold uppercase tracking-tighter bg-[#1B263B] text-[#f5f5dc] rounded-lg shadow-md">Shop</button>
+</div>
+</div>
+<div class="flex-grow px-8 overflow-y-auto space-y-8">
+<section>
+<label class="block text-[10px] uppercase tracking-[0.2em] font-bold text-on-surface-variant mb-4">Quick References</label>
+<div class="space-y-3">
+<div class="p-4 bg-surface-container-highest/40 rounded-xl flex items-center gap-4 hover:bg-surface-container-highest/60 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-primary">menu_book</span>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-primary">Lexicon Guide</span>
+<span class="text-[10px] text-on-surface-variant">Learn common pairings</span>
+</div>
+</div>
+<div class="p-4 bg-surface-container-highest/40 rounded-xl flex items-center gap-4 hover:bg-surface-container-highest/60 transition-colors cursor-pointer">
+<span class="material-symbols-outlined text-primary">auto_stories</span>
+<div class="flex flex-col">
+<span class="text-xs font-bold text-primary">Mastery Log</span>
+<span class="text-[10px] text-on-surface-variant">View your achievements</span>
+</div>
+</div>
+</div>
+</section>
+<section>
+<div class="p-6 bg-tertiary-container/5 rounded-2xl border border-tertiary-container/10">
+<p class="font-headline italic text-sm text-primary mb-2">"Words are, in my not-so-humble opinion, our most inexhaustible source of magic."</p>
+<p class="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest text-right">— The Curator</p>
+</div>
+</section>
+</div>
+<div class="p-8 pt-4">
+<button class="w-full bg-[#1B263B] text-[#f5f5dc] py-4 rounded-xl font-headline font-bold text-sm shadow-xl hover:bg-black transition-all active:translate-y-0.5">
+                    Back to Library
+                </button>
+</div>
+</aside>
+</main>
+</body></html>
