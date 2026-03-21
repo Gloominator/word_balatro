@@ -305,6 +305,45 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" data-category-zone-style-modal hidden>
+      <section class="modal-card category-zone-style-modal" role="dialog" aria-modal="true" aria-labelledby="category-zone-style-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="category-zone-style-title" data-category-zone-style-title>Category zone style</h2>
+            <p class="muted">Radial hue and saturation, brightness, tint strength, and circle radius. Applies to every zone of this category and new drops.</p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-category-zone-style">Close</button>
+        </div>
+        <div class="category-zone-style-body">
+          <div class="category-zone-wheel-wrap">
+            <canvas class="category-zone-wheel" data-category-zone-wheel width="220" height="220" aria-label="Pick hue and saturation"></canvas>
+            <p class="muted category-zone-wheel-hint">Center is pale; rim is vivid. Angle is hue.</p>
+          </div>
+          <div class="category-zone-style-controls">
+            <label class="category-zone-slider-label">
+              <span>Brightness</span>
+              <input type="range" data-category-zone-value-slider min="0" max="100" value="100">
+            </label>
+            <label class="category-zone-slider-label">
+              <span>Tint opacity</span>
+              <input type="range" data-category-zone-opacity-slider min="0" max="100" value="22">
+            </label>
+            <label class="category-zone-slider-label">
+              <span>Radius (px)</span>
+              <input type="range" data-category-zone-radius-slider min="48" max="720" value="304">
+            </label>
+            <div class="category-zone-preview-row">
+              <span class="muted">Preview</span>
+              <span class="category-zone-preview-swatch" data-category-zone-preview></span>
+            </div>
+          </div>
+        </div>
+        <div class="settings-actions">
+          <button type="button" data-action="save-category-zone-style">Apply</button>
+        </div>
+      </section>
+    </div>
+
     <div class="modal-backdrop" data-quest-win-modal hidden>
       <section class="modal-card quest-win-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-win-title">
         <div class="modal-head">

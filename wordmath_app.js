@@ -148,15 +148,18 @@ const QUEST_COMPLETION_FIREWORK_COLORS = [
   "#ff9cab",
 ];
 const DEFAULT_CATEGORY_ID = "uncategorized";
+const DEFAULT_CATEGORY_ZONE_RADIUS = TILE_WIDTH * 2;
+const CATEGORY_ZONE_MIN_RADIUS = 48;
+const CATEGORY_ZONE_MAX_RADIUS = 720;
+const CATEGORY_ZONE_DEFAULT_COLOR = "#c62828";
+const CATEGORY_ZONE_DEFAULT_OPACITY = 0.22;
+const CATEGORY_ZONE_WIDGET_BASE_Z = 50;
 const MATCH_HISTORY_LIMIT = 100;
 const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
 const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
-const AVAILABLE_WORD_LIMIT = 50;
-const AVAILABLE_WORD_CAP_UPGRADE_STEP = 10;
-const AVAILABLE_WORD_CAP_UPGRADE_BASE_COST = 500;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
@@ -302,17 +305,6 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
-    id: "shop-available-word-cap",
-    title: "Available Words Cap +10",
-    cost: AVAILABLE_WORD_CAP_UPGRADE_BASE_COST,
-    description: "",
-    canPurchase: () => true,
-    purchase: () => {
-      state.purchasedUpgrades.availableWordCap = getAvailableWordCapUpgradeLevel() + 1;
-      return `Available words cap increased to ${getAvailableWordLimit()}.`;
-    },
-  },
-  {
     id: "shop-playfield-pan-zoom",
     title: "Field Pan & Zoom",
     cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
@@ -373,7 +365,6 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
 
 /** Cap / quest upgrades stay in the sidebar Shop tab. */
 const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
-  "shop-available-word-cap",
   "shop-playfield-pan-zoom",
   "shop-playfield-expand",
   "shop-playfield-expand-2",
@@ -421,6 +412,7 @@ const state = {
   historySort: "recent",
   wordCategories: [],
   wordAssignments: new Map(),
+  categoryZones: [],
   googlePickMode: false,
   clickTracker: {
     word: null,
@@ -513,6 +505,15 @@ const els = {
   clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
   runNegativeButton: document.querySelector("[data-action='run-negative']"),
   addCategoryButton: document.querySelector("[data-action='add-category']"),
+  categoryZoneStyleModal: document.querySelector("[data-category-zone-style-modal]"),
+  categoryZoneStyleTitle: document.querySelector("[data-category-zone-style-title]"),
+  categoryZoneWheel: document.querySelector("[data-category-zone-wheel]"),
+  categoryZoneValueSlider: document.querySelector("[data-category-zone-value-slider]"),
+  categoryZoneOpacitySlider: document.querySelector("[data-category-zone-opacity-slider]"),
+  categoryZoneRadiusSlider: document.querySelector("[data-category-zone-radius-slider]"),
+  categoryZonePreview: document.querySelector("[data-category-zone-preview]"),
+  closeCategoryZoneStyleButton: document.querySelector("[data-action='close-category-zone-style']"),
+  saveCategoryZoneStyleButton: document.querySelector("[data-action='save-category-zone-style']"),
   toggleGooglePickButton: document.querySelector("[data-action='toggle-google-pick']"),
   sidebarTitle: document.querySelector("[data-sidebar-title]"),
   openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
@@ -551,6 +552,7 @@ const els = {
 };
 
 let pendingProgressSave = null;
+let editingCategoryZoneStyleCategoryId = null;
 let activeFloatingCandidatePreview = null;
 let activeFloatingCandidatePreviewTimeout = null;
 let activeFloatingWordNotice = null;
@@ -589,18 +591,6 @@ function getPlayfieldUpgradeTier() {
 
 function getMaximumPlayfieldZoom() {
   return getPlayfieldUpgradeTier() < 1 ? 1 : MAX_PLAYFIELD_ZOOM;
-}
-
-function getAvailableWordCapUpgradeLevel() {
-  return getSafeCount(state.purchasedUpgrades.availableWordCap);
-}
-
-function getAvailableWordLimit() {
-  return AVAILABLE_WORD_LIMIT + (getAvailableWordCapUpgradeLevel() * AVAILABLE_WORD_CAP_UPGRADE_STEP);
-}
-
-function getAvailableWordCapUpgradeCost(level = getAvailableWordCapUpgradeLevel()) {
-  return AVAILABLE_WORD_CAP_UPGRADE_BASE_COST * (level + 1);
 }
 
 function normalizeSavedShopPurchaseCounts(value) {
@@ -643,9 +633,6 @@ function getShopItemCost(item) {
   if (!item) {
     return 0;
   }
-  if (item.id === "shop-available-word-cap") {
-    return getAvailableWordCapUpgradeCost();
-  }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
     return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id), item.id);
   }
@@ -653,11 +640,6 @@ function getShopItemCost(item) {
 }
 
 function getShopItemDescription(item) {
-  if (item.id === "shop-available-word-cap") {
-    const currentCap = getAvailableWordLimit();
-    const nextCap = currentCap + AVAILABLE_WORD_CAP_UPGRADE_STEP;
-    return `Increase the available words cap by +${AVAILABLE_WORD_CAP_UPGRADE_STEP}. Current cap ${currentCap}, next cap ${nextCap}.`;
-  }
   return item.description;
 }
 
@@ -1201,7 +1183,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 4,
+    version: 5,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     selfMatchedWords: [...state.selfMatchedWords],
@@ -1234,8 +1216,24 @@ function buildProgressSnapshot() {
       id: category.id,
       name: category.name,
       collapsed: Boolean(category.collapsed),
+      zoneColor: typeof category.zoneColor === "string" ? category.zoneColor : undefined,
+      zoneOpacity: Number.isFinite(category.zoneOpacity) ? category.zoneOpacity : undefined,
+      zoneRadius: Number.isFinite(category.zoneRadius) ? category.zoneRadius : undefined,
     })),
-    wordAssignments: [...state.wordAssignments.entries()],
+    wordAssignments: [...state.wordAssignments.entries()].map(([key, value]) => [
+      key,
+      value instanceof Set ? [...value] : [],
+    ]),
+    categoryZones: state.categoryZones.map((zone) => ({
+      id: zone.id,
+      categoryId: zone.categoryId,
+      x: zone.x,
+      y: zone.y,
+      radius: zone.radius,
+      color: zone.color,
+      opacity: zone.opacity,
+      createdAt: zone.createdAt,
+    })),
     recentDiscoveredWordKeys: [...state.recentDiscoveredWordKeys],
     removedResultWords: [...state.removedResultWords],
     hiddenWordPanelWords: [...state.hiddenWordPanelWords],
@@ -1362,6 +1360,11 @@ function normalizeSavedCategories(value) {
         id: category.id,
         name: category.name,
         collapsed: Boolean(category.collapsed),
+        zoneColor: typeof category.zoneColor === "string" ? category.zoneColor : undefined,
+        zoneOpacity: Number.isFinite(category.zoneOpacity)
+          ? clamp(category.zoneOpacity, 0, 1)
+          : undefined,
+        zoneRadius: Number.isFinite(category.zoneRadius) ? category.zoneRadius : undefined,
       }))
     : [];
 
@@ -1374,6 +1377,55 @@ function normalizeSavedCategories(value) {
   }
 
   return categories;
+}
+
+function normalizeSavedCategoryZones(value, validCategoryIds) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((zone) => zone && typeof zone.id === "string" && typeof zone.categoryId === "string"
+      && validCategoryIds.has(zone.categoryId))
+    .map((zone) => ({
+      id: zone.id,
+      categoryId: zone.categoryId,
+      x: Number.isFinite(zone.x) ? zone.x : 0,
+      y: Number.isFinite(zone.y) ? zone.y : 0,
+      radius: Number.isFinite(zone.radius)
+        ? clamp(zone.radius, CATEGORY_ZONE_MIN_RADIUS, CATEGORY_ZONE_MAX_RADIUS)
+        : DEFAULT_CATEGORY_ZONE_RADIUS,
+      color: typeof zone.color === "string" ? zone.color : CATEGORY_ZONE_DEFAULT_COLOR,
+      opacity: Number.isFinite(zone.opacity)
+        ? clamp(zone.opacity, 0, 1)
+        : CATEGORY_ZONE_DEFAULT_OPACITY,
+      createdAt: Number.isFinite(zone.createdAt) ? zone.createdAt : 0,
+    }));
+}
+
+function normalizeSavedWordAssignments(value, validCategoryIds) {
+  const map = new Map();
+  if (!Array.isArray(value)) {
+    return map;
+  }
+  value.forEach((entry) => {
+    if (!Array.isArray(entry) || typeof entry[0] !== "string") {
+      return;
+    }
+    const wordKey = entry[0];
+    const raw = entry[1];
+    const set = new Set();
+    if (Array.isArray(raw)) {
+      raw.forEach((id) => {
+        if (typeof id === "string" && id !== DEFAULT_CATEGORY_ID && validCategoryIds.has(id)) {
+          set.add(id);
+        }
+      });
+    } else if (typeof raw === "string" && raw !== DEFAULT_CATEGORY_ID && validCategoryIds.has(raw)) {
+      set.add(raw);
+    }
+    map.set(wordKey, set);
+  });
+  return map;
 }
 
 function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
@@ -1399,15 +1451,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   const tileIds = new Set(tiles.map((tile) => tile.id));
   const categories = normalizeSavedCategories(snapshot.wordCategories);
   const validCategoryIds = new Set(categories.map((category) => category.id));
-  const wordAssignments = new Map(
-    Array.isArray(snapshot.wordAssignments)
-      ? snapshot.wordAssignments.filter((entry) =>
-        Array.isArray(entry)
-        && typeof entry[0] === "string"
-        && typeof entry[1] === "string"
-        && validCategoryIds.has(entry[1]))
-      : [],
-  );
+  const wordAssignments = normalizeSavedWordAssignments(snapshot.wordAssignments, validCategoryIds);
+  const categoryZones = normalizeSavedCategoryZones(snapshot.categoryZones, validCategoryIds);
   const recentDiscoveredWordKeys = getStringList(snapshot.recentDiscoveredWordKeys)
     .slice(-RECENT_DISCOVERED_WORD_LIMIT);
 
@@ -1434,6 +1479,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.historySort = snapshot.historySort === "result" ? "result" : "recent";
   state.wordCategories = categories;
   state.wordAssignments = wordAssignments;
+  state.categoryZones = categoryZones;
   state.recentDiscoveredWordKeys = recentDiscoveredWordKeys.filter((wordKey) => discovered.has(wordKey));
   state.googlePickMode = false;
   state.clickTracker.word = null;
@@ -1723,7 +1769,7 @@ function clampPlayfieldCamera(camera = state.playfieldCamera, zoom = state.playf
 function setPlayfieldCamera(nextCamera, { queueSave = false } = {}) {
   state.playfieldCamera = clampPlayfieldCamera(nextCamera);
   updatePlayfieldCamera();
-  renderTiles();
+  renderTiles({ skipWordListRefresh: true });
   if (queueSave) {
     queueProgressSave();
   }
@@ -1767,6 +1813,17 @@ function getPlayfieldPointFromClientPoint(clientX, clientY, bounds = getPlayfiel
   return {
     x: clamp(state.playfieldCamera.x + ((clientX - playfieldRect.left) / state.playfieldZoom), bounds.minX, bounds.maxX),
     y: clamp(state.playfieldCamera.y + ((clientY - playfieldRect.top) / state.playfieldZoom), bounds.minY, bounds.maxY),
+  };
+}
+
+function getPlayfieldWorldPointFromClient(clientX, clientY) {
+  const playfieldRect = els.playfield.getBoundingClientRect();
+  const world = getPlayfieldWorldSize();
+  const rawX = state.playfieldCamera.x + ((clientX - playfieldRect.left) / state.playfieldZoom);
+  const rawY = state.playfieldCamera.y + ((clientY - playfieldRect.top) / state.playfieldZoom);
+  return {
+    x: clamp(rawX, 0, world.width),
+    y: clamp(rawY, 0, world.height),
   };
 }
 
@@ -1857,7 +1914,7 @@ function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
   }, clampedZoom);
   clampTilesToPlayfieldBounds();
   updatePlayfieldCamera();
-  renderTiles();
+  renderTiles({ skipWordListRefresh: true });
   queueProgressSave();
 
   if (hitLockedFrontier && !silent) {
@@ -1878,7 +1935,7 @@ function refreshPlayfieldAfterTierUpgrade() {
   state.playfieldCamera = clampPlayfieldCamera(getDefaultPlayfieldCamera(state.playfieldZoom));
   clampTilesToPlayfieldBounds();
   updatePlayfieldCamera();
-  renderTiles();
+  renderTiles({ skipWordListRefresh: true });
 }
 
 function adjustPlayfieldZoom(delta) {
@@ -2774,13 +2831,13 @@ function deleteCategory(categoryId) {
   }
 
   state.wordCategories = state.wordCategories.filter((entry) => entry.id !== categoryId);
-  state.wordAssignments.forEach((assignedCategoryId, wordKey) => {
-    if (assignedCategoryId === categoryId) {
-      state.wordAssignments.set(wordKey, DEFAULT_CATEGORY_ID);
-    }
+  state.categoryZones = state.categoryZones.filter((zone) => zone.categoryId !== categoryId);
+  state.wordAssignments.forEach((set, wordKey) => {
+    const next = getCategoryAssignmentSet(wordKey);
+    next.delete(categoryId);
   });
 
-  renderWordList();
+  renderTiles();
   queueProgressSave();
   setStatus(`${category.name} was deleted. Its words moved to Uncategorized.`);
 }
@@ -2788,22 +2845,573 @@ function deleteCategory(categoryId) {
 function ensureWordAssignments(entries) {
   const validCategoryIds = new Set(state.wordCategories.map((category) => category.id));
   entries.forEach((entry) => {
-    if (!validCategoryIds.has(state.wordAssignments.get(entry.key))) {
-      state.wordAssignments.set(entry.key, DEFAULT_CATEGORY_ID);
-    }
+    const set = getCategoryAssignmentSet(entry.key);
+    [...set].forEach((id) => {
+      if (!validCategoryIds.has(id)) {
+        set.delete(id);
+      }
+    });
   });
 }
 
-function getCategoryIdForWord(key) {
-  return state.wordAssignments.get(key) || DEFAULT_CATEGORY_ID;
+function getCategoryAssignmentSet(wordKey) {
+  let set = state.wordAssignments.get(wordKey);
+  if (!(set instanceof Set)) {
+    set = new Set();
+    const legacy = state.wordAssignments.get(wordKey);
+    if (typeof legacy === "string" && legacy !== DEFAULT_CATEGORY_ID) {
+      set.add(legacy);
+    }
+    state.wordAssignments.set(wordKey, set);
+  }
+  return set;
 }
 
-function getVisibleCategoryNameForWord(word) {
-  const categoryId = getCategoryIdForWord(getWordKey(word));
-  if (categoryId === DEFAULT_CATEGORY_ID) {
-    return "";
+function getCategoryIdsForWord(key) {
+  const set = state.wordAssignments.get(key);
+  if (set instanceof Set) {
+    return new Set(set);
   }
-  return getCategoryById(categoryId)?.name || "";
+  if (typeof set === "string" && set !== DEFAULT_CATEGORY_ID) {
+    return new Set([set]);
+  }
+  return new Set();
+}
+
+function wordBelongsToCategory(wordKey, categoryId) {
+  if (categoryId === DEFAULT_CATEGORY_ID) {
+    return getCategoryIdsForWord(wordKey).size === 0;
+  }
+  return getCategoryIdsForWord(wordKey).has(categoryId);
+}
+
+function getTileCenter(tile) {
+  return {
+    x: tile.x + (TILE_WIDTH / 2),
+    y: tile.y + (TILE_HEIGHT / 2),
+  };
+}
+
+function getZonesContainingPoint(px, py) {
+  return state.categoryZones
+    .filter((zone) => {
+      const dx = px - zone.x;
+      const dy = py - zone.y;
+      return Math.hypot(dx, dy) <= zone.radius;
+    })
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+function getOldestZoneContainingPoint(px, py) {
+  const list = getZonesContainingPoint(px, py);
+  return list.length ? list[0] : null;
+}
+
+function getZoneCategoryIdsForTileCenter(px, py) {
+  const oldest = getOldestZoneContainingPoint(px, py);
+  return oldest ? [oldest.categoryId] : [];
+}
+
+function syncWordAssignmentsFromCategoryZones() {
+  const validCategoryIds = new Set(state.wordCategories.map((category) => category.id));
+  const keysOnField = new Set(state.tiles.map((tile) => getWordKey(tile.word)));
+
+  keysOnField.forEach((wordKey) => {
+    const categorySet = new Set();
+    state.tiles.forEach((tile) => {
+      if (getWordKey(tile.word) !== wordKey) {
+        return;
+      }
+      const { x, y } = getTileCenter(tile);
+      getZoneCategoryIdsForTileCenter(x, y).forEach((id) => {
+        if (validCategoryIds.has(id)) {
+          categorySet.add(id);
+        }
+      });
+    });
+    state.wordAssignments.set(wordKey, categorySet);
+  });
+}
+
+function getCategoryZoneTintForTile(tile) {
+  const { x, y } = getTileCenter(tile);
+  const zone = getOldestZoneContainingPoint(x, y);
+  if (!zone) {
+    return null;
+  }
+  const category = getCategoryById(zone.categoryId);
+  return {
+    zone,
+    categoryName: category?.name || "",
+    color: zone.color,
+    opacity: zone.opacity,
+  };
+}
+
+function ensureCategoryZonesLayer() {
+  let layer = els.playfieldSurface.querySelector(".category-zones-layer");
+  if (!layer) {
+    layer = document.createElement("div");
+    layer.className = "category-zones-layer";
+    els.playfieldSurface.prepend(layer);
+  }
+  return layer;
+}
+
+function removeCategoryZone(zoneId) {
+  state.categoryZones = state.categoryZones.filter((zone) => zone.id !== zoneId);
+  syncWordAssignmentsFromCategoryZones();
+  renderTiles();
+  queueProgressSave();
+}
+
+function renderCategoryZones() {
+  if (!els.playfieldSurface) {
+    return;
+  }
+  const layer = ensureCategoryZonesLayer();
+  layer.innerHTML = "";
+
+  const sorted = [...state.categoryZones].sort((a, b) => a.createdAt - b.createdAt);
+  sorted.forEach((zone, index) => {
+    const category = getCategoryById(zone.categoryId);
+    const widget = document.createElement("div");
+    widget.className = "category-zone-widget";
+    widget.dataset.zoneId = zone.id;
+    widget.style.zIndex = String(CATEGORY_ZONE_WIDGET_BASE_Z + index);
+    widget.style.left = `${zone.x - zone.radius}px`;
+    widget.style.top = `${zone.y - zone.radius}px`;
+    widget.style.width = `${zone.radius * 2}px`;
+    widget.style.height = `${zone.radius * 2}px`;
+
+    const ring = document.createElement("div");
+    ring.className = "category-zone-ring";
+    ring.style.width = `${zone.radius * 2}px`;
+    ring.style.height = `${zone.radius * 2}px`;
+    const rgb = hexToRgbTuple(zone.color);
+    const fillAlpha = clamp(zone.opacity * 0.35, 0, 0.55);
+    ring.style.background = rgb
+      ? `radial-gradient(circle, rgba(${rgb.r},${rgb.g},${rgb.b},${fillAlpha}) 0%, rgba(${rgb.r},${rgb.g},${rgb.b},${fillAlpha * 0.35}) 55%, transparent 72%)`
+      : "transparent";
+    ring.style.borderColor = rgb ? `rgba(${rgb.r},${rgb.g},${rgb.b},0.85)` : "var(--border-strong)";
+
+    const chip = document.createElement("div");
+    chip.className = "category-zone-chip";
+
+    const label = document.createElement("span");
+    label.className = "category-zone-chip-label";
+    label.textContent = category?.name || "Category";
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "category-zone-remove";
+    removeButton.textContent = "Remove zone";
+    removeButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      event.preventDefault();
+      removeCategoryZone(zone.id);
+      setStatus("Category zone removed from the field.");
+    });
+
+    chip.append(label, removeButton);
+    widget.append(ring, chip);
+
+    widget.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || event.target.closest("button")) {
+        return;
+      }
+      startCategoryZoneDrag(event, zone.id);
+    });
+
+    layer.append(widget);
+  });
+}
+
+function startCategoryZoneDrag(event, zoneId) {
+  const zone = state.categoryZones.find((z) => z.id === zoneId);
+  if (!zone) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const widget = event.currentTarget;
+  const startWorld = getPlayfieldPointFromClientPoint(event.clientX, event.clientY);
+  const pointerOffsetX = startWorld.x - zone.x;
+  const pointerOffsetY = startWorld.y - zone.y;
+  const startClientX = event.clientX;
+  const startClientY = event.clientY;
+  let dragStarted = false;
+
+  const move = (moveEvent) => {
+    const deltaX = moveEvent.clientX - startClientX;
+    const deltaY = moveEvent.clientY - startClientY;
+    const distance = Math.hypot(deltaX, deltaY);
+
+    if (!dragStarted) {
+      if (distance < DRAG_THRESHOLD) {
+        return;
+      }
+      dragStarted = true;
+      widget.dataset.dragging = "true";
+    }
+
+    const lp = getPlayfieldPointFromClientPoint(moveEvent.clientX, moveEvent.clientY);
+    zone.x = lp.x - pointerOffsetX;
+    zone.y = lp.y - pointerOffsetY;
+    const world = getPlayfieldWorldSize();
+    zone.x = clamp(zone.x, zone.radius, Math.max(zone.radius, world.width - zone.radius));
+    zone.y = clamp(zone.y, zone.radius, Math.max(zone.radius, world.height - zone.radius));
+
+    widget.style.left = `${zone.x - zone.radius}px`;
+    widget.style.top = `${zone.y - zone.radius}px`;
+    syncWordAssignmentsFromCategoryZones();
+    renderTiles({ skipCategoryZoneRender: true, skipWordListRefresh: true });
+  };
+
+  const end = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", end);
+    delete widget.dataset.dragging;
+    if (dragStarted) {
+      queueProgressSave();
+    }
+    renderTiles();
+    renderWordList();
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", end, { once: true });
+}
+
+function hsvToRgb(h, s, v) {
+  const hh = ((h % 360) + 360) % 360 / 60;
+  const c = v * s;
+  const x = c * (1 - Math.abs((hh % 2) - 1));
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  if (hh < 1) {
+    r = c; g = x;
+  } else if (hh < 2) {
+    r = x; g = c;
+  } else if (hh < 3) {
+    g = c; b = x;
+  } else if (hh < 4) {
+    g = x; b = c;
+  } else if (hh < 5) {
+    r = x; b = c;
+  } else {
+    r = c; b = x;
+  }
+  const m = v - c;
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  const to = (n) => n.toString(16).padStart(2, "0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+function hexToRgbTuple(hex) {
+  if (typeof hex !== "string" || !/^#([0-9a-f]{6})$/i.test(hex)) {
+    return null;
+  }
+  const n = parseInt(hex.slice(1), 16);
+  return {
+    r: (n >> 16) & 255,
+    g: (n >> 8) & 255,
+    b: n & 255,
+  };
+}
+
+function hexToHsv(hex) {
+  const t = hexToRgbTuple(hex);
+  if (!t) {
+    return { h: 0, s: 1, v: 0.85 };
+  }
+  const r = t.r / 255;
+  const g = t.g / 255;
+  const b = t.b / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  if (d > 1e-6) {
+    if (max === r) {
+      h = 60 * (((g - b) / d) % 6);
+    } else if (max === g) {
+      h = 60 * (((b - r) / d) + 2);
+    } else {
+      h = 60 * (((r - g) / d) + 4);
+    }
+  }
+  if (h < 0) {
+    h += 360;
+  }
+  const s = max <= 1e-6 ? 0 : d / max;
+  const v = max;
+  return { h, s, v };
+}
+
+function drawCategoryZoneColorWheel(canvas, valueBrightness) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return;
+  }
+  const w = canvas.width;
+  const h = canvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+  const R = Math.min(w, h) / 2 - 4;
+  const image = ctx.createImageData(w, h);
+  const data = image.data;
+  const v = clamp(valueBrightness, 0, 1);
+  for (let y = 0; y < h; y += 1) {
+    for (let x = 0; x < w; x += 1) {
+      const dx = x - cx;
+      const dy = y - cy;
+      const dist = Math.hypot(dx, dy);
+      const i = (y * w + x) * 4;
+      if (dist > R) {
+        data[i + 3] = 0;
+        continue;
+      }
+      const sat = R <= 1e-6 ? 0 : Math.min(1, dist / R);
+      const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+      const { r, g, b } = hsvToRgb(hue, sat, v);
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function pickHsFromCategoryZoneWheel(canvas, clientX, clientY, valueBrightness) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (clientX - rect.left) * scaleX;
+  const y = (clientY - rect.top) * scaleY;
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const R = Math.min(canvas.width, canvas.height) / 2 - 4;
+  const dx = x - cx;
+  const dy = y - cy;
+  const dist = Math.hypot(dx, dy);
+  if (dist > R) {
+    return null;
+  }
+  const sat = R <= 1e-6 ? 0 : Math.min(1, dist / R);
+  const hue = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+  const v = clamp(valueBrightness, 0, 1);
+  return { h: hue, s: sat, v };
+}
+
+function getDefaultCategoryZoneStyle(category) {
+  const radius = Number.isFinite(category?.zoneRadius)
+    ? clamp(category.zoneRadius, CATEGORY_ZONE_MIN_RADIUS, CATEGORY_ZONE_MAX_RADIUS)
+    : DEFAULT_CATEGORY_ZONE_RADIUS;
+  const opacity = Number.isFinite(category?.zoneOpacity)
+    ? clamp(category.zoneOpacity, 0, 1)
+    : CATEGORY_ZONE_DEFAULT_OPACITY;
+  const color = typeof category?.zoneColor === "string" && /^#([0-9a-f]{6})$/i.test(category.zoneColor)
+    ? category.zoneColor
+    : CATEGORY_ZONE_DEFAULT_COLOR;
+  return { radius, opacity, color };
+}
+
+function addCategoryZoneAtPoint(categoryId, point) {
+  const category = getCategoryById(categoryId);
+  if (!category || categoryId === DEFAULT_CATEGORY_ID) {
+    return;
+  }
+  const style = getDefaultCategoryZoneStyle(category);
+  const world = getPlayfieldWorldSize();
+  const x = clamp(point.x, style.radius, Math.max(style.radius, world.width - style.radius));
+  const y = clamp(point.y, style.radius, Math.max(style.radius, world.height - style.radius));
+  const createdAt = Date.now() + Math.random();
+  state.categoryZones.push({
+    id: `cz-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+    categoryId,
+    x,
+    y,
+    radius: style.radius,
+    color: style.color,
+    opacity: style.opacity,
+    createdAt,
+  });
+  syncWordAssignmentsFromCategoryZones();
+  renderTiles();
+  queueProgressSave();
+  setStatus(`Dropped ${category.name} zone onto the field.`);
+}
+
+function openCategoryZoneStyleEditor(categoryId) {
+  const category = getCategoryById(categoryId);
+  if (!category || categoryId === DEFAULT_CATEGORY_ID || !els.categoryZoneStyleModal) {
+    return;
+  }
+  editingCategoryZoneStyleCategoryId = categoryId;
+  els.categoryZoneStyleTitle.textContent = `Zone style — ${category.name}`;
+
+  const zones = state.categoryZones.filter((z) => z.categoryId === categoryId);
+  const fromZone = zones[0];
+  const hex = fromZone?.color || category.zoneColor || CATEGORY_ZONE_DEFAULT_COLOR;
+  const hsv = hexToHsv(hex);
+
+  els.categoryZoneValueSlider.value = String(Math.round(hsv.v * 100));
+  els.categoryZoneOpacitySlider.value = String(Math.round(
+    (fromZone?.opacity ?? category.zoneOpacity ?? CATEGORY_ZONE_DEFAULT_OPACITY) * 100,
+  ));
+  const r = fromZone?.radius
+    ?? category.zoneRadius
+    ?? DEFAULT_CATEGORY_ZONE_RADIUS;
+  els.categoryZoneRadiusSlider.value = String(Math.round(clamp(
+    r,
+    CATEGORY_ZONE_MIN_RADIUS,
+    CATEGORY_ZONE_MAX_RADIUS,
+  )));
+
+  if (els.categoryZoneWheel) {
+    drawCategoryZoneColorWheel(els.categoryZoneWheel, hsv.v);
+    els.categoryZoneWheel.dataset.hue = String(hsv.h);
+    els.categoryZoneWheel.dataset.sat = String(hsv.s);
+    els.categoryZoneWheel.dataset.val = String(hsv.v);
+  }
+  updateCategoryZoneStylePreview();
+  els.categoryZoneStyleModal.hidden = false;
+}
+
+function updateCategoryZoneStylePreview() {
+  if (!els.categoryZonePreview || !els.categoryZoneWheel) {
+    return;
+  }
+  const h = Number.isFinite(Number(els.categoryZoneWheel.dataset.hue))
+    ? Number(els.categoryZoneWheel.dataset.hue)
+    : 0;
+  const s = Number.isFinite(Number(els.categoryZoneWheel.dataset.sat))
+    ? Number(els.categoryZoneWheel.dataset.sat)
+    : 1;
+  const v = clamp(Number(els.categoryZoneValueSlider?.value) / 100, 0, 1);
+  const { r, g, b } = hsvToRgb(h, s, v);
+  const opacity = clamp(Number(els.categoryZoneOpacitySlider?.value) / 100, 0, 1);
+  els.categoryZonePreview.style.background = `rgba(${r},${g},${b},${opacity})`;
+}
+
+function applyCategoryZoneStyleFromEditor() {
+  const categoryId = editingCategoryZoneStyleCategoryId;
+  const category = getCategoryById(categoryId);
+  if (!category || !els.categoryZoneWheel) {
+    return;
+  }
+  const h = Number(els.categoryZoneWheel.dataset.hue) || 0;
+  const s = Number.isFinite(Number(els.categoryZoneWheel.dataset.sat))
+    ? Number(els.categoryZoneWheel.dataset.sat)
+    : 1;
+  const v = clamp(Number(els.categoryZoneValueSlider.value) / 100, 0, 1);
+  const opacity = clamp(Number(els.categoryZoneOpacitySlider.value) / 100, 0, 1);
+  const radius = clamp(
+    Number(els.categoryZoneRadiusSlider.value) || DEFAULT_CATEGORY_ZONE_RADIUS,
+    CATEGORY_ZONE_MIN_RADIUS,
+    CATEGORY_ZONE_MAX_RADIUS,
+  );
+  const { r, g, b } = hsvToRgb(h, s, v);
+  const color = rgbToHex(r, g, b);
+
+  category.zoneColor = color;
+  category.zoneOpacity = opacity;
+  category.zoneRadius = radius;
+
+  state.categoryZones.forEach((zone) => {
+    if (zone.categoryId === categoryId) {
+      zone.color = color;
+      zone.opacity = opacity;
+      zone.radius = radius;
+      const world = getPlayfieldWorldSize();
+      zone.x = clamp(zone.x, zone.radius, Math.max(zone.radius, world.width - zone.radius));
+      zone.y = clamp(zone.y, zone.radius, Math.max(zone.radius, world.height - zone.radius));
+    }
+  });
+
+  syncWordAssignmentsFromCategoryZones();
+  renderTiles();
+  queueProgressSave();
+  closeCategoryZoneStyleEditor();
+  setStatus(`Updated zone style for ${category.name}.`);
+}
+
+function closeCategoryZoneStyleEditor() {
+  editingCategoryZoneStyleCategoryId = null;
+  if (els.categoryZoneStyleModal) {
+    els.categoryZoneStyleModal.hidden = true;
+  }
+}
+
+function initCategoryZoneStyleEditor() {
+  const canvas = els.categoryZoneWheel;
+  if (!canvas || !els.categoryZoneValueSlider) {
+    return;
+  }
+
+  const redrawWheel = () => {
+    const v = clamp(Number(els.categoryZoneValueSlider.value) / 100, 0, 1);
+    drawCategoryZoneColorWheel(canvas, v);
+    updateCategoryZoneStylePreview();
+  };
+
+  els.categoryZoneValueSlider.addEventListener("input", redrawWheel);
+
+  els.categoryZoneOpacitySlider.addEventListener("input", () => {
+    updateCategoryZoneStylePreview();
+  });
+
+  els.categoryZoneRadiusSlider.addEventListener("input", () => {});
+
+  const applyPick = (clientX, clientY) => {
+    const v = clamp(Number(els.categoryZoneValueSlider.value) / 100, 0, 1);
+    const picked = pickHsFromCategoryZoneWheel(canvas, clientX, clientY, v);
+    if (!picked) {
+      return;
+    }
+    canvas.dataset.hue = String(picked.h);
+    canvas.dataset.sat = String(picked.s);
+    canvas.dataset.val = String(picked.v);
+    updateCategoryZoneStylePreview();
+  };
+
+  canvas.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    applyPick(event.clientX, event.clientY);
+    const move = (e) => {
+      applyPick(e.clientX, e.clientY);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up, { once: true });
+  });
+
+  els.saveCategoryZoneStyleButton?.addEventListener("click", () => {
+    applyCategoryZoneStyleFromEditor();
+  });
+  els.closeCategoryZoneStyleButton?.addEventListener("click", () => {
+    closeCategoryZoneStyleEditor();
+  });
+  els.categoryZoneStyleModal?.addEventListener("click", (event) => {
+    if (event.target === els.categoryZoneStyleModal) {
+      closeCategoryZoneStyleEditor();
+    }
+  });
 }
 
 function setGooglePickMode(enabled) {
@@ -2847,7 +3455,7 @@ function renderWordList() {
   }
 
   state.wordCategories.forEach((category) => {
-    const entries = filteredEntries.filter((entry) => getCategoryIdForWord(entry.key) === category.id);
+    const entries = filteredEntries.filter((entry) => wordBelongsToCategory(entry.key, category.id));
 
     const section = document.createElement("section");
     section.className = "word-category";
@@ -2855,6 +3463,27 @@ function renderWordList() {
 
     const header = document.createElement("div");
     header.className = "word-category-header";
+
+    if (category.id !== DEFAULT_CATEGORY_ID) {
+      const zoneHandle = document.createElement("span");
+      zoneHandle.className = "word-category-zone-handle";
+      zoneHandle.draggable = true;
+      zoneHandle.title = "Drag onto the mixing field to place a circular category zone";
+      zoneHandle.textContent = "◎";
+      zoneHandle.setAttribute("role", "button");
+      zoneHandle.tabIndex = 0;
+      zoneHandle.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setStatus("Drag the ◎ handle onto the field to place a zone.", "ok");
+        }
+      });
+      zoneHandle.addEventListener("dragstart", (event) => {
+        event.dataTransfer.setData("application/x-category-zone-category-id", category.id);
+        event.dataTransfer.effectAllowed = "copy";
+      });
+      header.append(zoneHandle);
+    }
 
     const toggle = document.createElement("button");
     toggle.type = "button";
@@ -2883,6 +3512,13 @@ function renderWordList() {
     actions.append(count);
 
     if (category.id !== DEFAULT_CATEGORY_ID) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = "ghost-button word-category-edit";
+      editButton.textContent = "Edit";
+      editButton.addEventListener("click", () => {
+        openCategoryZoneStyleEditor(category.id);
+      });
       const deleteButton = document.createElement("button");
       deleteButton.type = "button";
       deleteButton.className = "ghost-button word-category-delete";
@@ -2890,7 +3526,7 @@ function renderWordList() {
       deleteButton.addEventListener("click", () => {
         deleteCategory(category.id);
       });
-      actions.append(deleteButton);
+      actions.append(editButton, deleteButton);
     }
 
     header.append(toggle, actions);
@@ -2913,7 +3549,12 @@ function renderWordList() {
       if (!word) {
         return;
       }
-      state.wordAssignments.set(wordKey, category.id);
+      const set = getCategoryAssignmentSet(wordKey);
+      if (category.id === DEFAULT_CATEGORY_ID) {
+        set.clear();
+      } else {
+        set.add(category.id);
+      }
       renderWordList();
       queueProgressSave();
       setStatus(`${titleCase(word)} moved to ${category.name}.`);
@@ -3222,50 +3863,6 @@ function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
   renderSidebar();
   queueProgressSave();
   setStatus(result.statusMessage, result.statusState);
-}
-
-function getOldestTrackedAvailableEntry() {
-  const availableEntriesByKey = new Map(
-    getAvailableWordEntries().map((entry) => [entry.key, entry]),
-  );
-
-  for (const wordKey of state.recentDiscoveredWordKeys) {
-    const entry = availableEntriesByKey.get(wordKey);
-    if (entry) {
-      return entry;
-    }
-  }
-
-  return null;
-}
-
-function handleAvailableWordOverflow(previousAvailableCount, currentAvailableCount) {
-  const availableWordLimit = getAvailableWordLimit();
-  if (previousAvailableCount < availableWordLimit
-    || currentAvailableCount <= availableWordLimit) {
-    return null;
-  }
-
-  const oldestTrackedEntry = getOldestTrackedAvailableEntry();
-  if (!oldestTrackedEntry) {
-    return {
-      message: `You have more than ${availableWordLimit} available words, but none of your last ${RECENT_DISCOVERED_WORD_LIMIT} discovered words could be auto-binned.`,
-      stateName: "error",
-    };
-  }
-
-  const hideResult = hideWordFromPanel(
-    oldestTrackedEntry.word,
-    oldestTrackedEntry.key,
-  );
-  const rewardSuffix = hideResult?.statusState === "reward" && hideResult.statusMessage
-    ? ` ${hideResult.statusMessage.split(". ").slice(1).join(". ")}`
-    : "";
-
-  return {
-    message: `${titleCase(oldestTrackedEntry.word)} was automatically binned to keep your available words at ${availableWordLimit}.${rewardSuffix}`,
-    stateName: "error",
-  };
 }
 
 function tagTileWithResultToken(tileId, rank) {
@@ -4698,7 +5295,6 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
 }
 
 function rememberResult(result, normalized = result, metadata = {}) {
-  const previousAvailableCount = getAvailableWordEntries().length;
   const previousUnlockedZones = getUnlockedPlayfieldZoneCount();
   const canonicalResult = getCanonicalWord(result, normalized);
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
@@ -4807,11 +5403,9 @@ function rememberResult(result, normalized = result, metadata = {}) {
   const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
 
-  const vocabularyOverflow = didDiscoverNewWord
-    ? handleAvailableWordOverflow(previousAvailableCount, getAvailableWordEntries().length)
-    : null;
+  const vocabularyOverflow = null;
 
-  if (didDiscoverNewWord || coinReward || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0 || vocabularyOverflow) {
+  if (didDiscoverNewWord || coinReward || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
     renderSidebar();
   }
 
@@ -5073,7 +5667,7 @@ function startPlayfieldPan(event) {
   if (getPlayfieldUpgradeTier() < 1) {
     return;
   }
-  if (event.target.closest(".tile, .negative-mix-panel")) {
+  if (event.target.closest(".tile, .negative-mix-panel, .category-zone-widget")) {
     return;
   }
 
@@ -5108,7 +5702,7 @@ function startPlayfieldPan(event) {
     delete els.playfield.dataset.panning;
 
     if (panStarted) {
-      renderTiles();
+      renderTiles({ skipWordListRefresh: true });
       queueProgressSave();
     }
   };
@@ -5236,8 +5830,12 @@ function startTileDrag(event, tileId) {
   window.addEventListener("pointerup", end, { once: true });
 }
 
-function renderTiles() {
+function renderTiles(options = {}) {
+  const skipCategoryZoneRender = Boolean(options.skipCategoryZoneRender);
+  const skipWordListRefresh = Boolean(options.skipWordListRefresh);
+
   els.playfieldSurface.querySelectorAll(".tile").forEach((tile) => tile.remove());
+  syncWordAssignmentsFromCategoryZones();
   els.emptyMessage.hidden = state.tiles.length > 0;
   updatePlayfieldCamera();
 
@@ -5254,6 +5852,21 @@ function renderTiles() {
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
       tileElement.style.setProperty("--tile-tilt", `${clampStoredTileTiltDeg(tile.tiltDeg).toFixed(2)}deg`);
+
+      const tint = getCategoryZoneTintForTile(tile);
+      if (tint?.color) {
+        const rgb = hexToRgbTuple(tint.color);
+        if (rgb) {
+          tileElement.dataset.zoneTint = "true";
+          tileElement.style.setProperty(
+            "--tile-zone-overlay",
+            `rgba(${rgb.r},${rgb.g},${rgb.b},${clamp(tint.opacity, 0, 1)})`,
+          );
+        }
+      } else {
+        delete tileElement.dataset.zoneTint;
+        tileElement.style.removeProperty("--tile-zone-overlay");
+      }
       if (tileIdsNeedingPaperSettle.has(tile.id)) {
         tileIdsNeedingPaperSettle.delete(tile.id);
         if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -5328,13 +5941,20 @@ function renderTiles() {
 
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
-      const categoryName = getVisibleCategoryNameForWord(tile.word);
-      metaElement.textContent = categoryName;
-      metaElement.hidden = !categoryName;
+      const tintLabel = tint?.categoryName || "";
+      metaElement.textContent = tintLabel;
+      metaElement.hidden = !tintLabel;
 
       tileElement.append(tagElement, banLineElement, wordElement, metaElement);
       els.playfieldSurface.append(tileElement);
     });
+
+  if (!skipCategoryZoneRender) {
+    renderCategoryZones();
+  }
+  if (!skipWordListRefresh) {
+    renderWordList();
+  }
 }
 
 function clearField() {
@@ -5535,7 +6155,8 @@ function resetRun() {
   state.matchHistoryKeys = new Set();
   state.historySort = "recent";
   state.wordCategories = createDefaultCategoryState();
-  state.wordAssignments = new Map(state.starters.map((word) => [word, DEFAULT_CATEGORY_ID]));
+  state.wordAssignments = new Map(state.starters.map((word) => [word, new Set()]));
+  state.categoryZones = [];
   state.recentDiscoveredWordKeys = [];
   state.googlePickMode = false;
   state.clickTracker.word = null;
@@ -5647,6 +6268,13 @@ function initPlayfieldDropzone() {
     const resultRank = getPositionTokenRankFromDragType(tokenType);
     if (resultRank >= 2) {
       setStatus(`Drop a ${getPositionTokenDisplayName(resultRank)} token onto a word on the field.`, "error");
+      return;
+    }
+
+    const zoneCategoryId = event.dataTransfer.getData("application/x-category-zone-category-id");
+    if (zoneCategoryId && getCategoryById(zoneCategoryId)) {
+      const worldPoint = getPlayfieldWorldPointFromClient(event.clientX, event.clientY);
+      addCategoryZoneAtPoint(zoneCategoryId, worldPoint);
       return;
     }
 
@@ -5889,12 +6517,15 @@ function initEvents() {
     if (event.key === "Escape" && !els.shopWordBoosterModal.hidden) {
       closeShopWordBooster();
     }
+    if (event.key === "Escape" && els.categoryZoneStyleModal && !els.categoryZoneStyleModal.hidden) {
+      closeCategoryZoneStyleEditor();
+    }
   });
 
   window.addEventListener("resize", () => {
     clampTilesToPlayfieldBounds();
     updatePlayfieldCamera();
-    renderTiles();
+    renderTiles({ skipWordListRefresh: true });
     queueProgressSave();
   });
   window.addEventListener("beforeunload", () => {
@@ -5908,6 +6539,7 @@ function initEvents() {
   initPlayfieldDropzone();
   initNegativeMixDropzones();
   initGarbageBinDropzone();
+  initCategoryZoneStyleEditor();
 }
 
 function init() {
