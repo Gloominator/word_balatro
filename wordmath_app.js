@@ -124,6 +124,10 @@ const TILE_HEIGHT = 76;
 /** Visual tilt for "tossed" word cards on the field (degrees). */
 const TILE_TILT_MIN = -5.5;
 const TILE_TILT_MAX = 5.5;
+/** Pointer-drop: chance to nudge tilt slightly (short "fall"). */
+const TILE_DROP_TILT_NUDGE_CHANCE = 0.3;
+/** Max degrees added to current tilt on drop (symmetric small bump). */
+const TILE_DROP_TILT_NUDGE_MAX = 1.35;
 const tileIdsNeedingPaperSettle = new Set();
 const NEGATIVE_MIX_WIDTH = 168;
 const NEGATIVE_MIX_HEIGHT = 132;
@@ -1603,6 +1607,16 @@ function requestTilePaperSettle(tileId) {
   if (Number.isFinite(tileId)) {
     tileIdsNeedingPaperSettle.add(tileId);
   }
+}
+
+/** Slight tilt change on drag-drop, as if the card landed from a small height (does not re-roll full tilt). */
+function maybeNudgeTileTiltAfterPointerDrop(tile) {
+  if (!tile || Math.random() >= TILE_DROP_TILT_NUDGE_CHANCE) {
+    return;
+  }
+  const base = clampStoredTileTiltDeg(tile.tiltDeg);
+  const delta = (Math.random() * 2 - 1) * TILE_DROP_TILT_NUDGE_MAX;
+  tile.tiltDeg = clamp(base + delta, TILE_TILT_MIN, TILE_TILT_MAX);
 }
 
 function clamp(value, min, max) {
@@ -5213,6 +5227,7 @@ function startTileDrag(event, tileId) {
       return;
     }
 
+    maybeNudgeTileTiltAfterPointerDrop(tile);
     requestTilePaperSettle(tile.id);
     renderTiles();
   };
