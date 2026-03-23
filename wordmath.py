@@ -31,8 +31,37 @@ APP_ROOT = get_app_root()
 
 if getattr(sys, "frozen", False):
     wordfreq.DATA_PATH = APP_ROOT / "wordfreq" / "data"
-DEFAULT_SPACY_MODELS = ("en_core_web_lg", "en_core_web_md")
+
+
+def resolve_game_locale() -> str:
+    if getattr(sys, "frozen", False):
+        exe_stem = Path(sys.executable).stem.lower()
+        if "ru" in exe_stem:
+            os.environ.setdefault("WORDMATH_GAME_LOCALE", "ru")
+    explicit = os.environ.get("WORDMATH_GAME_LOCALE", "").strip().lower()
+    if explicit in ("en", "ru"):
+        return explicit
+    model = os.environ.get("WORDMATH_SPACY_MODEL", "").strip().lower()
+    if model.startswith("ru_"):
+        return "ru"
+    if model.startswith("en_"):
+        return "en"
+    return "en"
+
+
+GAME_LOCALE = resolve_game_locale()
+WORDFREQ_LANG = "ru" if GAME_LOCALE == "ru" else "en"
+SPACY_MODEL_CHAINS = {
+    "en": ("en_core_web_lg", "en_core_web_md"),
+    "ru": ("ru_core_news_lg", "ru_core_news_md"),
+}
+DEFAULT_SPACY_MODELS = SPACY_MODEL_CHAINS[GAME_LOCALE]
 ZIPF_LOOKUP_WARNING_SHOWN = False
+
+
+def word_letters_ok(text: str) -> bool:
+    stripped = text.strip()
+    return bool(stripped) and all(ch.isalpha() for ch in stripped)
 
 mimetypes.add_type("application/javascript", ".js")
 mimetypes.add_type("application/javascript", ".mjs")
@@ -57,14 +86,14 @@ def get_language_resources():
         model_list = ", ".join(candidate_models)
         raise RuntimeError(
             f"Could not load a spaCy model. Tried: {model_list}. "
-            "Install 'en_core_web_md' or 'en_core_web_lg', or set WORDMATH_SPACY_MODEL."
+            f"Install one of {', '.join(DEFAULT_SPACY_MODELS)}, or set WORDMATH_SPACY_MODEL."
         ) from last_error
 
     all_vectors = nlp.vocab.vectors.data
     if all_vectors.size == 0:
         raise RuntimeError(
             "The loaded spaCy model has no word vectors. "
-            "Use 'en_core_web_md' or 'en_core_web_lg'."
+            f"Use a vector model such as {DEFAULT_SPACY_MODELS[0]}."
         )
 
     row_to_key = [None] * all_vectors.shape[0]
@@ -139,23 +168,24 @@ def get_word_family_forms(word: str) -> frozenset[str]:
     if lemma:
         forms.add(lemma)
 
-    if lowered.endswith("ies") and len(lowered) > 3:
-        forms.add(lowered[:-3] + "y")
-    if lowered.endswith("ing") and len(lowered) > 4:
-        stem = lowered[:-3]
-        forms.add(stem)
-        forms.add(stem + "e")
-        if len(stem) >= 2 and stem[-1] == stem[-2]:
-            forms.add(stem[:-1])
-    if lowered.endswith("es") and len(lowered) > 3:
-        forms.add(lowered[:-2])
-        forms.add(lowered[:-1])
-    if lowered.endswith("s") and len(lowered) > 2 and not lowered.endswith("ss"):
-        forms.add(lowered[:-1])
+    if GAME_LOCALE == "en":
+        if lowered.endswith("ies") and len(lowered) > 3:
+            forms.add(lowered[:-3] + "y")
+        if lowered.endswith("ing") and len(lowered) > 4:
+            stem = lowered[:-3]
+            forms.add(stem)
+            forms.add(stem + "e")
+            if len(stem) >= 2 and stem[-1] == stem[-2]:
+                forms.add(stem[:-1])
+        if lowered.endswith("es") and len(lowered) > 3:
+            forms.add(lowered[:-2])
+            forms.add(lowered[:-1])
+        if lowered.endswith("s") and len(lowered) > 2 and not lowered.endswith("ss"):
+            forms.add(lowered[:-1])
 
     cleaned = {
         form for form in forms
-        if form and form.isalpha() and len(form) >= 2
+        if form and word_letters_ok(form) and len(form) >= 2
     }
     return frozenset(cleaned)
 
@@ -168,10 +198,11 @@ def get_preferred_root(word: str) -> str:
         lexeme = nlp.vocab[form]
         has_vector = 1 if lexeme.has_vector else 0
         suffix_penalty = 0
-        if form.endswith("ing"):
-            suffix_penalty += 2
-        if form.endswith("s"):
-            suffix_penalty += 1
+        if GAME_LOCALE == "en":
+            if form.endswith("ing"):
+                suffix_penalty += 2
+            if form.endswith("s"):
+                suffix_penalty += 1
         candidates.append((
             has_vector,
             -suffix_penalty,
@@ -191,7 +222,7 @@ def get_word_zipf_frequency(word: str) -> float:
     if not cleaned:
         return 0.0
     try:
-        return round(float(zipf_frequency(cleaned, "en")), 2)
+        return round(float(zipf_frequency(cleaned, WORDFREQ_LANG)), 2)
     except Exception:
         if not ZIPF_LOOKUP_WARNING_SHOWN:
             ZIPF_LOOKUP_WARNING_SHOWN = True
@@ -308,7 +339,7 @@ def get_random_word_candidate() -> dict[str, str]:
                 continue
             lexeme = nlp.vocab[word_key]
             candidate = lexeme.text.lower()
-            if not candidate.isalpha() or len(candidate) < 2:
+            if not word_letters_ok(candidate) or len(candidate) < 2:
                 continue
             if is_profanity_like(candidate):
                 continue
@@ -327,8 +358,8 @@ def get_spawn_word_candidate(word: str) -> dict[str, str]:
     candidate = word.strip().lower()
     if not candidate:
         raise ValueError("A word is required.")
-    if not candidate.isalpha() or len(candidate) < 2:
-        raise ValueError("Spawn Word only accepts alphabetic words with at least 2 letters.")
+    if not word_letters_ok(candidate) or len(candidate) < 2:
+        raise ValueError("Spawn Word only accepts letter-only words with at least 2 characters.")
     if is_profanity_like(candidate):
         raise ValueError("That word cannot be spawned.")
 
@@ -367,6 +398,11 @@ def add_cache_headers(response):
 @app.route("/")
 def serve_index():
     return send_from_directory(APP_ROOT, "wordmath.html")
+
+
+@app.route("/api/config")
+def api_config():
+    return jsonify({"gameLocale": GAME_LOCALE})
 
 
 @app.route("/api/mix")
@@ -499,8 +535,21 @@ def export_random_words():
     """Write random_words.json for client-side wildcard (no API needed)."""
     import json
     os.chdir(APP_ROOT)
-    candidates = get_random_word_candidates()
-    out = [{"word": c["word"], "normalized": c["normalized"]} for c in candidates]
+    out = []
+    seen = set()
+    attempts = 0
+    max_attempts = 5000
+    while len(out) < 400 and attempts < max_attempts:
+        attempts += 1
+        try:
+            candidate = get_random_word_candidate()
+        except ValueError:
+            break
+        key = candidate["normalized"]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({"word": candidate["word"], "normalized": candidate["normalized"]})
     path = APP_ROOT / "random_words.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(out, f, separators=(",", ":"))
@@ -518,7 +567,7 @@ def main():
     port = args.port if args.port is not None else find_open_port()
     url = f"http://127.0.0.1:{port}/"
 
-    print(f"Serving WordMath at {url}")
+    print(f"Serving WordMath at {url} (game locale: {GAME_LOCALE}, wordfreq: {WORDFREQ_LANG})")
     print("Press Ctrl+C to stop.")
 
     if not args.no_browser:

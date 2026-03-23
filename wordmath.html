@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>King Minus Man</title>
+    <title data-i18n="doc.title">King Minus Man</title>
     <link rel="stylesheet" href="./wordmath_styles.css">
   </head>
   <body>
@@ -17,7 +17,7 @@
     <div class="app-sticky-top">
       <header class="topbar">
         <div class="topbar-brand">
-          <h1>King Minus Man</h1>
+          <h1 data-i18n="topbar.brandTitle">King Minus Man</h1>
         </div>
         <div class="topbar-main">
           <div class="gameplay-actions-bar" aria-label="Purchases">
@@ -27,7 +27,7 @@
             </div>
             <div class="purchase-tokens-root" data-purchase-tokens-root>
               <button type="button" class="purchase-tokens-trigger" data-action="toggle-purchase-tokens" aria-expanded="false" aria-haspopup="listbox" id="purchase-tokens-trigger">
-                <span class="purchase-tokens-trigger-label">Purchase Tokens</span>
+                <span class="purchase-tokens-trigger-label" data-i18n="topbar.purchaseTokens">Purchase Tokens</span>
                 <span class="material-symbols-outlined purchase-tokens-chevron" aria-hidden="true">expand_more</span>
               </button>
               <div class="purchase-tokens-menu" data-purchase-tokens-menu role="listbox" aria-labelledby="purchase-tokens-trigger" hidden></div>
@@ -36,39 +36,39 @@
               <span class="word-booster-icon-wrap" aria-hidden="true">
                 <span class="material-symbols-outlined word-booster-sparkle" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
               </span>
-              <span class="word-booster-top-label">Word Booster</span>
+              <span class="word-booster-top-label" data-i18n="topbar.wordBooster">Word Booster</span>
               <span class="word-booster-cost-badge"><span data-word-booster-cost>70</span>G</span>
             </button>
           </div>
           <nav class="topbar-nav">
-            <button type="button" data-action="reset">New Game</button>
+            <button type="button" data-action="reset" data-i18n="topbar.newGame">New Game</button>
             <button type="button" class="encyclopedia-button" data-action="open-encyclopedia">
-              Encyclopedia
+              <span data-i18n="topbar.encyclopediaLabel">Encyclopedia</span>
               <span class="encyclopedia-count" data-encyclopedia-count>0 / 80</span>
             </button>
           </nav>
         </div>
         <div class="topbar-actions">
-          <button type="button" class="theme-toggle" data-action="toggle-theme" aria-label="Toggle theme">
+          <button type="button" class="theme-toggle" data-action="toggle-theme" data-i18n-aria="topbar.themeToggle" aria-label="Toggle theme">
             <span class="material-symbols-outlined">dark_mode</span>
           </button>
-          <button type="button" class="ghost-button" data-action="open-settings">
+          <button type="button" class="ghost-button" data-action="open-settings" aria-label="Settings">
             <span class="material-symbols-outlined" style="font-size:20px;vertical-align:middle;">settings</span>
           </button>
         </div>
       </header>
 
-      <div class="status-pill" data-status data-state="ok">
+      <div class="status-pill" data-status data-state="ok" data-i18n="status.initial">
         Drop a word onto the field to start mixing.
       </div>
 
       <div class="token-dock-outer" data-token-dock-outer hidden>
         <div class="token-dock-inner">
           <div class="token-dock-head">
-            <span class="token-dock-label">Tokens</span>
+            <span class="token-dock-label" data-i18n="tokenDock.label">Tokens</span>
             <span class="token-tooltip token-tooltip--dock">
-              <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip">How tokens work</span>
-              <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip">Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced.</span>
+              <span class="token-tooltip-trigger" tabindex="0" aria-describedby="usable-tokens-tooltip" data-i18n="tokenDock.howLink">How tokens work</span>
+              <span class="token-tooltip-bubble" id="usable-tokens-tooltip" role="tooltip" data-i18n="tokenDock.tooltip">Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced.</span>
             </span>
           </div>
           <div class="token-dock" data-token-dock></div>
@@ -82,17 +82,17 @@
           <div class="panel-head">
             <div class="playfield-heading">
               <div>
-                <h2>Mixing Field</h2>
-                <p class="muted">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
+                <h2 data-i18n="playfield.heading">Mixing Field</h2>
+                <p class="muted" data-i18n="playfield.hint">Right-click a word box to remove it. Drag one box onto another to create a new word.</p>
               </div>
             </div>
             <div class="playfield-actions">
               <div class="playfield-zoom-controls" aria-label="Playfield zoom controls">
-                <button type="button" class="ghost-button" data-action="zoom-out" aria-label="Zoom out">-</button>
+                <button type="button" class="ghost-button" data-action="zoom-out" data-i18n-aria="playfield.zoomOut" aria-label="Zoom out">-</button>
                 <span class="section-count playfield-zoom-pill" data-playfield-zoom-value>100%</span>
-                <button type="button" class="ghost-button" data-action="zoom-in" aria-label="Zoom in">+</button>
+                <button type="button" class="ghost-button" data-action="zoom-in" data-i18n-aria="playfield.zoomIn" aria-label="Zoom in">+</button>
               </div>
-              <button type="button" class="ghost-button" data-action="clear-field">Clear Field</button>
+              <button type="button" class="ghost-button" data-action="clear-field" data-i18n="playfield.clear">Clear Field</button>
             </div>
           </div>
 
@@ -100,11 +100,11 @@
             <div class="quest-manuscript-frame">
               <section class="quest-strip quest-manuscript-plate" aria-label="Current quest">
                 <div class="quest-manuscript-left">
-                  <p class="quest-label-manuscript">Objective Manuscript</p>
-                  <strong class="quest-word" data-quest-word>Loading...</strong>
+                  <p class="quest-label-manuscript" data-i18n="quest.objectiveLabel">Objective Manuscript</p>
+                  <strong class="quest-word" data-quest-word data-i18n="quest.loading">Loading...</strong>
                 </div>
                 <div class="quest-countdown-panel quest-countdown-manuscript">
-                  <p class="quest-label-ink">Ink Remaining</p>
+                  <p class="quest-label-ink" data-i18n="quest.inkLabel">Ink Remaining</p>
                   <div class="quest-ink-row">
                     <strong class="quest-countdown" data-quest-countdown>0</strong>
                     <span class="material-symbols-outlined quest-ink-icon" aria-hidden="true">history_edu</span>
@@ -118,27 +118,27 @@
             <div class="playfield-surface" data-playfield-surface>
               <section class="negative-mix-panel" data-negative-panel hidden>
                 <div class="negative-mix-head">
-                  <div class="negative-mix-title">Minus Mix Board</div>
-                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" aria-label="Refund minus-mix token">Refund</button>
+                  <div class="negative-mix-title" data-i18n="negative.title">Minus Mix Board</div>
+                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" data-i18n-aria="negative.refundAria" aria-label="Refund minus-mix token" data-i18n="negative.refund">Refund</button>
                 </div>
                 <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A &minus; B</strong>. Right-click the board to refund the token.</p>
                 <div class="negative-mix-slots">
                   <div class="negative-slot" data-negative-slot="a">
-                    <span class="negative-slot-label">A</span>
-                    <span class="negative-slot-word" data-negative-word-a>Drop word</span>
+                    <span class="negative-slot-label" data-i18n="negative.slotA">A</span>
+                    <span class="negative-slot-word" data-negative-word-a data-i18n="negative.dropWord">Drop word</span>
                   </div>
                   <div class="negative-slot" data-negative-slot="b">
-                    <span class="negative-slot-label">B</span>
-                    <span class="negative-slot-word" data-negative-word-b>Drop word</span>
+                    <span class="negative-slot-label" data-i18n="negative.slotB">B</span>
+                    <span class="negative-slot-word" data-negative-word-b data-i18n="negative.dropWord">Drop word</span>
                   </div>
                 </div>
                 <div class="negative-mix-actions">
-                  <button type="button" class="ghost-button" data-action="clear-negative">Clear</button>
-                  <button type="button" data-action="run-negative">Mix A &minus; B</button>
+                  <button type="button" class="ghost-button" data-action="clear-negative" data-i18n="negative.clear">Clear</button>
+                  <button type="button" data-action="run-negative" data-i18n="negative.run">Mix A &minus; B</button>
                 </div>
               </section>
             </div>
-            <div class="playfield-empty" data-empty-message>
+            <div class="playfield-empty" data-empty-message data-i18n="playfield.empty">
               Drag a starter or discovered word here.
             </div>
           </div>
@@ -146,13 +146,13 @@
           <section class="garbage-panel" data-garbage-panel hidden>
             <div class="section-title-row">
               <div>
-                <h3>Garbage Bin</h3>
-                <p class="muted garbage-copy">Drag words here to hide them forever. They can still be mixed.</p>
+                <h3 data-i18n="garbage.title">Garbage Bin</h3>
+                <p class="muted garbage-copy" data-i18n="garbage.hint">Drag words here to hide them forever. They can still be mixed.</p>
               </div>
               <span class="section-count" data-garbage-progress>0/15</span>
             </div>
             <div class="garbage-bin" data-garbage-bin>
-              <div class="garbage-bin-title">Garbage Bin</div>
+              <div class="garbage-bin-title" data-i18n="garbage.binTitle">Garbage Bin</div>
               <div class="garbage-bin-text"></div>
             </div>
           </section>
@@ -160,23 +160,23 @@
 
         <aside class="panel sidebar">
           <div class="sidebar-header">
-            <h2>Library Archives</h2>
-            <p class="muted">Curator's Collection</p>
+            <h2 data-i18n="sidebar.archivesTitle">Library Archives</h2>
+            <p class="muted" data-i18n="sidebar.archivesSubtitle">Curator's Collection</p>
           </div>
 
           <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
-            <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true">
+            <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true" data-i18n="sidebar.tabDiscovered">
               Discovered
             </button>
             <button type="button" class="sidebar-tab" data-action="open-upgrades-tab" data-sidebar-tab="upgrades" role="tab" aria-selected="false">
-              Shop
+              <span data-i18n="sidebar.tabShop">Shop</span>
               <span class="section-count" data-upgrade-count>0</span>
             </button>
           </div>
 
           <div class="section-title-row sidebar-title-row">
-            <h2 data-sidebar-title>Word Panel</h2>
-            <button type="button" class="ghost-button google-button" data-action="toggle-google-pick" aria-pressed="false" title="Click, then pick a word to search Google">
+            <h2 data-sidebar-title data-i18n="sidebar.wordPanelTitle">Word Panel</h2>
+            <button type="button" class="ghost-button google-button" data-action="toggle-google-pick" aria-pressed="false" data-i18n-title="sidebar.googleTitle" title="Click, then pick a word to search Google">
               <span class="google-glyph" aria-hidden="true">
                 <svg viewBox="0 0 24 24" focusable="false">
                   <rect x="3" y="4" width="9" height="9" rx="2"></rect>
@@ -185,19 +185,19 @@
                   <path d="M19.6 19.6 22 22"></path>
                 </svg>
               </span>
-              <span>Google</span>
+              <span data-i18n="sidebar.googleLabel">Google</span>
             </button>
           </div>
 
           <section class="sidebar-section" data-sidebar-panel="words" role="tabpanel">
             <div class="section-title-row">
-              <h3>Discovered Words</h3>
+              <h3 data-i18n="sidebar.discoveredHeading">Discovered Words</h3>
               <span class="section-count" data-discovered-count>0</span>
             </div>
-            <label class="search-label" for="word-search">Search and select a word</label>
-            <input id="word-search" type="search" autocomplete="off" placeholder="Search a word" data-word-search>
+            <label class="search-label" for="word-search" data-i18n="sidebar.searchLabel">Search and select a word</label>
+            <input id="word-search" type="search" autocomplete="off" data-word-search data-i18n-placeholder="sidebar.searchPlaceholder" placeholder="Search a word">
             <div class="list-summary">
-              <span>Available words</span>
+              <span data-i18n="sidebar.availableLabel">Available words</span>
               <div class="topbar-actions">
                 <button type="button" class="ghost-button" data-action="add-category">+</button>
                 <span data-available-count>2</span>
@@ -209,13 +209,13 @@
           <section class="sidebar-section" data-sidebar-panel="upgrades" role="tabpanel" hidden>
             <div class="section-title-row">
               <div>
-                <h3>Shop</h3>
-                <p class="muted upgrade-panel-copy">Buy tokens above via <strong>Purchase Tokens</strong> or <strong>Word Booster</strong>. Cap and quest turns stay here.</p>
+                <h3 data-i18n="sidebar.shopHeading">Shop</h3>
+                <p class="muted upgrade-panel-copy" data-i18n="sidebar.shopHint">Buy tokens above via Purchase Tokens or Word Booster. Cap and quest turns stay here.</p>
               </div>
               <span class="section-count" data-upgrade-coin-count>0 coins</span>
             </div>
             <div class="upgrade-list" data-upgrade-list>
-              <p class="source-word-empty">Loading shop...</p>
+              <p class="source-word-empty" data-i18n="sidebar.shopLoading">Loading shop...</p>
             </div>
           </section>
         </aside>
@@ -226,10 +226,10 @@
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
         <div class="modal-head">
           <div>
-            <h2 id="encyclopedia-title">Encyclopedia</h2>
-            <p class="muted">Eighty hidden words across sixteen categories.</p>
+            <h2 id="encyclopedia-title" data-i18n="modal.encyclopediaTitle">Encyclopedia</h2>
+            <p class="muted" data-i18n="modal.encyclopediaSubtitle">Eighty hidden words across sixteen categories.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-encyclopedia">Close</button>
+          <button type="button" class="ghost-button" data-action="close-encyclopedia" data-i18n="modal.close">Close</button>
         </div>
         <div class="encyclopedia-grid" data-encyclopedia-grid></div>
       </section>
@@ -239,12 +239,12 @@
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="history-title">
         <div class="modal-head">
           <div>
-            <h2 id="history-title">Match History</h2>
-            <p class="muted">Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.</p>
+            <h2 id="history-title" data-i18n="modal.historyTitle">Match History</h2>
+            <p class="muted" data-i18n="modal.historySubtitle">Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.</p>
           </div>
           <div class="topbar-actions">
-            <button type="button" class="ghost-button" data-action="toggle-history-sort">Sort by Result</button>
-            <button type="button" class="ghost-button" data-action="close-history">Close</button>
+            <button type="button" class="ghost-button" data-action="toggle-history-sort" data-i18n="modal.historySort">Sort by Result</button>
+            <button type="button" class="ghost-button" data-action="close-history" data-i18n="modal.close">Close</button>
           </div>
         </div>
         <div class="history-list" data-history-list></div>
@@ -255,24 +255,32 @@
       <section class="modal-card settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div class="modal-head">
           <div>
-            <h2 id="settings-title">Settings</h2>
-            <p class="muted">Gameplay and debug tools for this run.</p>
+            <h2 id="settings-title" data-i18n="modal.settingsTitle">Settings</h2>
+            <p class="muted" data-i18n="modal.settingsSubtitle">Gameplay and debug tools for this run.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-settings">Close</button>
+          <button type="button" class="ghost-button" data-action="close-settings" data-i18n="modal.close">Close</button>
+        </div>
+        <div class="settings-language-block" style="margin-bottom:1rem;">
+          <p class="muted" data-i18n="modal.settingsLanguageLabel">Interface language</p>
+          <div class="settings-language-radios" style="display:flex;gap:1rem;flex-wrap:wrap;margin:0.35rem 0;">
+            <label><input type="radio" name="wordmath-ui-lang" value="en"> <span data-i18n="modal.settingsLanguageEn">English</span></label>
+            <label><input type="radio" name="wordmath-ui-lang" value="ru"> <span data-i18n="modal.settingsLanguageRu">Russian</span></label>
+          </div>
+          <p class="muted settings-copy" data-i18n="modal.settingsLocaleHint">Word data matches the server (English or Russian build). Change interface language anytime.</p>
         </div>
         <label class="settings-toggle" for="spawn-existing-words">
           <input id="spawn-existing-words" type="checkbox" data-setting="spawn-existing-words">
           <span>
-            <strong>Spawn existing words</strong>
-            <span class="muted settings-toggle-copy">When off, matching will not spawn words that are already in Available Words.</span>
+            <strong data-i18n="settings.spawnExistingTitle">Spawn existing words</strong>
+            <span class="muted settings-toggle-copy" data-i18n="settings.spawnExistingHint">When off, matching will not spawn words that are already in Available Words.</span>
           </span>
         </label>
         <div class="settings-actions">
-          <button type="button" data-action="spawn-word">Spawn Word</button>
-          <button type="button" data-action="export-save">Debug Export Save JSON</button>
-          <button type="button" class="ghost-button" data-action="import-save">Load Saved Game JSON</button>
+          <button type="button" data-action="spawn-word" data-i18n="settings.spawnWord">Spawn Word</button>
+          <button type="button" data-action="export-save" data-i18n="settings.exportSave">Debug Export Save JSON</button>
+          <button type="button" class="ghost-button" data-action="import-save" data-i18n="settings.importSave">Load Saved Game JSON</button>
         </div>
-        <p class="muted settings-copy">The exported file includes the full game snapshot, including discovered words, so they can be extracted later.</p>
+        <p class="muted settings-copy" data-i18n="settings.exportNote">The exported file includes the full game snapshot, including discovered words, so they can be extracted later.</p>
         <input type="file" accept="application/json,.json" data-save-file-input hidden>
       </section>
     </div>
@@ -281,10 +289,10 @@
       <section class="modal-card shop-word-booster-card" role="dialog" aria-modal="true" aria-labelledby="shop-word-booster-title">
         <div class="modal-head">
           <div>
-            <h2 id="shop-word-booster-title">Word Booster</h2>
-            <p class="muted">Pick 1 of these 10 rolled words to discover it and add it to Available Words.</p>
+            <h2 id="shop-word-booster-title" data-i18n="booster.title">Word Booster</h2>
+            <p class="muted" data-i18n="booster.subtitle">Pick 1 of these 10 rolled words to discover it and add it to Available Words.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-shop-word-booster">Fold</button>
+          <button type="button" class="ghost-button" data-action="close-shop-word-booster" data-i18n="booster.fold">Fold</button>
         </div>
         <div class="shop-word-booster-grid" data-shop-word-booster-grid></div>
       </section>
@@ -294,13 +302,13 @@
       <section class="modal-card quest-loss-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-loss-title">
         <div class="modal-head">
           <div>
-            <h2 id="quest-loss-title">You lost!</h2>
-            <p class="muted">The quest timer ran out before you found the target word.</p>
+            <h2 id="quest-loss-title" data-i18n="questLoss.title">You lost!</h2>
+            <p class="muted" data-i18n="questLoss.subtitle">The quest timer ran out before you found the target word.</p>
           </div>
         </div>
-        <p class="quest-loss-copy">You ran out of discoveries before finding <strong data-quest-loss-word>Tree</strong>.</p>
+        <p class="quest-loss-copy"><span data-i18n="questLoss.copyPrefix">You ran out of discoveries before finding</span> <strong data-quest-loss-word>Tree</strong>.</p>
         <div class="settings-actions">
-          <button type="button" data-action="quest-try-again">Try Again</button>
+          <button type="button" data-action="quest-try-again" data-i18n="questLoss.tryAgain">Try Again</button>
         </div>
       </section>
     </div>
@@ -309,37 +317,37 @@
       <section class="modal-card category-zone-style-modal" role="dialog" aria-modal="true" aria-labelledby="category-zone-style-title">
         <div class="modal-head">
           <div>
-            <h2 id="category-zone-style-title" data-category-zone-style-title>Category zone style</h2>
-            <p class="muted">Radial hue and saturation, brightness, tint strength, and circle radius. Applies to every zone of this category and new drops.</p>
+            <h2 id="category-zone-style-title" data-category-zone-style-title data-i18n="categoryZone.title">Category zone style</h2>
+            <p class="muted" data-i18n="categoryZone.subtitle">Radial hue and saturation, brightness, tint strength, and circle radius. Applies to every zone of this category and new drops.</p>
           </div>
-          <button type="button" class="ghost-button" data-action="close-category-zone-style">Close</button>
+          <button type="button" class="ghost-button" data-action="close-category-zone-style" data-i18n="modal.close">Close</button>
         </div>
         <div class="category-zone-style-body">
           <div class="category-zone-wheel-wrap">
-            <canvas class="category-zone-wheel" data-category-zone-wheel width="220" height="220" aria-label="Pick hue and saturation"></canvas>
-            <p class="muted category-zone-wheel-hint">Center is pale; rim is vivid. Angle is hue.</p>
+            <canvas class="category-zone-wheel" data-category-zone-wheel width="220" height="220" data-i18n-aria="categoryZone.wheelAria" aria-label="Pick hue and saturation"></canvas>
+            <p class="muted category-zone-wheel-hint" data-i18n="categoryZone.wheelHint">Center is pale; rim is vivid. Angle is hue.</p>
           </div>
           <div class="category-zone-style-controls">
             <label class="category-zone-slider-label">
-              <span>Brightness</span>
+              <span data-i18n="categoryZone.brightness">Brightness</span>
               <input type="range" data-category-zone-value-slider min="0" max="100" value="100">
             </label>
             <label class="category-zone-slider-label">
-              <span>Tint opacity</span>
+              <span data-i18n="categoryZone.tintOpacity">Tint opacity</span>
               <input type="range" data-category-zone-opacity-slider min="0" max="100" value="22">
             </label>
             <label class="category-zone-slider-label">
-              <span>Radius (px)</span>
+              <span data-i18n="categoryZone.radius">Radius (px)</span>
               <input type="range" data-category-zone-radius-slider min="48" max="720" value="304">
             </label>
             <div class="category-zone-preview-row">
-              <span class="muted">Preview</span>
+              <span class="muted" data-i18n="categoryZone.preview">Preview</span>
               <span class="category-zone-preview-swatch" data-category-zone-preview></span>
             </div>
           </div>
         </div>
         <div class="settings-actions">
-          <button type="button" data-action="save-category-zone-style">Apply</button>
+          <button type="button" data-action="save-category-zone-style" data-i18n="categoryZone.apply">Apply</button>
         </div>
       </section>
     </div>
@@ -348,13 +356,13 @@
       <section class="modal-card quest-win-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-win-title">
         <div class="modal-head">
           <div>
-            <h2 id="quest-win-title">You won!</h2>
-            <p class="muted">You discovered every encyclopedia word and finished the run.</p>
+            <h2 id="quest-win-title" data-i18n="questWin.title">You won!</h2>
+            <p class="muted" data-i18n="questWin.subtitle">You discovered every encyclopedia word and finished the run.</p>
           </div>
         </div>
-        <p class="quest-loss-copy">Encyclopedia completion reached 100%.</p>
+        <p class="quest-loss-copy" data-i18n="questWin.copy">Encyclopedia completion reached 100%.</p>
         <div class="settings-actions">
-          <button type="button" data-action="quest-go-again">Go Again</button>
+          <button type="button" data-action="quest-go-again" data-i18n="questWin.goAgain">Go Again</button>
         </div>
       </section>
     </div>

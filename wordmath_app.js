@@ -1,123 +1,72 @@
-const STARTER_POOL = [
-  "book",
-  "chair",
-  "cup",
-  "key",
-  "lamp",
-  "sun",
-  "moon",
-  "star",
-  "flame",
-  "ocean",
-  "beach",
-  "island",
-  "desert",
-  "cave",
-  "village",
-  "baby",
-  "king",
-  "queen",
-  "friend",
-  "crowd",
-  "song",
-  "movie",
-  "story",
-  "joke",
-  "dream",
-  "money",
-  "party",
-  "game",
-  "team",
-  "prize",
-  "castle",
-  "planet",
-  "angel",
-  "monster",
-  "robot",
-  "wolf",
-  "mouse",
-  "snake",
-  "bee",
-  "seed",
-];
+import { LOCALES } from "./wordmath_locales.js";
+import {
+  applyDocumentI18n,
+  formatCoinsCount,
+  formatShopBuyLine,
+  formatShopPurchaseMessage,
+  getShopItemDescription as localizedShopDescription,
+  getShopItemTitle as localizedShopTitle,
+  getTokenPositionLabels,
+  getUiLang,
+  getWordBoosterReopenMessage,
+  getWordBoosterTopTitle,
+  resolveUiLang,
+  setUiLang,
+  t,
+} from "./wordmath_i18n.js";
 
-const ENCYCLOPEDIA_CATEGORIES = [
-  {
-    name: "Nature",
-    words: ["tree", "flower", "river", "mountain", "forest"],
-  },
-  {
-    name: "Weather",
-    words: ["rain", "cloud", "wind", "storm", "snow"],
-  },
-  {
-    name: "Food",
-    words: ["bread", "soup", "cake", "apple", "cheese"],
-  },
-  {
-    name: "Animals",
-    words: ["bird", "fish", "cat", "dog", "horse"],
-  },
-  {
-    name: "Places",
-    words: ["house", "bridge", "school", "garden", "city"],
-  },
-  {
-    name: "Tools",
-    words: ["hammer", "ladder", "shovel", "knife", "wheel"],
-  },
-  {
-    name: "Materials",
-    words: ["glass", "paper", "brick", "steel", "clay"],
-  },
-  {
-    name: "Transport",
-    words: ["boat", "train", "bicycle", "truck", "airplane"],
-  },
-  {
-    name: "Fashion",
-    words: ["shirt", "dress", "hat", "garment", "couture"],
-  },
-  {
-    name: "Fabrics",
-    words: ["wool", "silk", "cotton", "denim", "polyester"],
-  },
-  {
-    name: "Colors",
-    words: ["red", "blue", "green", "crimson", "turquoise"],
-  },
-  {
-    name: "Anatomy",
-    words: ["hand", "bone", "tooth", "artery", "retina"],
-  },
-  {
-    name: "Gestures",
-    words: ["wave", "nod", "clap", "bow", "wink"],
-  },
-  {
-    name: "Illness",
-    words: ["cold", "cough", "fever", "migraine", "infection"],
-  },
-  {
-    name: "Technology",
-    words: ["screen", "cable", "battery", "algorithm", "database"],
-  },
-  {
-    name: "Filler Words",
-    words: ["very", "just", "really", "perhaps", "somehow"],
-  },
-];
+let gameLocale = "en";
+let STARTER_POOL = LOCALES.en.starterPool.slice();
+let ENCYCLOPEDIA_CATEGORIES = LOCALES.en.encyclopediaCategories.map((c) => ({
+  name: c.name,
+  words: c.words.slice(),
+}));
+let ENCYCLOPEDIA_WORDS = [];
+let ENCYCLOPEDIA_LOOKUP = new Map();
+let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
 
-const ENCYCLOPEDIA_WORDS = ENCYCLOPEDIA_CATEGORIES.flatMap((category) =>
-  category.words.map((word) => ({
-    word,
-    category: category.name,
-  })),
-);
+function rebuildEncyclopediaIndexes() {
+  ENCYCLOPEDIA_WORDS = ENCYCLOPEDIA_CATEGORIES.flatMap((category) =>
+    category.words.map((word) => ({
+      word,
+      category: category.name,
+    })),
+  );
+  ENCYCLOPEDIA_LOOKUP = new Map(
+    ENCYCLOPEDIA_WORDS.map((entry) => [entry.word, entry]),
+  );
+}
 
-const ENCYCLOPEDIA_LOOKUP = new Map(
-  ENCYCLOPEDIA_WORDS.map((entry) => [entry.word, entry]),
-);
+rebuildEncyclopediaIndexes();
+
+function applyGameLocale(locale) {
+  const pack = LOCALES[locale] || LOCALES.en;
+  gameLocale = locale === "ru" ? "ru" : "en";
+  STARTER_POOL = pack.starterPool.slice();
+  ENCYCLOPEDIA_CATEGORIES = pack.encyclopediaCategories.map((c) => ({
+    name: c.name,
+    words: c.words.slice(),
+  }));
+  SHOP_WORD_BOOSTER_SOURCE_PATH = pack.wordBoosterPoolPath;
+  rebuildEncyclopediaIndexes();
+  associationPreviewCache.clear();
+  cachedShopWordBoosterPool = null;
+  shopWordBoosterPoolPromise = null;
+}
+
+async function fetchGameConfig() {
+  const response = await fetch("/api/config");
+  if (!response.ok) {
+    throw new Error(`Bad /api/config response (${response.status})`);
+  }
+  const data = await response.json();
+  const locale = data.gameLocale === "ru" ? "ru" : "en";
+  applyGameLocale(locale);
+}
+
+function getStorageKey() {
+  return `wordmath-progress-v1-${gameLocale}`;
+}
 
 const TILE_WIDTH = 152;
 const TILE_HEIGHT = 76;
@@ -171,7 +120,6 @@ const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
 const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
 const SHOP_PLAYFIELD_EXPAND_COST = 600;
 const SHOP_PLAYFIELD_EXPAND_2_COST = 2000;
-const STORAGE_KEY = "wordmath-progress-v1";
 const DISCOVERY_COIN_BASE_REWARD = 1;
 const DISCOVERY_RARITY_MIN_ZIPF = 2;
 const DISCOVERY_RARITY_MAX_ZIPF = 6;
@@ -187,15 +135,8 @@ const QUEST_SPEED_BONUS_TIERS = Object.freeze([
 ]);
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
-const POSITION_TOKEN_CONFIG = Object.freeze({
-  2: { title: "Second Result", shortLabel: "2nd" },
-  3: { title: "Third Result", shortLabel: "3rd" },
-  4: { title: "Fourth Result", shortLabel: "4th" },
-  5: { title: "Fifth Result", shortLabel: "5th" },
-});
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
-const SHOP_WORD_BOOSTER_SOURCE_PATH = "./mostcommonwords.json";
 /** Per completed purchase: token-like shop lines cost +10% over the last paid price (integer, rounded up). */
 const SHOP_INCREMENTAL_STANDARD_NUM = 110;
 const SHOP_INCREMENTAL_STANDARD_DEN = 100;
@@ -222,12 +163,12 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: async () => {
       if (hasPendingShopWordBooster()) {
         openShopWordBooster();
-        return "Reopened your pending Word Booster.";
+        return getWordBoosterReopenMessage();
       }
       state.shopWordBooster.options = await rollShopWordBoosterOptions();
       openShopWordBooster();
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-word-booster"));
-      return `Bought a Word Booster for ${cost} coins. Pick 1 rolled word to discover it.`;
+      return formatShopPurchaseMessage("shop-word-booster", [cost]);
     },
   },
   {
@@ -239,7 +180,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       addPositionTokens(2, 1);
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-2"));
-      return `Bought 1 Second Result token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-match-2", [cost]);
     },
   },
   {
@@ -251,7 +192,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       addPositionTokens(3, 1);
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-3"));
-      return `Bought 1 Third Result token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-match-3", [cost]);
     },
   },
   {
@@ -263,7 +204,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       addPositionTokens(4, 1);
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-4"));
-      return `Bought 1 Fourth Result token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-match-4", [cost]);
     },
   },
   {
@@ -275,7 +216,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       addPositionTokens(5, 1);
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-match-5"));
-      return `Bought 1 Fifth Result token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-match-5", [cost]);
     },
   },
   {
@@ -288,7 +229,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
       state.availableBanWordTokens += 1;
       state.totalBanWordTokensEarned += 1;
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-ban-word"));
-      return `Bought 1 Ban Word token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-ban-word", [cost]);
     },
   },
   {
@@ -301,7 +242,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
       state.availableNegativeMixTokens += 1;
       state.totalNegativeMixTokensEarned += 1;
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-minus-mix"));
-      return `Bought 1 Minus Mix token for ${cost} coins.`;
+      return formatShopPurchaseMessage("shop-minus-mix", [cost]);
     },
   },
   {
@@ -312,7 +253,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => getPlayfieldUpgradeTier() < 1,
     purchase: () => {
       state.purchasedUpgrades.playfieldTier = 1;
-      return "Unlocked pan and zoom on the mixing field.";
+      return formatShopPurchaseMessage("shop-playfield-pan-zoom", []);
     },
   },
   {
@@ -323,7 +264,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => getPlayfieldUpgradeTier() === 1,
     purchase: () => {
       state.purchasedUpgrades.playfieldTier = 2;
-      return "Mixing field expanded by +50%.";
+      return formatShopPurchaseMessage("shop-playfield-expand", []);
     },
   },
   {
@@ -334,7 +275,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     canPurchase: () => getPlayfieldUpgradeTier() === 2,
     purchase: () => {
       state.purchasedUpgrades.playfieldTier = 3;
-      return "Mixing field expanded by another +50%.";
+      return formatShopPurchaseMessage("shop-playfield-expand-2", []);
     },
   },
   {
@@ -346,7 +287,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     purchase: () => {
       state.quest.remainingDiscoveries += 1;
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-quest-turn"));
-      return `Paid ${cost} coins. Added 1 turn to the active quest. You now lose in ${state.quest.remainingDiscoveries} turns.`;
+      return formatShopPurchaseMessage("shop-quest-turn", [cost, state.quest.remainingDiscoveries]);
     },
   },
 ]);
@@ -549,6 +490,7 @@ const els = {
   purchaseTokensMenu: document.querySelector("[data-purchase-tokens-menu]"),
   wordBoosterTopButton: document.querySelector("[data-action='buy-word-booster']"),
   wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
+  uiLangRadios: document.querySelectorAll("input[name='wordmath-ui-lang']"),
 };
 
 let pendingProgressSave = null;
@@ -640,7 +582,7 @@ function getShopItemCost(item) {
 }
 
 function getShopItemDescription(item) {
-  return item.description;
+  return localizedShopDescription(item.id);
 }
 
 function getAffordableSidebarShopItemCount() {
@@ -815,11 +757,13 @@ function getOrdinalLabel(rank) {
 }
 
 function getPositionTokenDisplayName(rank) {
-  return POSITION_TOKEN_CONFIG[rank]?.title || `${getOrdinalLabel(rank)} Result`;
+  const labels = getTokenPositionLabels(rank);
+  return labels?.title || `${getOrdinalLabel(rank)} Result`;
 }
 
 function getPositionTokenShortLabel(rank) {
-  return POSITION_TOKEN_CONFIG[rank]?.shortLabel || getOrdinalLabel(rank);
+  const labels = getTokenPositionLabels(rank);
+  return labels?.shortLabel || getOrdinalLabel(rank);
 }
 
 function getPositionTokenDragType(rank) {
@@ -1296,7 +1240,7 @@ function downloadProgressSnapshot() {
 
 function saveProgress() {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(buildProgressSnapshot()));
+    window.localStorage.setItem(getStorageKey(), JSON.stringify(buildProgressSnapshot()));
   } catch (error) {
     console.warn("[wordmath] Could not save progress.", error);
   }
@@ -1599,14 +1543,14 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
 function loadProgress() {
   let snapshot;
   try {
-    const rawProgress = window.localStorage.getItem(STORAGE_KEY);
+    const rawProgress = window.localStorage.getItem(getStorageKey());
     if (!rawProgress) {
       return false;
     }
     snapshot = JSON.parse(rawProgress);
   } catch (error) {
     console.warn("[wordmath] Could not read saved progress.", error);
-    window.localStorage.removeItem(STORAGE_KEY);
+    window.localStorage.removeItem(getStorageKey());
     return false;
   }
 
@@ -2755,7 +2699,7 @@ function updateCounts() {
     els.topbarCoinCount.textContent = state.coins.toString();
   }
   els.upgradeCount.textContent = getAffordableSidebarShopItemCount().toString();
-  els.upgradeCoinCount.textContent = `${state.coins} coin${state.coins === 1 ? "" : "s"}`;
+  els.upgradeCoinCount.textContent = formatCoinsCount(state.coins);
 }
 
 function renderQuest() {
@@ -4315,7 +4259,7 @@ function renderTopBarShop() {
     row.title = hint;
     const titleSpan = document.createElement("span");
     titleSpan.className = "purchase-tokens-menu-item-title";
-    titleSpan.textContent = item.title;
+    titleSpan.textContent = localizedShopTitle(item.id);
     const costSpan = document.createElement("span");
     costSpan.className = "purchase-tokens-menu-item-cost";
     costSpan.textContent = `${itemCost}G`;
@@ -4339,9 +4283,11 @@ function renderTopBarShop() {
     }
     els.wordBoosterTopButton.disabled = !boosterState.canBuy;
     const pending = hasPendingShopWordBooster();
-    els.wordBoosterTopButton.title = pending
-      ? "Open your pending Word Booster picks."
-      : (boosterState.reason || `Buy for ${boosterCost} coins.`);
+    els.wordBoosterTopButton.title = getWordBoosterTopTitle(
+      pending,
+      boosterState.reason,
+      boosterCost,
+    );
   }
 }
 
@@ -4365,7 +4311,7 @@ function renderUpgradePanel() {
 
     const title = document.createElement("div");
     title.className = "upgrade-card-name";
-    title.textContent = item.title;
+    title.textContent = localizedShopTitle(item.id);
 
     titleWrap.append(title);
     head.append(titleWrap);
@@ -4388,7 +4334,7 @@ function renderUpgradePanel() {
     button.type = "button";
     button.className = "upgrade-buy-button";
     button.disabled = !purchaseState.canBuy;
-    button.textContent = `Buy for ${itemCost} coins`;
+    button.textContent = formatShopBuyLine(itemCost);
     button.addEventListener("click", () => {
       purchaseShopItem(item.id);
     });
@@ -4413,7 +4359,7 @@ function renderSidebar() {
   updatePlayfieldCamera();
   const isWordTabActive = state.activeSidebarTab === "words";
   const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
-  els.sidebarTitle.textContent = isUpgradeTabActive ? "Shop" : "Word Panel";
+  els.sidebarTitle.textContent = isUpgradeTabActive ? t("sidebar.tabShop") : t("sidebar.wordPanelTitle");
   els.openWordTabButton.setAttribute("aria-selected", isWordTabActive ? "true" : "false");
   els.openUpgradesTabButton.setAttribute("aria-selected", isUpgradeTabActive ? "true" : "false");
   els.sidebarPanels.forEach((panel) => {
@@ -6051,6 +5997,10 @@ function closeSettings() {
 
 function renderSettings() {
   els.spawnExistingWordsToggle.checked = state.spawnExistingWords;
+  const lang = getUiLang();
+  els.uiLangRadios.forEach((radio) => {
+    radio.checked = radio.value === lang;
+  });
 }
 
 function exportSaveSnapshot() {
@@ -6458,6 +6408,20 @@ function initEvents() {
       "ok",
     );
   });
+  els.uiLangRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!radio.checked) {
+        return;
+      }
+      setUiLang(radio.value);
+      applyDocumentI18n(radio.value);
+      renderSidebar();
+      setStatus(
+        radio.value === "ru" ? "Язык интерфейса: русский." : "Interface language: English.",
+        "ok",
+      );
+    });
+  });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     await importSaveSnapshotFromFile(file);
@@ -6549,4 +6513,17 @@ function init() {
   }
 }
 
-init();
+async function bootstrap() {
+  try {
+    await fetchGameConfig();
+  } catch (error) {
+    console.warn("WordMath: /api/config failed; using English gameplay data.", error);
+    applyGameLocale("en");
+  }
+  const uiLang = resolveUiLang(gameLocale);
+  setUiLang(uiLang);
+  applyDocumentI18n(uiLang);
+  init();
+}
+
+bootstrap();
