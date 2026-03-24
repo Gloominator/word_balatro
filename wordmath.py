@@ -567,7 +567,13 @@ def main():
     port = args.port if args.port is not None else find_open_port()
     url = f"http://127.0.0.1:{port}/"
 
-    print(f"Serving WordMath at {url} (game locale: {GAME_LOCALE}, wordfreq: {WORDFREQ_LANG})")
+    print(
+        f"Preloading language model (game locale: {GAME_LOCALE}, "
+        f"wordfreq: {WORDFREQ_LANG})"
+    )
+    get_language_resources()
+    print("Model ready.")
+    print(f"Serving at {url}")
     print("Press Ctrl+C to stop.")
 
     if not args.no_browser:
