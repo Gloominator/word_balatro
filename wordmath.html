@@ -199,6 +199,7 @@
             <div class="list-summary">
               <span data-i18n="sidebar.availableLabel">Available words</span>
               <div class="topbar-actions">
+                <button type="button" class="ghost-button" data-action="open-history" data-i18n="sidebar.matchHistoryButton">History</button>
                 <button type="button" class="ghost-button" data-action="add-category">+</button>
                 <span data-available-count>2</span>
               </div>
@@ -248,6 +249,19 @@
           </div>
         </div>
         <div class="history-list" data-history-list></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-genealogy-modal hidden>
+      <section class="modal-card genealogy-modal-card" role="dialog" aria-modal="true" aria-labelledby="genealogy-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="genealogy-title" data-genealogy-title>Genealogy</h2>
+            <p class="muted" data-genealogy-subtitle></p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-genealogy" data-i18n="modal.close">Close</button>
+        </div>
+        <div class="genealogy-body" data-genealogy-body></div>
       </section>
     </div>
 
@@ -365,6 +379,12 @@
           <button type="button" data-action="quest-go-again" data-i18n="questWin.goAgain">Go Again</button>
         </div>
       </section>
+    </div>
+
+    <div class="word-panel-context-menu" data-word-panel-context-menu hidden>
+      <button type="button" class="word-panel-context-menu-item" data-action="word-panel-view-genealogy">
+        <span data-i18n="sidebar.genealogyContext">View genealogy</span>
+      </button>
     </div>
 
     <script>

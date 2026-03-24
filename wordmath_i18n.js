@@ -61,6 +61,20 @@ const MESSAGES = {
     "modal.historySubtitle":
       "Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.",
     "modal.historySort": "Sort by Result",
+    "sidebar.matchHistoryButton": "History",
+    "sidebar.genealogyContext": "View genealogy",
+    "modal.genealogyTitle": "Genealogy",
+    "modal.genealogyShort": "Tree",
+    "modal.genealogySubtitleHasTree":
+      "Up to four generations (30 ancestor slots). Inbreeding score: {n} (extra repeats among those ancestors).",
+    "modal.genealogySubtitleNoTree":
+      "No mix parents on file (starter, shop, import, or older save).",
+    "modal.genealogyEmptyBody":
+      "This word was not created from a tracked mix, so there is no parent tree.",
+    "modal.genealogyTierParents": "Parents (1 pair)",
+    "modal.genealogyTierGrandparents": "Grandparents (2 pairs)",
+    "modal.genealogyTierGreat": "Great-grandparents (4 pairs)",
+    "modal.genealogyTierGreatGreat": "Great-great-grandparents (8 pairs)",
     "modal.settingsTitle": "Settings",
     "modal.settingsSubtitle": "Gameplay and debug tools for this run.",
     "modal.settingsLanguageLabel": "Interface language",
@@ -159,6 +173,20 @@ const MESSAGES = {
     "modal.historySubtitle":
       "Только уникальные комбинации. Повтор не добавляет запись. Хранятся последние 100.",
     "modal.historySort": "Сортировка по результату",
+    "sidebar.matchHistoryButton": "История",
+    "sidebar.genealogyContext": "Родословная",
+    "modal.genealogyTitle": "Родословная",
+    "modal.genealogyShort": "Дерево",
+    "modal.genealogySubtitleHasTree":
+      "До четырёх поколений (30 слотов предков). Инбридинг: {n} (лишние повторы среди них).",
+    "modal.genealogySubtitleNoTree":
+      "Нет родителей от смешивания (старт, магазин, импорт или старое сохранение).",
+    "modal.genealogyEmptyBody":
+      "Слово не получено из отслеживаемого микса — дерева родителей нет.",
+    "modal.genealogyTierParents": "Родители (1 пара)",
+    "modal.genealogyTierGrandparents": "Бабушки и дедушки (2 пары)",
+    "modal.genealogyTierGreat": "Прародители (4 пары)",
+    "modal.genealogyTierGreatGreat": "Прапрародители (8 пар)",
     "modal.settingsTitle": "Настройки",
     "modal.settingsSubtitle": "Игровые и отладочные опции.",
     "modal.settingsLanguageLabel": "Язык интерфейса",

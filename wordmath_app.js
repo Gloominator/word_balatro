@@ -408,6 +408,7 @@ const state = {
   },
   nextTileId: 1,
   nextZIndex: 1,
+  wordParents: new Map(),
 };
 
 const els = {
@@ -467,6 +468,13 @@ const els = {
   upgradeList: document.querySelector("[data-upgrade-list]"),
   sidebarPanels: document.querySelectorAll("[data-sidebar-panel]"),
   openHistoryButton: document.querySelector("[data-action='open-history']"),
+  genealogyModal: document.querySelector("[data-genealogy-modal]"),
+  genealogyTitle: document.querySelector("[data-genealogy-title]"),
+  genealogySubtitle: document.querySelector("[data-genealogy-subtitle]"),
+  genealogyBody: document.querySelector("[data-genealogy-body]"),
+  closeGenealogyButton: document.querySelector("[data-action='close-genealogy']"),
+  wordPanelContextMenu: document.querySelector("[data-word-panel-context-menu]"),
+  wordPanelViewGenealogyButton: document.querySelector("[data-action='word-panel-view-genealogy']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
@@ -1127,9 +1135,13 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 5,
+    version: 6,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
+    wordParents: [...state.wordParents.entries()].map(([childKey, par]) => [
+      childKey,
+      { left: par.left, right: par.right },
+    ]),
     selfMatchedWords: [...state.selfMatchedWords],
     spawnExistingWords: state.spawnExistingWords,
     tiles: state.tiles.map((tile) => ({
@@ -1277,6 +1289,29 @@ function normalizeSavedTiles(value) {
     .filter((tile) => tile.id > 0);
 }
 
+function normalizeSavedWordParents(value) {
+  const map = new Map();
+  if (!Array.isArray(value)) {
+    return map;
+  }
+  value.forEach((entry) => {
+    if (!Array.isArray(entry) || entry.length !== 2) {
+      return;
+    }
+    const [childKey, par] = entry;
+    if (typeof childKey !== "string" || !childKey || !par || typeof par !== "object") {
+      return;
+    }
+    const left = typeof par.left === "string" ? par.left : "";
+    const right = typeof par.right === "string" ? par.right : "";
+    if (!left && !right) {
+      return;
+    }
+    map.set(childKey, { left, right });
+  });
+  return map;
+}
+
 function normalizeSavedHistory(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -1402,6 +1437,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
 
   state.starters = starters;
   state.discovered = discovered;
+  state.wordParents = normalizeSavedWordParents(snapshot.wordParents);
   state.selfMatchedWords = new Set(getStringList(snapshot.selfMatchedWords));
   state.spawnExistingWords = Boolean(snapshot.spawnExistingWords);
   state.tiles = tiles;
@@ -2004,6 +2040,8 @@ function replaceTrackedDiscoveredWordKey(previousKey, nextKey) {
   if (typeof previousKey !== "string" || !previousKey || typeof nextKey !== "string" || !nextKey) {
     return;
   }
+
+  remapWordParentKeys(previousKey, nextKey);
 
   state.recentDiscoveredWordKeys = state.recentDiscoveredWordKeys.map((trackedWordKey) =>
     trackedWordKey === previousKey ? nextKey : trackedWordKey,
@@ -2735,6 +2773,215 @@ function getWordKey(word) {
   return word.toLowerCase();
 }
 
+const GENEALOGY_DEPTH = 4;
+
+function getGenealogyParentKey(rawWord) {
+  if (typeof rawWord !== "string" || !rawWord.trim()) {
+    return "";
+  }
+  const lower = rawWord.trim().toLowerCase();
+  for (const [key, value] of state.discovered.entries()) {
+    if (typeof value === "string" && value.toLowerCase() === lower) {
+      return key;
+    }
+  }
+  for (const [key] of state.discovered.entries()) {
+    if (key.toLowerCase() === lower) {
+      return key;
+    }
+  }
+  return lower;
+}
+
+function remapWordParentKeys(fromKey, toKey) {
+  if (typeof fromKey !== "string" || !fromKey || typeof toKey !== "string" || !toKey || fromKey === toKey) {
+    return;
+  }
+  const map = state.wordParents;
+  if (map.has(fromKey)) {
+    const record = map.get(fromKey);
+    map.delete(fromKey);
+    if (!map.has(toKey)) {
+      map.set(toKey, record);
+    }
+  }
+  for (const par of map.values()) {
+    if (par.left === fromKey) {
+      par.left = toKey;
+    }
+    if (par.right === fromKey) {
+      par.right = toKey;
+    }
+  }
+}
+
+function buildGenealogyLevels(rootKey) {
+  const levels = [];
+  let frontier = [rootKey];
+  for (let depth = 1; depth <= GENEALOGY_DEPTH; depth++) {
+    const width = 1 << depth;
+    const next = [];
+    for (let i = 0; i < frontier.length; i++) {
+      const key = frontier[i];
+      if (!key) {
+        next.push(null, null);
+        continue;
+      }
+      const par = state.wordParents.get(key);
+      if (!par) {
+        next.push(null, null);
+      } else {
+        next.push(par.left || null, par.right || null);
+      }
+    }
+    while (next.length < width) {
+      next.push(null, null);
+    }
+    const row = next.slice(0, width);
+    levels.push(row);
+    frontier = row;
+  }
+  return levels;
+}
+
+function getGenealogyDisplayLabel(key) {
+  if (!key) {
+    return "—";
+  }
+  const value = state.discovered.get(key);
+  if (typeof value === "string" && value) {
+    return titleCase(value);
+  }
+  return titleCase(key);
+}
+
+function computeGenealogyInbreeding(levels) {
+  const tokens = [];
+  for (const row of levels) {
+    for (const key of row) {
+      if (!key) {
+        continue;
+      }
+      const value = state.discovered.get(key);
+      tokens.push((typeof value === "string" ? value : key).toLowerCase());
+    }
+  }
+  const counts = new Map();
+  for (const token of tokens) {
+    counts.set(token, (counts.get(token) || 0) + 1);
+  }
+  let excess = 0;
+  for (const count of counts.values()) {
+    if (count > 1) {
+      excess += count - 1;
+    }
+  }
+  return excess;
+}
+
+function getGenealogyRootKeyForResultWord(resultWord) {
+  return getGenealogyParentKey(resultWord);
+}
+
+function hideWordPanelContextMenu() {
+  if (els.wordPanelContextMenu) {
+    els.wordPanelContextMenu.hidden = true;
+  }
+}
+
+function showWordPanelContextMenu(clientX, clientY, wordKey) {
+  if (!els.wordPanelContextMenu) {
+    return;
+  }
+  els.wordPanelContextMenu.dataset.wordKey = wordKey;
+  els.wordPanelContextMenu.hidden = false;
+  const pad = 8;
+  window.requestAnimationFrame(() => {
+    const menu = els.wordPanelContextMenu;
+    if (!menu || menu.hidden) {
+      return;
+    }
+    const rect = menu.getBoundingClientRect();
+    let x = clientX;
+    let y = clientY;
+    if (x + rect.width > window.innerWidth - pad) {
+      x = Math.max(pad, window.innerWidth - rect.width - pad);
+    }
+    if (y + rect.height > window.innerHeight - pad) {
+      y = Math.max(pad, window.innerHeight - rect.height - pad);
+    }
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+  });
+}
+
+function renderGenealogyModal(wordKey) {
+  if (!els.genealogyModal || !els.genealogyTitle || !els.genealogySubtitle || !els.genealogyBody) {
+    return;
+  }
+  const rootKey = typeof wordKey === "string" ? wordKey : "";
+  const displayWord = getGenealogyDisplayLabel(rootKey);
+  els.genealogyTitle.textContent = `${t("modal.genealogyTitle")}: ${displayWord}`;
+  const levels = buildGenealogyLevels(rootKey);
+  const hasParents = Boolean(state.wordParents.get(rootKey));
+  const inbreeding = computeGenealogyInbreeding(levels);
+  els.genealogySubtitle.textContent = hasParents
+    ? t("modal.genealogySubtitleHasTree").replace("{n}", String(inbreeding))
+    : t("modal.genealogySubtitleNoTree");
+  els.genealogyBody.innerHTML = "";
+
+  if (!hasParents) {
+    const empty = document.createElement("p");
+    empty.className = "muted genealogy-empty";
+    empty.textContent = t("modal.genealogyEmptyBody");
+    els.genealogyBody.append(empty);
+    return;
+  }
+
+  const tierLabels = [
+    t("modal.genealogyTierParents"),
+    t("modal.genealogyTierGrandparents"),
+    t("modal.genealogyTierGreat"),
+    t("modal.genealogyTierGreatGreat"),
+  ];
+
+  levels.forEach((row, tierIndex) => {
+    const section = document.createElement("section");
+    section.className = "genealogy-tier";
+    const h = document.createElement("h4");
+    h.className = "genealogy-tier-title";
+    h.textContent = tierLabels[tierIndex] ?? "";
+    const pairWrap = document.createElement("div");
+    pairWrap.className = "genealogy-pairs";
+    const pairCount = row.length / 2;
+    for (let p = 0; p < pairCount; p++) {
+      const leftKey = row[p * 2];
+      const rightKey = row[p * 2 + 1];
+      const line = document.createElement("div");
+      line.className = "genealogy-pair-line";
+      line.textContent = `${getGenealogyDisplayLabel(leftKey)} + ${getGenealogyDisplayLabel(rightKey)}`;
+      pairWrap.append(line);
+    }
+    section.append(h, pairWrap);
+    els.genealogyBody.append(section);
+  });
+}
+
+function openGenealogyModal(wordKey) {
+  hideWordPanelContextMenu();
+  if (!els.genealogyModal) {
+    return;
+  }
+  renderGenealogyModal(wordKey);
+  els.genealogyModal.hidden = false;
+}
+
+function closeGenealogyModal() {
+  if (els.genealogyModal) {
+    els.genealogyModal.hidden = true;
+  }
+}
+
 function buildSourceButton(entry) {
   const { key, word } = entry;
   const button = document.createElement("button");
@@ -2756,6 +3003,10 @@ function buildSourceButton(entry) {
     event.dataTransfer.setData("text/plain", word);
     event.dataTransfer.setData("application/x-word-key", key);
     event.dataTransfer.effectAllowed = "copy";
+  });
+  button.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showWordPanelContextMenu(event.clientX, event.clientY, key);
   });
   return button;
 }
@@ -4887,6 +5138,9 @@ function renderHistory() {
     const item = document.createElement("div");
     item.className = "history-item";
 
+    const col = document.createElement("div");
+    col.className = "history-item-text";
+
     const main = document.createElement("div");
     main.className = "history-item-main";
     const nextCandidatesText = Array.isArray(match.nextCandidates) && match.nextCandidates.length
@@ -4898,7 +5152,18 @@ function renderHistory() {
     meta.className = "history-item-meta";
     meta.textContent = match.operation === "subtract" ? "Negative mix" : "Standard mix";
 
-    item.append(main, meta);
+    col.append(main, meta);
+
+    const geneButton = document.createElement("button");
+    geneButton.type = "button";
+    geneButton.className = "ghost-button history-genealogy-btn";
+    geneButton.textContent = t("modal.genealogyShort");
+    geneButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openGenealogyModal(getGenealogyRootKeyForResultWord(match.result));
+    });
+
+    item.append(col, geneButton);
     els.historyList.append(item);
   });
 }
@@ -5081,6 +5346,10 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
+    mixParentWords: {
+      left: word,
+      right: word,
+    },
   });
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
@@ -5175,6 +5444,10 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
     zipf: selectedCandidate.zipf,
     fromMix: true,
+    mixParentWords: {
+      left: firstTile.word,
+      right: secondTile.word,
+    },
   });
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
@@ -5269,6 +5542,12 @@ function rememberResult(result, normalized = result, metadata = {}) {
   if (discoveryKey !== normalized && state.discovered.has(normalized)) {
     replaceTrackedDiscoveredWordKey(normalized, discoveryKey);
     state.discovered.delete(normalized);
+  }
+
+  if (didDiscoverNewWord && metadata.fromMix && metadata.mixParentWords) {
+    const leftKey = getGenealogyParentKey(metadata.mixParentWords.left);
+    const rightKey = getGenealogyParentKey(metadata.mixParentWords.right);
+    state.wordParents.set(discoveryKey, { left: leftKey, right: rightKey });
   }
 
   if (didDiscoverNewWord && metadata.fromMix) {
@@ -5437,6 +5716,10 @@ async function runNegativeMix(clientPoint = null) {
     zipf: selectedCandidate.zipf,
     fromMix: true,
     countQuestDiscoveryTurn: false,
+    mixParentWords: {
+      left: state.negativeMix.a,
+      right: state.negativeMix.b,
+    },
   });
   recordMatch(
     state.negativeMix.a,
@@ -6103,6 +6386,7 @@ function resetRun() {
   };
   state.matchHistory = [];
   state.matchHistoryKeys = new Set();
+  state.wordParents = new Map();
   state.historySort = "recent";
   state.wordCategories = createDefaultCategoryState();
   state.wordAssignments = new Map(state.starters.map((word) => [word, new Set()]));
@@ -6383,6 +6667,22 @@ function initEvents() {
   if (els.openHistoryButton) {
     els.openHistoryButton.addEventListener("click", openHistory);
   }
+  if (els.closeGenealogyButton) {
+    els.closeGenealogyButton.addEventListener("click", closeGenealogyModal);
+  }
+  if (els.wordPanelViewGenealogyButton) {
+    els.wordPanelViewGenealogyButton.addEventListener("click", () => {
+      const key = els.wordPanelContextMenu?.dataset?.wordKey;
+      if (typeof key === "string" && key) {
+        openGenealogyModal(key);
+      }
+    });
+  }
+  document.addEventListener("click", (event) => {
+    if (els.wordPanelContextMenu && !els.wordPanelContextMenu.hidden && !els.wordPanelContextMenu.contains(event.target)) {
+      hideWordPanelContextMenu();
+    }
+  }, true);
   els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openSettingsButton.addEventListener("click", openSettings);
   els.closeSettingsButton.addEventListener("click", closeSettings);
@@ -6444,6 +6744,13 @@ function initEvents() {
       closeHistory();
     }
   });
+  if (els.genealogyModal) {
+    els.genealogyModal.addEventListener("click", (event) => {
+      if (event.target === els.genealogyModal) {
+        closeGenealogyModal();
+      }
+    });
+  }
   els.settingsModal.addEventListener("click", (event) => {
     if (event.target === els.settingsModal) {
       closeSettings();
@@ -6471,6 +6778,9 @@ function initEvents() {
     }
     if (event.key === "Escape" && !els.historyModal.hidden) {
       closeHistory();
+    }
+    if (event.key === "Escape" && els.genealogyModal && !els.genealogyModal.hidden) {
+      closeGenealogyModal();
     }
     if (event.key === "Escape" && !els.encyclopediaModal.hidden) {
       closeEncyclopedia();
