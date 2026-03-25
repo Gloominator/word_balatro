@@ -98,16 +98,31 @@
 
           <div class="quest-manuscript-shell">
             <div class="quest-manuscript-frame">
-              <section class="quest-strip quest-manuscript-plate" aria-label="Current quest">
-                <div class="quest-manuscript-left">
-                  <p class="quest-label-manuscript" data-i18n="quest.objectiveLabel">Objective Manuscript</p>
-                  <strong class="quest-word" data-quest-word data-i18n="quest.loading">Loading...</strong>
+              <section class="quest-strip quest-manuscript-plate" data-quest-strip-root data-mode="play" aria-label="Current quest">
+                <div class="quest-strip-play" data-quest-panel-play>
+                  <div class="quest-manuscript-left">
+                    <p class="quest-label-manuscript" data-i18n="quest.objectiveLabel">Objective Manuscript</p>
+                    <strong class="quest-word" data-quest-word data-i18n="quest.loading">Loading...</strong>
+                  </div>
+                  <div class="quest-countdown-panel quest-countdown-manuscript">
+                    <p class="quest-label-ink" data-i18n="quest.inkLabel">Ink Remaining</p>
+                    <div class="quest-ink-row">
+                      <strong class="quest-countdown" data-quest-countdown>0</strong>
+                      <span class="material-symbols-outlined quest-ink-icon" aria-hidden="true">history_edu</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="quest-countdown-panel quest-countdown-manuscript">
-                  <p class="quest-label-ink" data-i18n="quest.inkLabel">Ink Remaining</p>
-                  <div class="quest-ink-row">
-                    <strong class="quest-countdown" data-quest-countdown>0</strong>
-                    <span class="material-symbols-outlined quest-ink-icon" aria-hidden="true">history_edu</span>
+                <div class="quest-strip-stage" data-quest-panel-stage hidden>
+                  <div class="quest-strip-stage-inner">
+                    <p class="quest-label-manuscript" data-i18n="stageAdvance.bannerLabel">Stage clear</p>
+                    <div class="quest-stage-advance-title" data-stage-advance-banner-title></div>
+                    <div class="quest-stage-advance-body" data-stage-advance-banner-body></div>
+                    <div class="quest-stage-advance-next" data-stage-advance-banner-next></div>
+                    <div class="quest-stage-advance-tokens" data-stage-advance-banner-tokens></div>
+                    <div class="quest-stage-advance-actions">
+                      <button type="button" class="ghost-button" data-action="stage-advance-back" data-i18n="stageAdvance.back" hidden>Back</button>
+                      <button type="button" data-action="stage-advance-next" data-i18n="stageAdvance.next">Next</button>
+                    </div>
                   </div>
                 </div>
               </section>
@@ -116,27 +131,6 @@
 
           <div class="playfield" data-playfield>
             <div class="playfield-surface" data-playfield-surface>
-              <section class="negative-mix-panel" data-negative-panel hidden>
-                <div class="negative-mix-head">
-                  <div class="negative-mix-title" data-i18n="negative.title">Minus Mix Board</div>
-                  <button type="button" class="ghost-button negative-close-button" data-action="close-negative" data-i18n-aria="negative.refundAria" aria-label="Refund minus-mix token" data-i18n="negative.refund">Refund</button>
-                </div>
-                <p class="negative-mix-text">Drag this board around, drop two words into the slots, then run <strong>A &minus; B</strong>. Right-click the board to refund the token.</p>
-                <div class="negative-mix-slots">
-                  <div class="negative-slot" data-negative-slot="a">
-                    <span class="negative-slot-label" data-i18n="negative.slotA">A</span>
-                    <span class="negative-slot-word" data-negative-word-a data-i18n="negative.dropWord">Drop word</span>
-                  </div>
-                  <div class="negative-slot" data-negative-slot="b">
-                    <span class="negative-slot-label" data-i18n="negative.slotB">B</span>
-                    <span class="negative-slot-word" data-negative-word-b data-i18n="negative.dropWord">Drop word</span>
-                  </div>
-                </div>
-                <div class="negative-mix-actions">
-                  <button type="button" class="ghost-button" data-action="clear-negative" data-i18n="negative.clear">Clear</button>
-                  <button type="button" data-action="run-negative" data-i18n="negative.run">Mix A &minus; B</button>
-                </div>
-              </section>
             </div>
             <div class="playfield-empty" data-empty-message data-i18n="playfield.empty">
               Drag a starter or discovered word here.
@@ -312,6 +306,18 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" data-broad-choice-modal hidden>
+      <section class="modal-card broad-choice-modal-card" role="dialog" aria-modal="true" aria-labelledby="broad-choice-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="broad-choice-title" data-i18n="modal.broadChoiceTitle">Broad Choice</h2>
+            <p class="muted" data-i18n="modal.broadChoiceSubtitle">Pick which match to produce. Press Esc to take the first option listed.</p>
+          </div>
+        </div>
+        <div class="broad-choice-grid" data-broad-choice-grid></div>
+      </section>
+    </div>
+
     <div class="modal-backdrop" data-quest-loss-modal hidden>
       <section class="modal-card quest-loss-modal-card" role="dialog" aria-modal="true" aria-labelledby="quest-loss-title">
         <div class="modal-head">
@@ -377,22 +383,6 @@
         <p class="quest-loss-copy" data-i18n="questWin.copy">All six stages complete. Encyclopedia mastered.</p>
         <div class="settings-actions">
           <button type="button" data-action="quest-go-again" data-i18n="questWin.goAgain">Go Again</button>
-        </div>
-      </section>
-    </div>
-
-    <div class="modal-backdrop" data-stage-advance-modal hidden>
-      <section class="modal-card stage-advance-modal-card" role="dialog" aria-modal="true" aria-labelledby="stage-advance-title">
-        <div class="modal-head">
-          <div>
-            <h2 id="stage-advance-title" data-stage-advance-title data-i18n="stageAdvance.title">Stage clear</h2>
-            <p class="muted" data-stage-advance-subtitle data-i18n="stageAdvance.subtitle"></p>
-          </div>
-        </div>
-        <div class="stage-advance-body" data-stage-advance-body></div>
-        <div class="settings-actions">
-          <button type="button" class="ghost-button" data-action="stage-advance-back" data-i18n="stageAdvance.back" hidden>Back</button>
-          <button type="button" data-action="stage-advance-next" data-i18n="stageAdvance.next">Next</button>
         </div>
       </section>
     </div>

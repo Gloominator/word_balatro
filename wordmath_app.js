@@ -78,9 +78,6 @@ const TILE_DROP_TILT_NUDGE_CHANCE = 0.3;
 /** Max degrees added to current tilt on drop (symmetric small bump). */
 const TILE_DROP_TILT_NUDGE_MAX = 1.35;
 const tileIdsNeedingPaperSettle = new Set();
-const NEGATIVE_MIX_WIDTH = 168;
-const NEGATIVE_MIX_HEIGHT = 132;
-const NEGATIVE_MIX_Z_INDEX = 5000;
 const DRAGGING_TILE_Z_INDEX = 6000;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
@@ -104,8 +101,10 @@ const CATEGORY_ZONE_DEFAULT_COLOR = "#c62828";
 const CATEGORY_ZONE_DEFAULT_OPACITY = 0.22;
 const CATEGORY_ZONE_WIDGET_BASE_Z = 50;
 const MATCH_HISTORY_LIMIT = 100;
-const NEGATIVE_MIX_FIRST_UNLOCK_WORDS = 5;
-const WORDS_PER_NEGATIVE_MIX_TOKEN = 15;
+const BROAD_CHOICE_FIRST_UNLOCK_WORDS = 5;
+const WORDS_PER_BROAD_CHOICE_TOKEN = 15;
+const BROAD_CHOICE_PREVIEW_COUNT = 10;
+const DEFAULT_MIX_PREVIEW_COUNT = 5;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
@@ -120,24 +119,24 @@ const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
 const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
 const SHOP_PLAYFIELD_EXPAND_COST = 600;
 const SHOP_PLAYFIELD_EXPAND_2_COST = 2000;
-const DISCOVERY_COIN_BASE_REWARD = 1;
-const DISCOVERY_RARITY_MIN_ZIPF = 2;
+const DISCOVERY_COIN_REWARD_COMMON = 30;
+const DISCOVERY_COIN_REWARD_UNCOMMON = 35;
+const DISCOVERY_COIN_REWARD_RARE = 40;
+const DISCOVERY_COIN_REWARD_VERY_RARE = 50;
+const DISCOVERY_COIN_REWARD_MEGA_RARE = 60;
 const DISCOVERY_RARITY_MAX_ZIPF = 6;
 const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const QUEST_INITIAL_DISCOVERY_TIMER = 60;
-const QUEST_COMPLETION_COIN_REWARD = 500;
-const QUEST_COMPLETION_REWARD_COUNT = 5;
-const QUEST_SPEED_BONUS_TIERS = Object.freeze([
-  { maxTurns: 10, coins: 500 },
-  { maxTurns: 20, coins: 300 },
-  { maxTurns: 30, coins: 100 },
-]);
-const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
+/** Extra turns added when completing a quest on stage 2+ (stage 1 still carries remaining timer). */
+const QUEST_COMPLETION_CARRYOVER_TURNS_STAGE_2_PLUS = 5;
+const QUEST_COMPLETION_COIN_REWARD = 200;
+const QUEST_COMPLETION_REWARD_COUNT = 2;
+const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "ban-word", 2, 3, 4, 5]);
 /** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 7;
+const SNAPSHOT_VERSION = 8;
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -154,7 +153,7 @@ const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
   "shop-match-4",
   "shop-match-5",
   "shop-ban-word",
-  "shop-minus-mix",
+  "shop-broad-choice",
   "shop-quest-turn",
 ]);
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
@@ -237,16 +236,16 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
-    id: "shop-minus-mix",
-    title: "Minus Mix Token",
+    id: "shop-broad-choice",
+    title: "Broad Choice Token",
     cost: 50,
     description: "",
     canPurchase: () => true,
     purchase: () => {
-      state.availableNegativeMixTokens += 1;
-      state.totalNegativeMixTokensEarned += 1;
-      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-minus-mix"));
-      return formatShopPurchaseMessage("shop-minus-mix", [cost]);
+      state.availableBroadChoiceTokens += 1;
+      state.totalBroadChoiceTokensEarned += 1;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-broad-choice"));
+      return formatShopPurchaseMessage("shop-broad-choice", [cost]);
     },
   },
   {
@@ -305,7 +304,7 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-match-4",
   "shop-match-5",
   "shop-ban-word",
-  "shop-minus-mix",
+  "shop-broad-choice",
 ]);
 
 /** Cap / quest upgrades stay in the sidebar Shop tab. */
@@ -335,18 +334,6 @@ const state = {
   spawnExistingWords: false,
   tiles: [],
   search: "",
-  negativeMix: {
-    a: null,
-    b: null,
-  },
-  negativeMixSources: {
-    a: null,
-    b: null,
-  },
-  negativeMixPosition: {
-    x: 24,
-    y: 24,
-  },
   lastMix: {
     label: "No mix yet.",
     operation: "None",
@@ -368,9 +355,9 @@ const state = {
   hiddenWordPanelWords: new Set(),
   garbageWordsSinceReward: 0,
   garbageRewardLevel: 0,
-  availableNegativeMixTokens: 0,
-  totalNegativeMixTokensEarned: 0,
-  progressNegativeMixTokensAwarded: 0,
+  availableBroadChoiceTokens: 0,
+  totalBroadChoiceTokensEarned: 0,
+  progressBroadChoiceTokensAwarded: 0,
   coins: 0,
   totalCoinsEarned: 0,
   purchasedUpgrades: createDefaultPurchasedUpgradeState(),
@@ -396,7 +383,6 @@ const state = {
   completedRunCategoryNames: new Set(),
   /** When set, stage-clear flow: { active, step: 'warn'|'pick'|'confirm', selectedKeys: string[] }. */
   stageAdvanceFlow: null,
-  hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
   playfieldZoom: 1,
@@ -428,6 +414,13 @@ const els = {
   historyCount: document.querySelector("[data-history-count]"),
   discoveredCount: document.querySelector("[data-discovered-count]"),
   questWord: document.querySelector("[data-quest-word]"),
+  questStripRoot: document.querySelector("[data-quest-strip-root]"),
+  questPanelPlay: document.querySelector("[data-quest-panel-play]"),
+  questPanelStage: document.querySelector("[data-quest-panel-stage]"),
+  stageAdvanceBannerTitle: document.querySelector("[data-stage-advance-banner-title]"),
+  stageAdvanceBannerBody: document.querySelector("[data-stage-advance-banner-body]"),
+  stageAdvanceBannerNext: document.querySelector("[data-stage-advance-banner-next]"),
+  stageAdvanceBannerTokens: document.querySelector("[data-stage-advance-banner-tokens]"),
   questCountdown: document.querySelector("[data-quest-countdown]"),
   availableCount: document.querySelector("[data-available-count]"),
   wordSearch: document.querySelector("[data-word-search]"),
@@ -441,11 +434,6 @@ const els = {
   garbagePanel: document.querySelector("[data-garbage-panel]"),
   garbageBin: document.querySelector("[data-garbage-bin]"),
   garbageProgress: document.querySelector("[data-garbage-progress]"),
-  negativePanel: document.querySelector("[data-negative-panel]"),
-  closeNegativeButton: document.querySelector("[data-action='close-negative']"),
-  negativeSlots: document.querySelectorAll("[data-negative-slot]"),
-  negativeWordA: document.querySelector("[data-negative-word-a]"),
-  negativeWordB: document.querySelector("[data-negative-word-b]"),
   encyclopediaModal: document.querySelector("[data-encyclopedia-modal]"),
   encyclopediaGrid: document.querySelector("[data-encyclopedia-grid]"),
   historyModal: document.querySelector("[data-history-modal]"),
@@ -453,10 +441,10 @@ const els = {
   shopWordBoosterModal: document.querySelector("[data-shop-word-booster-modal]"),
   shopWordBoosterGrid: document.querySelector("[data-shop-word-booster-grid]"),
   closeShopWordBoosterButton: document.querySelector("[data-action='close-shop-word-booster']"),
+  broadChoiceModal: document.querySelector("[data-broad-choice-modal]"),
+  broadChoiceGrid: document.querySelector("[data-broad-choice-grid]"),
   resetButton: document.querySelector("[data-action='reset']"),
   clearFieldButton: document.querySelector("[data-action='clear-field']"),
-  clearNegativeButton: document.querySelector("[data-action='clear-negative']"),
-  runNegativeButton: document.querySelector("[data-action='run-negative']"),
   addCategoryButton: document.querySelector("[data-action='add-category']"),
   categoryZoneStyleModal: document.querySelector("[data-category-zone-style-modal]"),
   categoryZoneStyleTitle: document.querySelector("[data-category-zone-style-title]"),
@@ -498,16 +486,12 @@ const els = {
   settingsModal: document.querySelector("[data-settings-modal]"),
   saveFileInput: document.querySelector("[data-save-file-input]"),
   spawnExistingWordsToggle: document.querySelector("[data-setting='spawn-existing-words']"),
-  questStrip: document.querySelector(".quest-strip"),
+  questStrip: document.querySelector("[data-quest-strip-root]"),
   questLossModal: document.querySelector("[data-quest-loss-modal]"),
   questLossWord: document.querySelector("[data-quest-loss-word]"),
   questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
   questWinModal: document.querySelector("[data-quest-win-modal]"),
   questGoAgainButton: document.querySelector("[data-action='quest-go-again']"),
-  stageAdvanceModal: document.querySelector("[data-stage-advance-modal]"),
-  stageAdvanceTitle: document.querySelector("[data-stage-advance-title]"),
-  stageAdvanceSubtitle: document.querySelector("[data-stage-advance-subtitle]"),
-  stageAdvanceBody: document.querySelector("[data-stage-advance-body]"),
   stageAdvanceNextButton: document.querySelector("[data-action='stage-advance-next']"),
   stageAdvanceBackButton: document.querySelector("[data-action='stage-advance-back']"),
   purchaseTokensRoot: document.querySelector("[data-purchase-tokens-root]"),
@@ -647,21 +631,24 @@ function isCommonDiscoveryZipf(zipf) {
   return normalizeZipfFrequency(zipf) >= 6;
 }
 
-function getDiscoveryCoinBaseMultiplier(zipf) {
-  const safeZipf = clamp(normalizeZipfFrequency(zipf), DISCOVERY_RARITY_MIN_ZIPF, DISCOVERY_RARITY_MAX_ZIPF);
-  const progress = (DISCOVERY_RARITY_MAX_ZIPF - safeZipf) / (DISCOVERY_RARITY_MAX_ZIPF - DISCOVERY_RARITY_MIN_ZIPF);
-  return 1 + (Math.pow(progress, 2) * 99);
-}
-
 function getDiscoveryCoinReward({ zipf, isInEncyclopedia = false } = {}) {
   const safeZipf = normalizeZipfFrequency(zipf);
-  const baseMultiplier = getDiscoveryCoinBaseMultiplier(safeZipf);
-  let coins = Math.max(1, Math.round(DISCOVERY_COIN_BASE_REWARD * baseMultiplier));
+  let coins = DISCOVERY_COIN_REWARD_COMMON;
+  if (safeZipf < 2) {
+    coins = DISCOVERY_COIN_REWARD_MEGA_RARE;
+  } else if (safeZipf < 3) {
+    coins = DISCOVERY_COIN_REWARD_VERY_RARE;
+  } else if (safeZipf < 4) {
+    coins = DISCOVERY_COIN_REWARD_RARE;
+  } else if (safeZipf < 5) {
+    coins = DISCOVERY_COIN_REWARD_UNCOMMON;
+  }
+  const multiplier = Math.round((coins / DISCOVERY_COIN_REWARD_COMMON) * 10) / 10;
 
   return {
     coins,
     zipf: safeZipf,
-    multiplier: Math.round(baseMultiplier * 10) / 10,
+    multiplier,
     rarityLabel: getDiscoveryRarityLabel(safeZipf),
   };
 }
@@ -1005,6 +992,26 @@ function getStageQuestWordSet() {
   return words;
 }
 
+function peekNextStageCategoryNamesForAfterAdvance() {
+  const used = new Set([...state.completedRunCategoryNames, ...state.stageCategoryNames]);
+  const pool = ENCYCLOPEDIA_CATEGORIES.map((c) => c.name).filter((name) => !used.has(name));
+  const count = getStageCategoryPickCountForRunStage(state.runStage + 1);
+  const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
+  return shuffle(pool).slice(0, n);
+}
+
+function isStageAdvanceBlockingPlay() {
+  return Boolean(state.stageAdvanceFlow?.active);
+}
+
+function isStageAdvanceBlockingWordBooster() {
+  return Boolean(state.stageAdvanceFlow?.active);
+}
+
+function stageAdvancePlayBlockedMessage() {
+  return t("stageAdvance.blockedPlay");
+}
+
 function isCurrentStageComplete() {
   if (!state.stageCategoryNames.length) {
     return false;
@@ -1039,9 +1046,6 @@ function setQuestVictoryState({ questNumber = state.quest.number } = {}) {
   state.quest.isLost = false;
   state.quest.isWon = true;
   state.stageAdvanceFlow = null;
-  if (els.stageAdvanceModal) {
-    els.stageAdvanceModal.hidden = true;
-  }
   return {
     number: state.quest.number,
     targetWord: null,
@@ -1060,12 +1064,12 @@ function beginStageAdvanceFlow() {
     active: true,
     step: "warn",
     selectedKeys: [],
+    nextStageCategoryNames: peekNextStageCategoryNamesForAfterAdvance(),
   };
   state.quest.targetWord = null;
   state.quest.remainingDiscoveries = 0;
   state.quest.isLost = false;
   state.quest.isWon = false;
-  renderStageAdvanceModal();
   renderQuest();
   renderSidebar();
   queueProgressSave();
@@ -1130,7 +1134,7 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
 
 function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   const rewardSummary = {
-    newNegativeMixTokens: 0,
+    newBroadChoiceTokens: 0,
     newBanWordTokens: 0,
     newWildcardTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
@@ -1138,11 +1142,11 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
 
   for (let index = 0; index < count; index += 1) {
     const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
-    if (rewardType === "minus-mix") {
-      state.availableNegativeMixTokens += 1;
-      state.totalNegativeMixTokensEarned += 1;
+    if (rewardType === "broad-choice") {
+      state.availableBroadChoiceTokens += 1;
+      state.totalBroadChoiceTokensEarned += 1;
       state.unseenTokenRewards += 1;
-      rewardSummary.newNegativeMixTokens += 1;
+      rewardSummary.newBroadChoiceTokens += 1;
       continue;
     }
     if (rewardType === "ban-word") {
@@ -1162,9 +1166,17 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
 }
 
 function getQuestSpeedBonusCoins(turnsTaken = state.quest.turnsTaken) {
-  const safeTurnsTaken = Math.max(0, getSafeCount(turnsTaken));
-  const matchedTier = QUEST_SPEED_BONUS_TIERS.find((tier) => safeTurnsTaken < tier.maxTurns);
-  return matchedTier?.coins ?? 0;
+  const t = Math.max(0, getSafeCount(turnsTaken));
+  if (t <= 1) {
+    return 300;
+  }
+  if (t <= 5) {
+    return 200;
+  }
+  if (t <= 10) {
+    return 100;
+  }
+  return 0;
 }
 
 function awardQuestCompletionCoins(turnsTaken = state.quest.turnsTaken) {
@@ -1194,7 +1206,7 @@ function advanceQuest(canonicalResult, {
     completedTargetWord: state.quest.targetWord,
     nextTargetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
-    newNegativeMixTokens: 0,
+    newBroadChoiceTokens: 0,
     newBanWordTokens: 0,
     newWildcardTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
@@ -1217,7 +1229,9 @@ function advanceQuest(canonicalResult, {
     const coinReward = awardQuestCompletionCoins(state.quest.turnsTaken);
     const rewardSummary = awardQuestCompletionTokens();
     const completedTargetWord = state.quest.targetWord;
-    const carryOverTurns = state.quest.remainingDiscoveries;
+    const carryOverTurns = state.runStage >= 2
+      ? QUEST_COMPLETION_CARRYOVER_TURNS_STAGE_2_PLUS
+      : state.quest.remainingDiscoveries;
     const nextQuest = assignNewQuest({
       initial: false,
       previousTargetWord: completedTargetWord,
@@ -1233,7 +1247,7 @@ function advanceQuest(canonicalResult, {
     questResult.questBaseCoins = coinReward.baseCoins;
     questResult.questSpeedBonusCoins = coinReward.speedBonusCoins;
     questResult.questTotalCoins = coinReward.totalCoins;
-    questResult.newNegativeMixTokens = rewardSummary.newNegativeMixTokens;
+    questResult.newBroadChoiceTokens = rewardSummary.newBroadChoiceTokens;
     questResult.newBanWordTokens = rewardSummary.newBanWordTokens;
     questResult.newWildcardTokens = rewardSummary.newWildcardTokens;
     mergePositionTokenRewardSummary(questResult.newPositionTokenRewards, rewardSummary.newPositionTokenRewards);
@@ -1283,14 +1297,12 @@ function buildProgressSnapshot() {
       secondResultTagged: getTileTagRank(tile) === 2,
       resultTagRank: getTileTagRank(tile),
       pendingBan: Boolean(tile.pendingBan),
+      broadChoiceCharged: Boolean(tile.broadChoiceCharged),
       x: tile.x,
       y: tile.y,
       zIndex: tile.zIndex,
       tiltDeg: clampStoredTileTiltDeg(tile.tiltDeg),
     })),
-    negativeMix: { ...state.negativeMix },
-    negativeMixSources: { ...state.negativeMixSources },
-    negativeMixPosition: { ...state.negativeMixPosition },
     lastMix: {
       label: state.lastMix.label,
       operation: state.lastMix.operation,
@@ -1328,9 +1340,9 @@ function buildProgressSnapshot() {
     hiddenWordPanelWords: [...state.hiddenWordPanelWords],
     garbageWordsSinceReward: state.garbageWordsSinceReward,
     garbageRewardLevel: state.garbageRewardLevel,
-    availableNegativeMixTokens: state.availableNegativeMixTokens,
-    totalNegativeMixTokensEarned: state.totalNegativeMixTokensEarned,
-    progressNegativeMixTokensAwarded: state.progressNegativeMixTokensAwarded,
+    availableBroadChoiceTokens: state.availableBroadChoiceTokens,
+    totalBroadChoiceTokensEarned: state.totalBroadChoiceTokensEarned,
+    progressBroadChoiceTokensAwarded: state.progressBroadChoiceTokensAwarded,
     coins: state.coins,
     totalCoinsEarned: state.totalCoinsEarned,
     purchasedUpgrades: { ...state.purchasedUpgrades },
@@ -1356,9 +1368,9 @@ function buildProgressSnapshot() {
         active: Boolean(state.stageAdvanceFlow.active),
         step: state.stageAdvanceFlow.step,
         selectedKeys: [...state.stageAdvanceFlow.selectedKeys],
+        nextStageCategoryNames: [...(state.stageAdvanceFlow.nextStageCategoryNames || [])],
       }
       : null,
-    hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
     activeSidebarTab: state.activeSidebarTab,
     unseenTokenRewards: state.unseenTokenRewards,
     playfieldZoom: state.playfieldZoom,
@@ -1423,6 +1435,7 @@ function normalizeSavedTiles(value) {
         ? getSafeCount(tile.resultTagRank)
         : (tile.secondResultTagged ? 2 : 0),
       pendingBan: Boolean(tile.pendingBan),
+      broadChoiceCharged: Boolean(tile.broadChoiceCharged),
       x: Number.isFinite(tile.x) ? tile.x : 0,
       y: Number.isFinite(tile.y) ? tile.y : 0,
       zIndex: getSafeCount(tile.zIndex, 1),
@@ -1550,7 +1563,8 @@ function normalizeSavedWordAssignments(value, validCategoryIds) {
 }
 
 function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
-  if (getSafeCount(snapshot?.version, 0) < SNAPSHOT_VERSION) {
+  const snapshotVersion = getSafeCount(snapshot?.version, 0);
+  if (snapshotVersion < 4) {
     return false;
   }
 
@@ -1593,10 +1607,6 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.spawnExistingWords = Boolean(snapshot.spawnExistingWords);
   state.tiles = tiles;
   state.search = "";
-  state.negativeMix.a = typeof snapshot.negativeMix?.a === "string" ? snapshot.negativeMix.a : null;
-  state.negativeMix.b = typeof snapshot.negativeMix?.b === "string" ? snapshot.negativeMix.b : null;
-  state.negativeMixSources.a = tileIds.has(snapshot.negativeMixSources?.a) ? snapshot.negativeMixSources.a : null;
-  state.negativeMixSources.b = tileIds.has(snapshot.negativeMixSources?.b) ? snapshot.negativeMixSources.b : null;
   state.lastMix = {
     label: typeof snapshot.lastMix?.label === "string" ? snapshot.lastMix.label : "No mix yet.",
     operation: typeof snapshot.lastMix?.operation === "string" ? snapshot.lastMix.operation : "None",
@@ -1619,16 +1629,24 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.hiddenWordPanelWords = new Set(getStringList(snapshot.hiddenWordPanelWords));
   state.garbageRewardLevel = getSafeCount(snapshot.garbageRewardLevel);
   state.garbageWordsSinceReward = getSafeCount(snapshot.garbageWordsSinceReward) % getCurrentGarbageTarget();
-  state.availableNegativeMixTokens = getSafeCount(snapshot.availableNegativeMixTokens);
-  state.totalNegativeMixTokensEarned = getSafeCount(snapshot.totalNegativeMixTokensEarned);
-  state.progressNegativeMixTokensAwarded = Math.min(
-    getUnlockedNegativeMixTokenCount(discovered.size),
-    getSafeCount(snapshot.progressNegativeMixTokensAwarded, getUnlockedNegativeMixTokenCount(discovered.size)),
-  );
+  if (snapshotVersion < 8) {
+    state.availableBroadChoiceTokens = getSafeCount(snapshot.availableNegativeMixTokens);
+    state.totalBroadChoiceTokensEarned = getSafeCount(snapshot.totalNegativeMixTokensEarned);
+    state.progressBroadChoiceTokensAwarded = Math.min(
+      getUnlockedBroadChoiceTokenCount(discovered.size),
+      getSafeCount(snapshot.progressNegativeMixTokensAwarded, getUnlockedBroadChoiceTokenCount(discovered.size)),
+    );
+  } else {
+    state.availableBroadChoiceTokens = getSafeCount(snapshot.availableBroadChoiceTokens);
+    state.totalBroadChoiceTokensEarned = getSafeCount(snapshot.totalBroadChoiceTokensEarned);
+    state.progressBroadChoiceTokensAwarded = Math.min(
+      getUnlockedBroadChoiceTokenCount(discovered.size),
+      getSafeCount(snapshot.progressBroadChoiceTokensAwarded, getUnlockedBroadChoiceTokenCount(discovered.size)),
+    );
+  }
   state.coins = getSafeCount(snapshot.coins);
   state.totalCoinsEarned = Math.max(state.coins, getSafeCount(snapshot.totalCoinsEarned, state.coins));
   const loadedPurchases = normalizeSavedPurchasedUpgrades(snapshot.purchasedUpgrades);
-  const snapshotVersion = getSafeCount(snapshot.version, 0);
   if (snapshotVersion < 4 && loadedPurchases.playfieldTier === undefined) {
     loadedPurchases.playfieldTier = 2;
   }
@@ -1661,15 +1679,19 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   );
   const rawFlow = snapshot.stageAdvanceFlow;
   if (rawFlow && rawFlow.active && typeof rawFlow.step === "string" && Array.isArray(rawFlow.selectedKeys)) {
+    const nextCats = getStringList(rawFlow.nextStageCategoryNames).filter((n) => validEncCatNames.has(n));
     state.stageAdvanceFlow = {
       active: true,
       step: rawFlow.step,
       selectedKeys: getStringList(rawFlow.selectedKeys),
+      nextStageCategoryNames: nextCats,
     };
+    if (!state.stageAdvanceFlow.nextStageCategoryNames.length) {
+      state.stageAdvanceFlow.nextStageCategoryNames = peekNextStageCategoryNamesForAfterAdvance();
+    }
   } else {
     state.stageAdvanceFlow = null;
   }
-  state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
   if (snapshot.activeSidebarTab === "upgrades") {
     state.activeSidebarTab = "upgrades";
   } else {
@@ -1681,10 +1703,6 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     x: Number.isFinite(snapshot.playfieldCamera?.x) ? snapshot.playfieldCamera.x : getDefaultPlayfieldCamera(state.playfieldZoom).x,
     y: Number.isFinite(snapshot.playfieldCamera?.y) ? snapshot.playfieldCamera.y : getDefaultPlayfieldCamera(state.playfieldZoom).y,
   }, state.playfieldZoom);
-  state.negativeMixPosition = clampNegativeMixPosition({
-    x: Number.isFinite(snapshot.negativeMixPosition?.x) ? snapshot.negativeMixPosition.x : getDefaultNegativeMixPosition().x,
-    y: Number.isFinite(snapshot.negativeMixPosition?.y) ? snapshot.negativeMixPosition.y : getDefaultNegativeMixPosition().y,
-  });
   const savedQuestNumber = Math.max(1, getSafeCount(snapshot.quest?.number, 1));
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
   const savedQuestTurnsTaken = Math.max(0, getSafeCount(snapshot.quest?.turnsTaken));
@@ -1703,7 +1721,6 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     state.quest.turnsTaken = savedQuestTurnsTaken;
     state.quest.isLost = savedQuestLost;
     state.quest.isWon = false;
-    renderStageAdvanceModal();
   } else if (savedQuestWon) {
     setQuestVictoryState({ questNumber: savedQuestNumber });
   } else if (!savedQuestLost
@@ -1733,18 +1750,10 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   );
   els.wordSearch.value = "";
 
-  if (!state.hasActiveNegativeMixToken) {
-    state.negativeMix.a = null;
-    state.negativeMix.b = null;
-    state.negativeMixSources.a = null;
-    state.negativeMixSources.b = null;
-  }
-
   clampTilesToPlayfieldBounds();
   updatePlayfieldCamera();
   renderSidebar();
   renderTiles();
-  renderNegativeMix();
   renderHistory();
   renderSettings();
   setStatus(statusMessage, "ok");
@@ -1984,31 +1993,6 @@ function getPlayfieldWorldPointFromClient(clientX, clientY) {
   };
 }
 
-function getNegativeMixSize() {
-  return {
-    width: els.negativePanel?.offsetWidth || NEGATIVE_MIX_WIDTH,
-    height: els.negativePanel?.offsetHeight || NEGATIVE_MIX_HEIGHT,
-  };
-}
-
-function clampNegativeMixPosition(position = state.negativeMixPosition) {
-  const world = getPlayfieldWorldSize();
-  const size = getNegativeMixSize();
-  return {
-    x: clamp(roundTo(position.x), 0, Math.max(0, world.width - size.width)),
-    y: clamp(roundTo(position.y), 0, Math.max(0, world.height - size.height)),
-  };
-}
-
-function getDefaultNegativeMixPosition() {
-  const visible = getPlayfieldVisibleWorldSize();
-  const size = getNegativeMixSize();
-  return clampNegativeMixPosition({
-    x: state.playfieldCamera.x + Math.max(24, (visible.width - size.width) / 2),
-    y: state.playfieldCamera.y + Math.max(24, (visible.height - size.height) / 4),
-  });
-}
-
 function clampTilesToPlayfieldBounds() {
   const bounds = getPlayfieldBounds();
   state.tiles = state.tiles.map((tile) => ({
@@ -2103,6 +2087,26 @@ function getDiscoveredWords() {
   return [...state.discovered.values()].sort((a, b) => a.localeCompare(b));
 }
 
+function isWordAmongStarters(word, key) {
+  const wl = (word || "").toLowerCase();
+  const kl = (key || "").toLowerCase();
+  return state.starters.some((s) => {
+    const sl = s.toLowerCase();
+    return sl === wl || sl === kl;
+  });
+}
+
+function shouldHidePastStageEncyclopediaFromWordPanel(word, key) {
+  const enc = getEncyclopediaEntry(word, key);
+  if (!enc) {
+    return false;
+  }
+  if (!state.completedRunCategoryNames.has(enc.category)) {
+    return false;
+  }
+  return !isWordAmongStarters(word, key);
+}
+
 function getAvailableWordEntries() {
   const available = new Map();
 
@@ -2114,6 +2118,9 @@ function getAvailableWordEntries() {
   });
 
   state.discovered.forEach((word, normalized) => {
+    if (shouldHidePastStageEncyclopediaFromWordPanel(word, normalized)) {
+      return;
+    }
     const existing = available.get(normalized);
     if (!existing || isPreferredDiscoveredVariant(word, existing.word)) {
       available.set(normalized, {
@@ -2127,7 +2134,12 @@ function getAvailableWordEntries() {
     available.delete(wordKey);
   });
 
-  return [...available.values()].sort((a, b) => a.word.localeCompare(b.word));
+  const sorted = [...available.values()].sort((a, b) => a.word.localeCompare(b.word));
+  const carryFlow = state.stageAdvanceFlow;
+  if (carryFlow?.active && carryFlow.step === "pick") {
+    return sorted.filter((entry) => !getEncyclopediaEntry(entry.word, entry.key));
+  }
+  return sorted;
 }
 
 function getAvailableWords() {
@@ -2183,14 +2195,14 @@ function getEncyclopediaDiscoveryCount() {
   return n;
 }
 
-function getUnlockedNegativeMixTokenCount(discoveredCount = state.discovered.size) {
-  if (discoveredCount < NEGATIVE_MIX_FIRST_UNLOCK_WORDS) {
+function getUnlockedBroadChoiceTokenCount(discoveredCount = state.discovered.size) {
+  if (discoveredCount < BROAD_CHOICE_FIRST_UNLOCK_WORDS) {
     return 0;
   }
-  if (discoveredCount < WORDS_PER_NEGATIVE_MIX_TOKEN) {
+  if (discoveredCount < WORDS_PER_BROAD_CHOICE_TOKEN) {
     return 1;
   }
-  return 2 + Math.floor((discoveredCount - WORDS_PER_NEGATIVE_MIX_TOKEN) / WORDS_PER_NEGATIVE_MIX_TOKEN);
+  return 2 + Math.floor((discoveredCount - WORDS_PER_BROAD_CHOICE_TOKEN) / WORDS_PER_BROAD_CHOICE_TOKEN);
 }
 
 function getUnlockedSecondResultTokenCount(discoveredCount = state.discovered.size) {
@@ -2234,18 +2246,18 @@ function replaceTrackedDiscoveredWordKey(previousKey, nextKey) {
 }
 
 function getTotalUsableTokenCount() {
-  return state.availableNegativeMixTokens
+  return state.availableBroadChoiceTokens
     + state.availableBanWordTokens
     + state.availableWildcardTokens
     + POSITION_TOKEN_RANKS.reduce((total, rank) => total + getAvailablePositionTokenCount(rank), 0);
 }
 
 function hasUnlockedAnyTokenType() {
-  return state.availableNegativeMixTokens > 0
+  return state.availableBroadChoiceTokens > 0
     || state.availableBanWordTokens > 0
     || state.availableWildcardTokens > 0
     || POSITION_TOKEN_RANKS.some((rank) => getAvailablePositionTokenCount(rank) > 0)
-    || state.totalNegativeMixTokensEarned > 0
+    || state.totalBroadChoiceTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
     || state.totalWildcardTokensEarned > 0
     || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
@@ -2389,6 +2401,27 @@ function isCandidateRemoved(candidate) {
 
 function filterRemovedCandidates(candidates) {
   return candidates.filter((candidate) => !isCandidateRemoved(candidate));
+}
+
+function getMixCandidateWindow(candidates, tileIds, previewCap = BROAD_CHOICE_PREVIEW_COUNT) {
+  const allowedCandidates = filterRemovedCandidates(candidates);
+  const taggedTiles = getTaggedTiles(tileIds);
+  const taggedRanks = taggedTiles.map((tile) => getTileTagRank(tile));
+  const desiredResultRank = taggedRanks.length <= 0
+    ? 1
+    : taggedRanks.length === 1
+      ? taggedRanks[0]
+      : Math.max(...taggedRanks) + 1;
+  const desiredShift = Math.max(0, desiredResultRank - 1);
+  const canUseShiftedCandidate = desiredShift > 0 && allowedCandidates.length > desiredShift;
+  const windowStart = canUseShiftedCandidate ? desiredShift : 0;
+  return {
+    allowedCandidates,
+    desiredShift,
+    canUseShiftedCandidate,
+    windowStart,
+    windowCandidates: allowedCandidates.slice(windowStart, windowStart + previewCap),
+  };
 }
 
 /** Adds canonicalResult to the global removed-result pool (idempotent). */
@@ -2753,7 +2786,7 @@ function getClientPointForWorldPosition(position) {
   };
 }
 
-function showFloatingCandidatePreview(candidates, clientPoint = null, { persistent = false } = {}) {
+function showFloatingCandidatePreview(candidates, clientPoint = null, { persistent = false, maxLines = DEFAULT_MIX_PREVIEW_COUNT } = {}) {
   if (!Array.isArray(candidates) || candidates.length === 0) {
     clearFloatingCandidatePreview();
     return;
@@ -2767,10 +2800,11 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
 
   const title = document.createElement("div");
   title.className = "floating-match-preview-title";
-  title.textContent = "Top matches";
+  const cap = Math.max(1, getSafeCount(maxLines, DEFAULT_MIX_PREVIEW_COUNT));
+  title.textContent = cap > DEFAULT_MIX_PREVIEW_COUNT ? `Top matches (${cap})` : "Top matches";
   preview.append(title);
 
-  candidates.slice(0, 5).forEach((candidate, index) => {
+  candidates.slice(0, cap).forEach((candidate, index) => {
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
     line.textContent = `${index + 1}. ${titleCase(candidate.word || candidate.normalized || "")}`;
@@ -2786,6 +2820,71 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
       clearFloatingCandidatePreview();
     }, 2500);
   }
+}
+
+function openBroadChoiceModal(candidates) {
+  return new Promise((resolve) => {
+    if (!els.broadChoiceGrid || !els.broadChoiceModal) {
+      resolve(candidates[0]);
+      return;
+    }
+    els.broadChoiceGrid.innerHTML = "";
+    els.broadChoiceModal.hidden = false;
+    const cleanups = [];
+    const finish = (candidate) => {
+      cleanups.forEach((fn) => fn());
+      els.broadChoiceModal.hidden = true;
+      els.broadChoiceGrid.innerHTML = "";
+      resolve(candidate);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape" && candidates.length) {
+        event.preventDefault();
+        finish(candidates[0]);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    cleanups.push(() => window.removeEventListener("keydown", onKeyDown));
+    candidates.forEach((candidate) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "broad-choice-option";
+      btn.textContent = titleCase(candidate.word || candidate.normalized || "");
+      const onClick = () => finish(candidate);
+      btn.addEventListener("click", onClick);
+      cleanups.push(() => btn.removeEventListener("click", onClick));
+      els.broadChoiceGrid.append(btn);
+    });
+  });
+}
+
+function chargeBroadChoiceOnTile(tileId) {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return false;
+  }
+  const tile = getTileById(tileId);
+  if (!tile) {
+    return false;
+  }
+  if (tile.broadChoiceCharged) {
+    setStatus("That word already has a Broad Choice charge.", "error");
+    return false;
+  }
+  if (state.availableBroadChoiceTokens <= 0) {
+    setStatus("No Broad Choice tokens available.", "error");
+    return false;
+  }
+  state.availableBroadChoiceTokens -= 1;
+  tile.broadChoiceCharged = true;
+  renderSidebar();
+  renderTiles();
+  queueProgressSave();
+  setStatus(
+    `${titleCase(tile.word)} is charged with Broad Choice. Mix it to choose from up to ten matches.`,
+    "ok",
+  );
+  return true;
 }
 
 function getAssociationCacheKey(wordA, wordB, operation = "add") {
@@ -2841,8 +2940,16 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
       return;
     }
 
-    showFloatingCandidatePreview(selection.candidates, dragMixPreviewState.clientPoint, {
+    const previewCandidates = sourceTile.broadChoiceCharged
+      ? getMixCandidateWindow(mix.candidates, [sourceTile.id, targetTile.id]).windowCandidates
+      : selection.candidates;
+    const maxLines = sourceTile.broadChoiceCharged
+      ? Math.min(BROAD_CHOICE_PREVIEW_COUNT, previewCandidates.length || 1)
+      : DEFAULT_MIX_PREVIEW_COUNT;
+
+    showFloatingCandidatePreview(previewCandidates, dragMixPreviewState.clientPoint, {
       persistent: true,
+      maxLines,
     });
   } catch (error) {
     if (
@@ -2931,20 +3038,90 @@ function updateCounts() {
   els.upgradeCoinCount.textContent = formatCoinsCount(state.coins);
 }
 
+function renderQuestStageAdvanceBanner() {
+  const flow = state.stageAdvanceFlow;
+  if (!flow?.active || !els.stageAdvanceBannerTitle) {
+    return;
+  }
+  const nextStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
+  const goldNext = getStartingGoldForRunStage(nextStage);
+  const catsLine = formatStageAdvanceNextCategoriesLine(flow.nextStageCategoryNames);
+  const tokenLine = formatStageAdvanceTokenCarryReminder();
+
+  if (flow.step === "warn") {
+    els.stageAdvanceBannerTitle.textContent = t("stageAdvance.warnSubtitle");
+    els.stageAdvanceBannerBody.textContent = formatStageAdvanceWarnBody(goldNext, nextStage);
+    els.stageAdvanceBannerNext.textContent = catsLine;
+    els.stageAdvanceBannerTokens.textContent = tokenLine;
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = true;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextPick");
+      els.stageAdvanceNextButton.disabled = false;
+    }
+  } else if (flow.step === "pick") {
+    els.stageAdvanceBannerTitle.textContent = t("stageAdvance.pickSubtitle");
+    const carryPool = getAvailableWordEntries().length;
+    let pickBody = `${formatStageAdvancePickBody()} (${flow.selectedKeys.length}/5)`;
+    if (carryPool < 5) {
+      pickBody += getUiLang() === "ru"
+        ? `\n\nНедостаточно слов вне энциклопедии, чтобы выбрать пять. Смешивайте обычные слова или сбросьте забег.`
+        : `\n\nNot enough non-encyclopedia words to pick five. Mix non-encyclopedia words or reset the run.`;
+    }
+    els.stageAdvanceBannerBody.textContent = pickBody;
+    els.stageAdvanceBannerNext.textContent = catsLine;
+    els.stageAdvanceBannerTokens.textContent = tokenLine;
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = false;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextConfirm");
+      els.stageAdvanceNextButton.disabled = flow.selectedKeys.length !== 5;
+    }
+  } else if (flow.step === "confirm") {
+    const names = flow.selectedKeys.map((k) => titleCase(state.discovered.get(k) || k));
+    els.stageAdvanceBannerTitle.textContent = t("stageAdvance.confirmSubtitle");
+    els.stageAdvanceBannerBody.textContent = formatStageAdvanceConfirmBody(names);
+    els.stageAdvanceBannerNext.textContent = catsLine;
+    els.stageAdvanceBannerTokens.textContent = tokenLine;
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = false;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.startStage");
+      els.stageAdvanceNextButton.disabled = false;
+    }
+  }
+}
+
 function renderQuest() {
+  const inStageAdvance = Boolean(state.stageAdvanceFlow?.active);
+  if (els.questStripRoot) {
+    els.questStripRoot.dataset.mode = inStageAdvance ? "stage" : "play";
+  }
+  if (els.questPanelPlay) {
+    els.questPanelPlay.hidden = inStageAdvance;
+  }
+  if (els.questPanelStage) {
+    els.questPanelStage.hidden = !inStageAdvance;
+  }
+
   let targetWord;
   if (state.quest.isWon) {
     targetWord = getUiLang() === "ru" ? "Забег завершён" : "Run complete";
-  } else if (state.stageAdvanceFlow?.active) {
+  } else if (inStageAdvance) {
     targetWord = getUiLang() === "ru" ? "Этап пройден" : "Stage clear";
   } else {
     targetWord = state.quest.targetWord ? titleCase(state.quest.targetWord) : "—";
   }
-  const countdown = state.quest.isWon || state.stageAdvanceFlow?.active
+  const countdown = state.quest.isWon || inStageAdvance
     ? "0"
     : state.quest.remainingDiscoveries;
   let questState = "active";
   if (state.quest.isWon) {
+    questState = "active";
+  } else if (inStageAdvance) {
     questState = "active";
   } else if (state.quest.isLost) {
     questState = "danger";
@@ -2960,6 +3137,10 @@ function renderQuest() {
   els.questLossWord.textContent = targetWord;
   els.questLossModal.hidden = !state.quest.isLost;
   els.questWinModal.hidden = !state.quest.isWon;
+
+  if (inStageAdvance) {
+    renderQuestStageAdvanceBanner();
+  }
 }
 
 function getWordKey(word) {
@@ -3203,6 +3384,10 @@ function buildSourceButton(entry) {
     }
     if (state.googlePickMode) {
       openGoogleMeaning(word);
+      return;
+    }
+    if (isStageAdvanceBlockingPlay()) {
+      setStatus(stageAdvancePlayBlockedMessage(), "error");
       return;
     }
     spawnWordOnField(word);
@@ -4026,9 +4211,26 @@ function renderEncyclopedia() {
 
 function formatStageAdvanceWarnBody(nextGold, nextStage) {
   if (getUiLang() === "ru") {
-    return `Этап ${nextStage} начнётся с ${nextGold} монет. Текущие монеты обнулятся — успейте купить улучшения. Сброс накопительных цен: токены в магазине и бустер слов.`;
+    return `Этап ${nextStage} начнётся с ${nextGold} монет. Текущие монеты обнулятся — успейте купить улучшения. Сброс накопительных цен: токены в магазине и бустер слов.\n\nСмешивание и связанные действия на поле отключены, пока вы не продолжите.`;
   }
-  return `Stage ${nextStage} starts you with ${nextGold} coins. Your current coins will reset when you continue—buy upgrades or shop tokens first. Word Booster and token shop scaling prices also reset.`;
+  return `Stage ${nextStage} starts you with ${nextGold} coins. Your current coins will reset when you continue—buy upgrades or shop tokens first. Word Booster and token shop scaling prices also reset.\n\nMixing and related field actions stay disabled until you continue.`;
+}
+
+function formatStageAdvanceNextCategoriesLine(names) {
+  const list = [...(names || [])].filter(Boolean);
+  if (!list.length) {
+    return "";
+  }
+  const formatted = list.map((n) => titleCase(n)).join(", ");
+  return getUiLang() === "ru"
+    ? `Следующий этап — категории: ${formatted}.`
+    : `Next stage categories: ${formatted}.`;
+}
+
+function formatStageAdvanceTokenCarryReminder() {
+  return getUiLang() === "ru"
+    ? "До пяти случайных токенов из запаса перейдут на следующий этап."
+    : "Up to five random inventory tokens will carry over to the next stage.";
 }
 
 function formatStageAdvancePickBody() {
@@ -4047,8 +4249,8 @@ function formatStageAdvanceConfirmBody(names) {
 
 function buildSpendableTokenCarryBag() {
   const bag = [];
-  for (let i = 0; i < state.availableNegativeMixTokens; i += 1) {
-    bag.push("minus-mix");
+  for (let i = 0; i < state.availableBroadChoiceTokens; i += 1) {
+    bag.push("broad-choice");
   }
   for (let i = 0; i < state.availableBanWordTokens; i += 1) {
     bag.push("ban-word");
@@ -4066,13 +4268,19 @@ function buildSpendableTokenCarryBag() {
 }
 
 function pickRandomTokensToCarryForward() {
-  const bag = buildSpendableTokenCarryBag();
-  shuffle(bag);
-  return bag.slice(0, Math.min(5, bag.length));
+  const pool = buildSpendableTokenCarryBag();
+  const take = Math.min(5, pool.length);
+  const picked = [];
+  for (let i = 0; i < take; i += 1) {
+    const idx = Math.floor(Math.random() * pool.length);
+    picked.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return picked;
 }
 
 function zeroSpendableTokens() {
-  state.availableNegativeMixTokens = 0;
+  state.availableBroadChoiceTokens = 0;
   state.availableBanWordTokens = 0;
   state.availableWildcardTokens = 0;
   state.availableSecondResultTokens = 0;
@@ -4083,8 +4291,8 @@ function zeroSpendableTokens() {
 
 function applyCarriedTokenList(carried) {
   carried.forEach((type) => {
-    if (type === "minus-mix") {
-      state.availableNegativeMixTokens += 1;
+    if (type === "broad-choice") {
+      state.availableBroadChoiceTokens += 1;
       return;
     }
     if (type === "ban-word") {
@@ -4122,6 +4330,14 @@ function toggleStageCarryWordSelection(key) {
   if (!flow?.active || flow.step !== "pick") {
     return;
   }
+  const word = state.discovered.get(key) ?? key;
+  if (getEncyclopediaEntry(word, key)) {
+    setStatus(getUiLang() === "ru"
+      ? "Слова из энциклопедии нельзя переносить на следующий этап."
+      : "Encyclopedia words cannot be carried to the next stage.",
+    "error");
+    return;
+  }
   const idx = flow.selectedKeys.indexOf(key);
   if (idx >= 0) {
     flow.selectedKeys.splice(idx, 1);
@@ -4131,30 +4347,83 @@ function toggleStageCarryWordSelection(key) {
     setStatus(getUiLang() === "ru" ? "Уже выбрано 5 слов." : "Already picked 5 words.", "error");
   }
   renderWordList();
-  renderStageAdvanceModal();
+  renderQuest();
   queueProgressSave();
+}
+
+function consumeNextStageCategoryNamesFromAdvanceFlow(flow, pickCount) {
+  const validEnc = new Set(ENCYCLOPEDIA_CATEGORIES.map((c) => c.name));
+  const raw = [...(flow?.nextStageCategoryNames || [])].filter((n) => validEnc.has(n));
+  const expected = Math.max(1, getSafeCount(pickCount, 1));
+  if (raw.length !== expected || new Set(raw).size !== raw.length) {
+    return pickRandomStageCategoryNames(pickCount);
+  }
+  if (raw.some((name) => state.completedRunCategoryNames.has(name))) {
+    return pickRandomStageCategoryNames(pickCount);
+  }
+  return raw;
 }
 
 function applyConfirmedStageAdvance(selectedKeys) {
   if (!Array.isArray(selectedKeys) || selectedKeys.length !== 5) {
     return;
   }
-  const carryWords = selectedKeys.map((key) => state.discovered.get(key) || key);
+  const advanceFlow = state.stageAdvanceFlow;
+  const prevDiscovered = new Map(state.discovered);
+  const carryEntries = selectedKeys.map((key) => {
+    const value = prevDiscovered.get(key);
+    return [key, value ?? key];
+  });
+  const carryWords = carryEntries.map(([, word]) => word);
   const carriedTokens = pickRandomTokensToCarryForward();
   state.stageCategoryNames.forEach((name) => state.completedRunCategoryNames.add(name));
   state.runStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
   const pickCount = getStageCategoryPickCountForRunStage(state.runStage);
-  state.stageCategoryNames = pickRandomStageCategoryNames(pickCount);
+  state.stageCategoryNames = consumeNextStageCategoryNamesFromAdvanceFlow(advanceFlow, pickCount);
   state.coins = getStartingGoldForRunStage(state.runStage);
   state.totalCoinsEarned = Math.max(state.totalCoinsEarned, state.coins);
   state.shopPurchaseCounts = {};
   zeroSpendableTokens();
   applyCarriedTokenList(carriedTokens);
-  state.hasActiveNegativeMixToken = false;
-  state.negativeMix = { a: null, b: null };
-  state.negativeMixSources = { a: null, b: null };
   const carryLower = new Set(carryWords.map((w) => w.toLowerCase()));
-  state.tiles = state.tiles.filter((tile) => carryLower.has(tile.word.toLowerCase()));
+  state.tiles = state.tiles
+    .filter((tile) => carryLower.has(tile.word.toLowerCase()))
+    .map((tile) => ({
+      ...tile,
+      resultTagRank: 0,
+      pendingBan: false,
+      broadChoiceCharged: false,
+    }));
+  const encyclopediaRetained = new Map();
+  prevDiscovered.forEach((word, key) => {
+    const enc = getEncyclopediaEntry(word, key);
+    if (!enc || !state.completedRunCategoryNames.has(enc.category)) {
+      return;
+    }
+    encyclopediaRetained.set(key, word);
+  });
+  state.discovered = new Map(encyclopediaRetained);
+  carryEntries.forEach(([k, v]) => {
+    state.discovered.set(k, v);
+  });
+  state.selfMatchedWords = new Set();
+  state.wordParents = new Map();
+  state.matchHistory = [];
+  state.matchHistoryKeys = new Set();
+  state.lastMix = {
+    label: "No mix yet.",
+    operation: "None",
+    candidates: [],
+  };
+  state.wordCategories = createDefaultCategoryState();
+  state.wordAssignments = new Map(
+    [...state.discovered.keys()].map((key) => [key, new Set()]),
+  );
+  state.categoryZones = [];
+  state.recentDiscoveredWordKeys = [...state.discovered.keys()].slice(-RECENT_DISCOVERED_WORD_LIMIT);
+  state.hiddenWordPanelWords = new Set();
+  state.progressBroadChoiceTokensAwarded = getUnlockedBroadChoiceTokenCount();
+  state.progressSecondResultTokensAwarded = getUnlockedSecondResultTokenCount();
   state.removedResultWords = new Set();
   carryWords.forEach((word) => {
     getRemovalKeysForWord(word).forEach((rk) => state.removedResultWords.add(rk));
@@ -4162,9 +4431,6 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.starters = [...carryWords];
   state.garbageWordsSinceReward = 0;
   state.stageAdvanceFlow = null;
-  if (els.stageAdvanceModal) {
-    els.stageAdvanceModal.hidden = true;
-  }
   assignNewQuest({ initial: true });
   state.nextTileId = Math.max(1, ...state.tiles.map((t) => t.id + 1), 1);
   state.nextZIndex = Math.max(1, ...state.tiles.map((t) => t.zIndex + 1), 1);
@@ -4173,7 +4439,6 @@ function applyConfirmedStageAdvance(selectedKeys) {
   updatePlayfieldCamera();
   renderSidebar();
   renderTiles();
-  renderNegativeMix();
   renderHistory();
   renderQuest();
   queueProgressSave();
@@ -4181,67 +4446,6 @@ function applyConfirmedStageAdvance(selectedKeys) {
     ? `Этап ${state.runStage}. Новая цель квеста: ${titleCase(state.quest.targetWord || "")}.`
     : `Stage ${state.runStage}. New quest: ${titleCase(state.quest.targetWord || "")}.`;
   setStatus(msg, "ok");
-}
-
-function renderStageAdvanceModal() {
-  if (!els.stageAdvanceModal) {
-    return;
-  }
-  if (!state.stageAdvanceFlow?.active) {
-    els.stageAdvanceModal.hidden = true;
-    return;
-  }
-  els.stageAdvanceModal.hidden = false;
-  const flow = state.stageAdvanceFlow;
-  const nextStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
-  const goldNext = getStartingGoldForRunStage(nextStage);
-  if (els.stageAdvanceTitle) {
-    els.stageAdvanceTitle.textContent = t("stageAdvance.title");
-  }
-  if (flow.step === "warn") {
-    if (els.stageAdvanceSubtitle) {
-      els.stageAdvanceSubtitle.textContent = t("stageAdvance.warnSubtitle");
-    }
-    if (els.stageAdvanceBody) {
-      els.stageAdvanceBody.textContent = formatStageAdvanceWarnBody(goldNext, nextStage);
-    }
-    if (els.stageAdvanceBackButton) {
-      els.stageAdvanceBackButton.hidden = true;
-    }
-    if (els.stageAdvanceNextButton) {
-      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextPick");
-      els.stageAdvanceNextButton.disabled = false;
-    }
-  } else if (flow.step === "pick") {
-    if (els.stageAdvanceSubtitle) {
-      els.stageAdvanceSubtitle.textContent = t("stageAdvance.pickSubtitle");
-    }
-    if (els.stageAdvanceBody) {
-      els.stageAdvanceBody.textContent = `${formatStageAdvancePickBody()} (${flow.selectedKeys.length}/5)`;
-    }
-    if (els.stageAdvanceBackButton) {
-      els.stageAdvanceBackButton.hidden = false;
-    }
-    if (els.stageAdvanceNextButton) {
-      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextConfirm");
-      els.stageAdvanceNextButton.disabled = flow.selectedKeys.length !== 5;
-    }
-  } else if (flow.step === "confirm") {
-    const names = flow.selectedKeys.map((k) => titleCase(state.discovered.get(k) || k));
-    if (els.stageAdvanceSubtitle) {
-      els.stageAdvanceSubtitle.textContent = t("stageAdvance.confirmSubtitle");
-    }
-    if (els.stageAdvanceBody) {
-      els.stageAdvanceBody.textContent = formatStageAdvanceConfirmBody(names);
-    }
-    if (els.stageAdvanceBackButton) {
-      els.stageAdvanceBackButton.hidden = false;
-    }
-    if (els.stageAdvanceNextButton) {
-      els.stageAdvanceNextButton.textContent = t("stageAdvance.startStage");
-      els.stageAdvanceNextButton.disabled = false;
-    }
-  }
 }
 
 function setActiveSidebarTab(tab) {
@@ -4254,34 +4458,6 @@ function setActiveSidebarTab(tab) {
   queueProgressSave();
 }
 
-function activateNegativeMixToken(point = null) {
-  if (state.hasActiveNegativeMixToken) {
-    setStatus("Negative mixing is already active.", "ok");
-    return;
-  }
-  if (state.availableNegativeMixTokens <= 0) {
-    setStatus("You do not have any minus-mix tokens yet.", "error");
-    return;
-  }
-
-  state.availableNegativeMixTokens -= 1;
-  state.hasActiveNegativeMixToken = true;
-  clearNegativeMix();
-  if (point) {
-    const size = getNegativeMixSize();
-    state.negativeMixPosition = clampNegativeMixPosition({
-      x: point.x - (size.width / 2),
-      y: point.y - (size.height / 2),
-    });
-  } else {
-    state.negativeMixPosition = getDefaultNegativeMixPosition();
-  }
-  renderSidebar();
-  renderNegativeMix();
-  queueProgressSave();
-  setStatus("Minus mixing is active for your next pair.", "ok");
-}
-
 function rollGarbageRewardToken() {
   const roll = Math.random();
   if (roll < 0.65) {
@@ -4289,9 +4465,9 @@ function rollGarbageRewardToken() {
     return "Second Result";
   }
   if (roll < 0.9) {
-    state.availableNegativeMixTokens += 1;
-    state.totalNegativeMixTokensEarned += 1;
-    return "Minus Mix";
+    state.availableBroadChoiceTokens += 1;
+    state.totalBroadChoiceTokensEarned += 1;
+    return "Broad Choice";
   }
   state.availableBanWordTokens += 1;
   state.totalBanWordTokensEarned += 1;
@@ -4349,7 +4525,6 @@ function handleDeadEndMixError(error, sources = []) {
 
   renderSidebar();
   renderTiles();
-  renderNegativeMix();
   queueProgressSave();
 
   const refundSuffix = refundedTagCount > 0
@@ -4489,6 +4664,10 @@ function banTileWordFromResults(tileId) {
 }
 
 async function useWildcardToken(position = null) {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return;
+  }
   if (state.availableWildcardTokens <= 0) {
     setStatus("You do not have any wildcard tokens yet.", "error");
     return;
@@ -4513,7 +4692,7 @@ async function useWildcardToken(position = null) {
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
     coinReward,
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -4529,7 +4708,7 @@ async function useWildcardToken(position = null) {
     wasDiscovered,
     {
       coinReward,
-      newNegativeMixTokens,
+      newBroadChoiceTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -4542,31 +4721,9 @@ async function useWildcardToken(position = null) {
   applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
-function refundNegativeMixToken() {
-  if (!state.hasActiveNegativeMixToken) {
-    return;
-  }
-
-  state.availableNegativeMixTokens += 1;
-  state.hasActiveNegativeMixToken = false;
-  clearNegativeMix();
-  renderSidebar();
-  renderNegativeMix();
-  queueProgressSave();
-  setStatus("Minus-mix token refunded.", "ok");
-}
-
-function hideNegativeMixAfterUse() {
-  state.hasActiveNegativeMixToken = false;
-  clearNegativeMix();
-  renderSidebar();
-  renderNegativeMix();
-  queueProgressSave();
-}
-
 function getTokenDockEmoji(dragType) {
-  if (dragType === "minus-mix") {
-    return "➖";
+  if (dragType === "broad-choice") {
+    return "B";
   }
   if (dragType === "ban-word") {
     return "🚫";
@@ -4604,8 +4761,9 @@ function buildTokenDockPill({
   button.title = `${title}: ${description}`;
   button.setAttribute("aria-label", `${title}, ${count} remaining. ${description}`);
   const emoji = getTokenDockEmoji(dragType);
+  const glyphClass = dragType === "broad-choice" ? "token-dock-pill-letter" : "token-dock-pill-emoji";
   button.innerHTML = `
-    <span class="token-dock-pill-emoji" aria-hidden="true">${emoji}</span>
+    <span class="${glyphClass}" aria-hidden="true">${emoji}</span>
     <span class="token-dock-pill-count">×${count}</span>
   `;
 
@@ -4656,14 +4814,14 @@ function renderTokenPanel() {
     return;
   }
 
-  if (state.availableNegativeMixTokens > 0) {
+  if (state.availableBroadChoiceTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
-      title: "Minus Mix",
-      description: "Click or drag onto the field to unlock one A - B mix.",
-      count: state.availableNegativeMixTokens,
-      dragType: "minus-mix",
+      title: "Broad Choice",
+      description: "Drag onto a field word. Your next mix with that word shows 10 results and lets you pick the outcome.",
+      count: state.availableBroadChoiceTokens,
+      dragType: "broad-choice",
       onClick: () => {
-        activateNegativeMixToken();
+        setStatus("Drag a Broad Choice token onto a word on the field.", "ok");
       },
     }));
   }
@@ -4787,6 +4945,10 @@ async function purchaseShopItem(itemId) {
   if (!item) {
     return;
   }
+  if (item.id === "shop-word-booster" && isStageAdvanceBlockingWordBooster()) {
+    setStatus(t("stageAdvance.blockedBooster"), "error");
+    return;
+  }
 
   const purchaseState = getShopItemPurchaseState(item);
   if (!purchaseState.canBuy) {
@@ -4908,16 +5070,19 @@ function renderTopBarShop() {
   if (booster) {
     const boosterState = getShopItemPurchaseState(booster);
     const boosterCost = getShopItemCost(booster);
+    const boosterBlocked = isStageAdvanceBlockingWordBooster();
     if (els.wordBoosterCost) {
       els.wordBoosterCost.textContent = boosterCost.toString();
     }
-    els.wordBoosterTopButton.disabled = !boosterState.canBuy;
+    els.wordBoosterTopButton.disabled = boosterBlocked || !boosterState.canBuy;
     const pending = hasPendingShopWordBooster();
-    els.wordBoosterTopButton.title = getWordBoosterTopTitle(
-      pending,
-      boosterState.reason,
-      boosterCost,
-    );
+    els.wordBoosterTopButton.title = boosterBlocked
+      ? t("stageAdvance.blockedBooster")
+      : getWordBoosterTopTitle(
+        pending,
+        boosterState.reason,
+        boosterCost,
+      );
   }
 }
 
@@ -5007,30 +5172,6 @@ function renderSidebar() {
   renderQuest();
 }
 
-function renderNegativeMix() {
-  els.negativePanel.hidden = !state.hasActiveNegativeMixToken;
-  if (els.negativePanel.hidden) {
-    return;
-  }
-
-  state.negativeMixPosition = clampNegativeMixPosition(state.negativeMixPosition);
-  els.negativePanel.style.left = `${state.negativeMixPosition.x}px`;
-  els.negativePanel.style.top = `${state.negativeMixPosition.y}px`;
-
-  const slots = [
-    { key: "a", element: els.negativeWordA },
-    { key: "b", element: els.negativeWordB },
-  ];
-
-  slots.forEach(({ key, element }) => {
-    const word = state.negativeMix[key];
-    element.textContent = word ? titleCase(word) : "Drop word";
-    element.dataset.empty = word ? "false" : "true";
-  });
-
-  els.runNegativeButton.disabled = !(state.negativeMix.a && state.negativeMix.b);
-}
-
 function markWordAsSelfMatched(word) {
   state.selfMatchedWords.add(getWordKey(word));
   renderSidebar();
@@ -5088,7 +5229,7 @@ function getMixOutcomeMessage(
   wasDiscovered,
   {
     coinReward = null,
-    newNegativeMixTokens = 0,
+    newBroadChoiceTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5148,7 +5289,7 @@ function getMixOutcomeMessage(
   }
 
   const rewardParts = getTokenRewardParts({
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5172,15 +5313,15 @@ function getMixOutcomeMessage(
 }
 
 function getTokenRewardParts({
-  newNegativeMixTokens = 0,
+  newBroadChoiceTokens = 0,
   newBanWordTokens = 0,
   newWildcardTokens = 0,
   newPositionTokenRewards = null,
 } = {}) {
   const rewardParts = [];
-  if (newNegativeMixTokens > 0) {
-    const tokenSuffix = newNegativeMixTokens === 1 ? "token" : "tokens";
-    rewardParts.push(`${newNegativeMixTokens} minus-mix ${tokenSuffix}`);
+  if (newBroadChoiceTokens > 0) {
+    const tokenSuffix = newBroadChoiceTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newBroadChoiceTokens} Broad Choice ${tokenSuffix}`);
   }
   if (newBanWordTokens > 0) {
     const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
@@ -5212,7 +5353,7 @@ function getQuestCompletionMessage(questResult) {
   }
 
   if (questResult.pendingStageAdvance) {
-    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Stage clear—continue in the dialog.`;
+    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Stage clear—continue in the quest strip above the field.`;
   }
   if (questResult.completedFullRun) {
     return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Run finished.`;
@@ -5230,7 +5371,7 @@ function getWildcardOutcomeMessage(
   wasDiscovered,
   {
     coinReward = null,
-    newNegativeMixTokens = 0,
+    newBroadChoiceTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5281,7 +5422,7 @@ function getWildcardOutcomeMessage(
   }
 
   const rewardParts = getTokenRewardParts({
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5310,7 +5451,7 @@ function getSpawnWordOutcomeMessage(
   wasDiscovered,
   {
     coinReward = null,
-    newNegativeMixTokens = 0,
+    newBroadChoiceTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5358,7 +5499,7 @@ function getSpawnWordOutcomeMessage(
   }
 
   const rewardParts = getTokenRewardParts({
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5387,7 +5528,7 @@ function getShopWordBoosterOutcomeMessage(
   wasDiscovered,
   {
     coinReward = null,
-    newNegativeMixTokens = 0,
+    newBroadChoiceTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5435,7 +5576,7 @@ function getShopWordBoosterOutcomeMessage(
   }
 
   const rewardParts = getTokenRewardParts({
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5559,7 +5700,7 @@ function renderHistory() {
 
     const meta = document.createElement("div");
     meta.className = "history-item-meta";
-    meta.textContent = match.operation === "subtract" ? "Negative mix" : "Standard mix";
+    meta.textContent = match.operation === "subtract" ? "Subtract mix" : "Standard mix";
 
     col.append(main, meta);
 
@@ -5584,6 +5725,7 @@ function makeTile(word, x, y) {
     word,
     resultTagRank: 0,
     pendingBan: false,
+    broadChoiceCharged: false,
     x: clamp(x, bounds.minX, bounds.maxX),
     y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
@@ -5605,6 +5747,10 @@ function getDefaultSpawnPosition() {
 }
 
 function spawnWordOnField(word, position = null) {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return;
+  }
   const spawnPosition = position || getDefaultSpawnPosition();
   const newTile = makeTile(word, spawnPosition.x, spawnPosition.y);
   state.tiles.push(newTile);
@@ -5615,26 +5761,14 @@ function spawnWordOnField(word, position = null) {
   queueProgressSave();
 }
 
-function getNegativeMixResultSpawnPosition() {
-  const bounds = getPlayfieldBounds();
-  const gap = 14;
-  return {
-    x: clamp(state.negativeMixPosition.x + ((NEGATIVE_MIX_WIDTH - TILE_WIDTH) / 2), bounds.minX, bounds.maxX),
-    y: clamp(state.negativeMixPosition.y + NEGATIVE_MIX_HEIGHT + gap, bounds.minY, bounds.maxY),
-  };
-}
-
 function removeTile(tileId) {
+  const tile = state.tiles.find((t) => t.id === tileId);
+  if (tile?.broadChoiceCharged) {
+    state.availableBroadChoiceTokens += 1;
+  }
   const refundedTagCount = releaseTaggedResultTokens([tileId], { refund: true });
-  state.tiles = state.tiles.filter((tile) => tile.id !== tileId);
-  Object.keys(state.negativeMixSources).forEach((slot) => {
-    if (state.negativeMixSources[slot] === tileId) {
-      state.negativeMixSources[slot] = null;
-      state.negativeMix[slot] = null;
-    }
-  });
+  state.tiles = state.tiles.filter((t) => t.id !== tileId);
   renderTiles();
-  renderNegativeMix();
   queueProgressSave();
   return refundedTagCount;
 }
@@ -5687,6 +5821,10 @@ function handleTileClick(word, position, tileId = null, clientPoint = null) {
     openGoogleMeaning(word);
     return Promise.resolve();
   }
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return Promise.resolve();
+  }
 
   const now = Date.now();
   const sameWord = state.clickTracker.word === word;
@@ -5704,6 +5842,10 @@ function handleTileClick(word, position, tileId = null, clientPoint = null) {
 }
 
 async function runSelfMatch(word, position = null, tileId = null, clientPoint = null) {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return;
+  }
   let mix;
   try {
     mix = await getAssociation(word, word, "add");
@@ -5713,9 +5855,41 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     }
     throw error;
   }
-  const selection = resolveCandidateSelection(mix.candidates, tileId ? [tileId] : []);
-  if (!selection.candidate) {
-    throw new Error(selection.error || "No valid result remained for that mix.");
+  const selfTile = tileId ? getTileById(tileId) : state.tiles.find((t) => t.word.toLowerCase() === word.toLowerCase()) || null;
+  const tileIds = tileId ? [tileId] : selfTile ? [selfTile.id] : [];
+  const useBroadChoice = Boolean(selfTile?.broadChoiceCharged);
+  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useBroadChoice });
+  if (!baseSel.candidate) {
+    throw new Error(baseSel.error || "No valid result remained for that mix.");
+  }
+  let selection = baseSel;
+  if (useBroadChoice) {
+    const winfo = getMixCandidateWindow(mix.candidates, tileIds);
+    if (winfo.desiredShift > 0 && !winfo.canUseShiftedCandidate) {
+      releaseTaggedResultTokens(tileIds, { refund: true });
+    }
+    const win = winfo.windowCandidates;
+    if (!win.length) {
+      throw new Error("No valid results for Broad Choice.");
+    }
+    let pick = win[0];
+    if (win.length > 1) {
+      clearFloatingCandidatePreview();
+      pick = await openBroadChoiceModal(win);
+    }
+    const pickedIdx = baseSel.candidates.findIndex(
+      (c) => getCandidateResultKey(c) === getCandidateResultKey(pick),
+    );
+    if (pickedIdx < 0) {
+      throw new Error("Broad Choice pick mismatch.");
+    }
+    if (winfo.canUseShiftedCandidate && winfo.desiredShift > 0) {
+      releaseTaggedResultTokens(tileIds);
+    }
+    if (selfTile) {
+      selfTile.broadChoiceCharged = false;
+    }
+    selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
   }
   setLastMix(`${titleCase(word)} + ${titleCase(word)}`, "add", selection.candidates);
   if (position) {
@@ -5727,7 +5901,6 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   }
   const selectedCandidate = selection.candidate;
   const noticePoint = clientPoint || getClientPointForWorldPosition(position);
-  const selfTile = tileId ? getTileById(tileId) : state.tiles.find((t) => t.word.toLowerCase() === word.toLowerCase()) || null;
   if (resolvePendingBanMixIfNeeded({
     firstTile: selfTile,
     secondTile: selfTile,
@@ -5745,7 +5918,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
     coinReward,
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5776,7 +5949,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   if (shouldBlockSpawn) {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
-      newNegativeMixTokens,
+      newBroadChoiceTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -5791,7 +5964,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
-      newNegativeMixTokens,
+      newBroadChoiceTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -5810,6 +5983,10 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
 }
 
 async function handleMix(firstTile, secondTile, clientPoint = null) {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return;
+  }
   let mix;
   try {
     mix = await getAssociation(firstTile.word, secondTile.word, "add");
@@ -5822,9 +5999,41 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     }
     throw error;
   }
-  const selection = resolveCandidateSelection(mix.candidates, [firstTile.id, secondTile.id]);
-  if (!selection.candidate) {
-    throw new Error(selection.error || "No valid result remained for that mix.");
+  const tileIds = [firstTile.id, secondTile.id];
+  const useBroadChoice = Boolean(firstTile.broadChoiceCharged);
+  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useBroadChoice });
+  if (!baseSel.candidate) {
+    throw new Error(baseSel.error || "No valid result remained for that mix.");
+  }
+  let selection = baseSel;
+  if (useBroadChoice) {
+    const winfo = getMixCandidateWindow(mix.candidates, tileIds);
+    if (winfo.desiredShift > 0 && !winfo.canUseShiftedCandidate) {
+      releaseTaggedResultTokens(tileIds, { refund: true });
+    }
+    const win = winfo.windowCandidates;
+    if (!win.length) {
+      throw new Error("No valid results for Broad Choice.");
+    }
+    let pick = win[0];
+    if (win.length > 1) {
+      clearFloatingCandidatePreview();
+      pick = await openBroadChoiceModal(win);
+    }
+    const pickedIdx = baseSel.candidates.findIndex(
+      (c) => getCandidateResultKey(c) === getCandidateResultKey(pick),
+    );
+    if (pickedIdx < 0) {
+      throw new Error("Broad Choice pick mismatch.");
+    }
+    if (winfo.canUseShiftedCandidate && winfo.desiredShift > 0) {
+      releaseTaggedResultTokens(tileIds);
+    }
+    const chargedTile = getTileById(firstTile.id);
+    if (chargedTile) {
+      chargedTile.broadChoiceCharged = false;
+    }
+    selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
   }
   setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
   showFloatingCandidatePreview(selection.candidates, clientPoint);
@@ -5846,7 +6055,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
     coinReward,
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5886,7 +6095,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       wasDiscovered,
       {
         coinReward,
-        newNegativeMixTokens,
+        newBroadChoiceTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -5909,7 +6118,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       wasDiscovered,
       {
         coinReward,
-        newNegativeMixTokens,
+        newBroadChoiceTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -5938,7 +6147,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   const wasDiscovered = Boolean(existing);
   const canonicalIsStarter = state.starters.includes(canonicalResult);
   let didDiscoverNewWord = false;
-  let newNegativeMixTokensFromCompletion = 0;
+  let newBroadChoiceTokensFromCompletion = 0;
   let newBanWordTokens = 0;
   let newWildcardTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
@@ -5970,13 +6179,13 @@ function rememberResult(result, normalized = result, metadata = {}) {
     applyAutoBanForNewMixDiscovery(canonicalResult);
   }
 
-  const unlockedNegativeMixTokenCount = getUnlockedNegativeMixTokenCount();
-  const newNegativeMixTokens = Math.max(0, unlockedNegativeMixTokenCount - state.progressNegativeMixTokensAwarded);
-  if (newNegativeMixTokens > 0) {
-    state.progressNegativeMixTokensAwarded = unlockedNegativeMixTokenCount;
-    state.availableNegativeMixTokens += newNegativeMixTokens;
-    state.totalNegativeMixTokensEarned += newNegativeMixTokens;
-    state.unseenTokenRewards += newNegativeMixTokens;
+  const unlockedBroadChoiceTokenCount = getUnlockedBroadChoiceTokenCount();
+  const newBroadChoiceTokens = Math.max(0, unlockedBroadChoiceTokenCount - state.progressBroadChoiceTokensAwarded);
+  if (newBroadChoiceTokens > 0) {
+    state.progressBroadChoiceTokensAwarded = unlockedBroadChoiceTokenCount;
+    state.availableBroadChoiceTokens += newBroadChoiceTokens;
+    state.totalBroadChoiceTokensEarned += newBroadChoiceTokens;
+    state.unseenTokenRewards += newBroadChoiceTokens;
   }
 
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
@@ -6020,7 +6229,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     questMatchedWord: discoveryKey,
     countQuestDiscoveryTurn: metadata.countQuestDiscoveryTurn !== false,
   });
-  newNegativeMixTokensFromCompletion += questResult.newNegativeMixTokens;
+  newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
   newBanWordTokens += questResult.newBanWordTokens;
   newWildcardTokens += questResult.newWildcardTokens;
   mergePositionTokenRewardSummary(newPositionTokenRewards, questResult.newPositionTokenRewards);
@@ -6037,14 +6246,14 @@ function rememberResult(result, normalized = result, metadata = {}) {
     newPositionTokenRewards[2] += guaranteedSecondResultTokens;
   }
 
-  const totalNewNegativeMixTokens = newNegativeMixTokens + newNegativeMixTokensFromCompletion;
+  const totalNewBroadChoiceTokens = newBroadChoiceTokens + newBroadChoiceTokensFromCompletion;
   const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
   const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
 
   const vocabularyOverflow = null;
 
-  if (didDiscoverNewWord || coinReward || totalNewNegativeMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
+  if (didDiscoverNewWord || coinReward || totalNewBroadChoiceTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
     renderSidebar();
   }
 
@@ -6061,7 +6270,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
     coinReward,
-    newNegativeMixTokens: totalNewNegativeMixTokens,
+    newBroadChoiceTokens: totalNewBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6070,182 +6279,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
     questResult,
     vocabularyOverflow,
   };
-}
-
-async function runNegativeMix(clientPoint = null) {
-  if (!(state.negativeMix.a && state.negativeMix.b)) {
-    setStatus("Negative mixing needs both A and B.", "error");
-    return;
-  }
-
-  let mix;
-  try {
-    mix = await getAssociation(state.negativeMix.a, state.negativeMix.b, "subtract");
-  } catch (error) {
-    if (handleDeadEndMixError(error, [
-      {
-        word: state.negativeMix.a,
-        wordKey: getWordKey(state.negativeMix.a),
-        tileId: state.negativeMixSources.a,
-      },
-      {
-        word: state.negativeMix.b,
-        wordKey: getWordKey(state.negativeMix.b),
-        tileId: state.negativeMixSources.b,
-      },
-    ])) {
-      return;
-    }
-    throw error;
-  }
-  const selection = resolveCandidateSelection(mix.candidates, [
-    state.negativeMixSources.a,
-    state.negativeMixSources.b,
-  ].filter(Boolean));
-  if (!selection.candidate) {
-    throw new Error(selection.error || "No valid result remained for that mix.");
-  }
-  setLastMix(`${titleCase(state.negativeMix.a)} - ${titleCase(state.negativeMix.b)}`, "subtract", selection.candidates);
-  const selectedCandidate = selection.candidate;
-  const negTileA = Number.isFinite(state.negativeMixSources.a) ? getTileById(state.negativeMixSources.a) : null;
-  const negTileB = Number.isFinite(state.negativeMixSources.b) ? getTileById(state.negativeMixSources.b) : null;
-  if (resolvePendingBanMixIfNeeded({
-    firstTile: negTileA,
-    secondTile: negTileB,
-    operation: "subtract",
-    leftWord: state.negativeMix.a,
-    rightWord: state.negativeMix.b,
-    selection,
-    clientPoint,
-  })) {
-    hideNegativeMixAfterUse();
-    return;
-  }
-  const {
-    canonicalResult,
-    isInEncyclopedia,
-    wasDiscovered,
-    hiddenEncyclopediaDiscovery,
-    coinReward,
-    newNegativeMixTokens,
-    newBanWordTokens,
-    newWildcardTokens,
-    newPositionTokenRewards,
-    newZonesUnlocked,
-    completedCategories,
-    questResult,
-    vocabularyOverflow,
-  } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
-    zipf: selectedCandidate.zipf,
-    fromMix: true,
-    countQuestDiscoveryTurn: false,
-    mixParentWords: {
-      left: state.negativeMix.a,
-      right: state.negativeMix.b,
-    },
-  });
-  recordMatch(
-    state.negativeMix.a,
-    state.negativeMix.b,
-    canonicalResult,
-    "subtract",
-    selection.candidates,
-    selectedCandidate.word,
-  );
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
-  if (shouldBlockSpawn) {
-    showFloatingWordNotice("❌", "error", clientPoint);
-  } else {
-    spawnWordOnField(canonicalResult, getNegativeMixResultSpawnPosition());
-    if (!state.spawnExistingWords) {
-      showFloatingWordNotice("💡", "success", clientPoint);
-    }
-  }
-  let status;
-  if (shouldBlockSpawn) {
-    status = getMixOutcomeMessage(
-      state.negativeMix.a,
-      state.negativeMix.b,
-      canonicalResult,
-      "subtract",
-      isInEncyclopedia,
-      wasDiscovered,
-      {
-        coinReward,
-        newNegativeMixTokens,
-        newBanWordTokens,
-        newWildcardTokens,
-        newPositionTokenRewards,
-        newZonesUnlocked,
-        completedCategories,
-        questResult,
-        usedShift: selection.usedShift,
-        refundedTagCount: selection.refundedTagCount,
-        hiddenEncyclopediaDiscovery,
-      },
-    );
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
-  } else {
-    status = getMixOutcomeMessage(
-      state.negativeMix.a,
-      state.negativeMix.b,
-      canonicalResult,
-      "subtract",
-      isInEncyclopedia,
-      wasDiscovered,
-      {
-        coinReward,
-        newNegativeMixTokens,
-        newBanWordTokens,
-        newWildcardTokens,
-        newPositionTokenRewards,
-        newZonesUnlocked,
-        completedCategories,
-        questResult,
-        usedShift: selection.usedShift,
-        refundedTagCount: selection.refundedTagCount,
-        hiddenEncyclopediaDiscovery,
-      },
-    );
-    if (!state.spawnExistingWords && status.stateName === "ok") {
-      status.stateName = "success";
-    }
-  }
-  hideNegativeMixAfterUse();
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
-}
-
-function clearNegativeMix() {
-  state.negativeMix.a = null;
-  state.negativeMix.b = null;
-  state.negativeMixSources.a = null;
-  state.negativeMixSources.b = null;
-  renderNegativeMix();
-  queueProgressSave();
-}
-
-function assignNegativeSlot(slot, word, tileId = null) {
-  if (!state.hasActiveNegativeMixToken) {
-    setStatus("Use a minus-mix token first.", "error");
-    return;
-  }
-  if (Number.isFinite(tileId)) {
-    removeTile(tileId);
-  }
-  state.negativeMix[slot] = word;
-  state.negativeMixSources[slot] = tileId;
-  renderNegativeMix();
-  queueProgressSave();
-}
-
-function getNegativeSlotAtPoint(clientX, clientY) {
-  if (!state.hasActiveNegativeMixToken) {
-    return null;
-  }
-  const elements = typeof document.elementsFromPoint === "function"
-    ? document.elementsFromPoint(clientX, clientY)
-    : [document.elementFromPoint(clientX, clientY)].filter(Boolean);
-  return elements.find((element) => element.matches?.("[data-negative-slot]")) || null;
 }
 
 function getGarbageBinAtPoint(clientX, clientY) {
@@ -6258,62 +6291,6 @@ function getGarbageBinAtPoint(clientX, clientY) {
   return elements.find((element) => element.matches?.("[data-garbage-bin]")) || null;
 }
 
-function startNegativeMixDrag(event) {
-  if (event.button !== 0) {
-    return;
-  }
-  if (event.target.closest("button")) {
-    return;
-  }
-
-  event.preventDefault();
-  event.stopPropagation();
-
-  const panelRect = els.negativePanel.getBoundingClientRect();
-  const pointerOffsetX = (event.clientX - panelRect.left) / state.playfieldZoom;
-  const pointerOffsetY = (event.clientY - panelRect.top) / state.playfieldZoom;
-  const startClientX = event.clientX;
-  const startClientY = event.clientY;
-  let dragStarted = false;
-
-  const move = (moveEvent) => {
-    const deltaX = moveEvent.clientX - startClientX;
-    const deltaY = moveEvent.clientY - startClientY;
-    const distance = Math.hypot(deltaX, deltaY);
-
-    if (!dragStarted) {
-      if (distance < DRAG_THRESHOLD) {
-        return;
-      }
-      dragStarted = true;
-      els.negativePanel.dataset.dragging = "true";
-    }
-
-    const localPoint = getPlayfieldPointFromClientPoint(moveEvent.clientX, moveEvent.clientY);
-    state.negativeMixPosition = clampNegativeMixPosition({
-      x: localPoint.x - pointerOffsetX,
-      y: localPoint.y - pointerOffsetY,
-    });
-    els.negativePanel.style.left = `${state.negativeMixPosition.x}px`;
-    els.negativePanel.style.top = `${state.negativeMixPosition.y}px`;
-  };
-
-  const end = () => {
-    window.removeEventListener("pointermove", move);
-    window.removeEventListener("pointerup", end);
-    delete els.negativePanel.dataset.dragging;
-
-    if (dragStarted) {
-      state.negativeMixPosition = clampNegativeMixPosition(state.negativeMixPosition);
-      renderNegativeMix();
-      queueProgressSave();
-    }
-  };
-
-  window.addEventListener("pointermove", move);
-  window.addEventListener("pointerup", end, { once: true });
-}
-
 function startPlayfieldPan(event) {
   if (event.button !== 0) {
     return;
@@ -6321,7 +6298,7 @@ function startPlayfieldPan(event) {
   if (getPlayfieldUpgradeTier() < 1) {
     return;
   }
-  if (event.target.closest(".tile, .negative-mix-panel, .category-zone-widget")) {
+  if (event.target.closest(".tile, .category-zone-widget")) {
     return;
   }
 
@@ -6430,7 +6407,7 @@ function startTileDrag(event, tileId) {
     clearDragMixPreview();
 
     if (!dragStarted) {
-      tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
+      tileElement.style.zIndex = String(Math.min(tile.zIndex, DRAGGING_TILE_Z_INDEX - 1));
       try {
         const bounds = getPlayfieldBounds();
         await handleTileClick(tile.word, {
@@ -6443,15 +6420,6 @@ function startTileDrag(event, tileId) {
       } catch (error) {
         setStatus(error.message, "error");
       }
-      return;
-    }
-
-    const negativeSlotElement = getNegativeSlotAtPoint(endEvent.clientX, endEvent.clientY);
-    if (negativeSlotElement) {
-      const slot = negativeSlotElement.dataset.negativeSlot;
-      assignNegativeSlot(slot, tile.word, tile.id);
-      renderTiles();
-      setStatus(`${titleCase(tile.word)} was placed into slot ${slot.toUpperCase()}.`);
       return;
     }
 
@@ -6502,9 +6470,10 @@ function renderTiles(options = {}) {
       tileElement.dataset.tileId = String(tile.id);
       tileElement.dataset.tagged = getTileTagRank(tile) >= 2 ? "true" : "false";
       tileElement.dataset.pendingBan = tile.pendingBan ? "true" : "false";
+      tileElement.dataset.broadChoice = tile.broadChoiceCharged ? "true" : "false";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
-      tileElement.style.zIndex = String(Math.min(tile.zIndex, NEGATIVE_MIX_Z_INDEX - 1));
+      tileElement.style.zIndex = String(Math.min(tile.zIndex, DRAGGING_TILE_Z_INDEX - 1));
       tileElement.style.setProperty("--tile-tilt", `${clampStoredTileTiltDeg(tile.tiltDeg).toFixed(2)}deg`);
 
       const tint = getCategoryZoneTintForTile(tile);
@@ -6544,6 +6513,10 @@ function renderTiles(options = {}) {
         event.preventDefault();
       });
       tileElement.addEventListener("drop", (event) => {
+        if (isStageAdvanceBlockingPlay()) {
+          setStatus(stageAdvancePlayBlockedMessage(), "error");
+          return;
+        }
         const tokenType = event.dataTransfer.getData("application/x-token-type");
         if (!tokenType) {
           return;
@@ -6563,11 +6536,8 @@ function renderTiles(options = {}) {
           setStatus("Drop a Wildcard token onto the field, not onto a word.", "error");
           return;
         }
-        if (tokenType === "minus-mix") {
-          activateNegativeMixToken({
-            x: tile.x + (TILE_WIDTH / 2),
-            y: tile.y + (TILE_HEIGHT / 2),
-          });
+        if (tokenType === "broad-choice") {
+          chargeBroadChoiceOnTile(tile.id);
         }
       });
       tileElement.addEventListener("contextmenu", (event) => {
@@ -6593,13 +6563,18 @@ function renderTiles(options = {}) {
       banLineElement.textContent = "Ban line";
       banLineElement.hidden = !tile.pendingBan;
 
+      const broadLineElement = document.createElement("div");
+      broadLineElement.className = "tile-broad-line";
+      broadLineElement.textContent = t("tile.broadChoiceBadge");
+      broadLineElement.hidden = !tile.broadChoiceCharged;
+
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
       const tintLabel = tint?.categoryName || "";
       metaElement.textContent = tintLabel;
       metaElement.hidden = !tintLabel;
 
-      tileElement.append(tagElement, banLineElement, wordElement, metaElement);
+      tileElement.append(tagElement, banLineElement, broadLineElement, wordElement, metaElement);
       els.playfieldSurface.append(tileElement);
     });
 
@@ -6614,7 +6589,6 @@ function renderTiles(options = {}) {
 function clearField() {
   const refundedTagCount = releaseTaggedResultTokens(state.tiles.map((tile) => tile.id), { refund: true });
   state.tiles = [];
-  clearNegativeMix();
   renderTiles();
   queueProgressSave();
   const refundMessage = getTaggedTokenRefundMessage(refundedTagCount);
@@ -6635,7 +6609,7 @@ function renderShopWordBooster() {
         wasDiscovered,
         hiddenEncyclopediaDiscovery,
         coinReward,
-        newNegativeMixTokens,
+        newBroadChoiceTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -6652,7 +6626,7 @@ function renderShopWordBooster() {
       queueProgressSave();
       const status = getShopWordBoosterOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
         coinReward,
-        newNegativeMixTokens,
+        newBroadChoiceTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -6724,6 +6698,10 @@ function promptSaveImport() {
 }
 
 async function promptSpawnWord() {
+  if (isStageAdvanceBlockingPlay()) {
+    setStatus(stageAdvancePlayBlockedMessage(), "error");
+    return;
+  }
   const requestedWord = window.prompt("Spawn which word?");
   if (requestedWord === null) {
     return;
@@ -6742,7 +6720,7 @@ async function promptSpawnWord() {
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
     coinReward,
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6757,7 +6735,7 @@ async function promptSpawnWord() {
 
   const status = getSpawnWordOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
     coinReward,
-    newNegativeMixTokens,
+    newBroadChoiceTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6803,11 +6781,6 @@ function resetRun() {
   state.starters.forEach((word) => {
     getRemovalKeysForWord(word).forEach((key) => state.removedResultWords.add(key));
   });
-  state.negativeMix.a = null;
-  state.negativeMix.b = null;
-  state.negativeMixSources.a = null;
-  state.negativeMixSources.b = null;
-  state.negativeMixPosition = { x: 24, y: 24 };
   state.lastMix = {
     label: "No mix yet.",
     operation: "None",
@@ -6824,9 +6797,9 @@ function resetRun() {
   state.googlePickMode = false;
   state.clickTracker.word = null;
   state.clickTracker.time = 0;
-  state.availableNegativeMixTokens = 0;
-  state.totalNegativeMixTokensEarned = 0;
-  state.progressNegativeMixTokensAwarded = 0;
+  state.availableBroadChoiceTokens = 0;
+  state.totalBroadChoiceTokensEarned = 0;
+  state.progressBroadChoiceTokensAwarded = 0;
   state.coins = 0;
   state.totalCoinsEarned = 0;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
@@ -6851,7 +6824,6 @@ function resetRun() {
   state.hiddenWordPanelWords = new Set();
   state.garbageWordsSinceReward = 0;
   state.garbageRewardLevel = 0;
-  state.hasActiveNegativeMixToken = false;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
   state.playfieldZoom = 1;
@@ -6867,14 +6839,10 @@ function resetRun() {
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
   els.questWinModal.hidden = true;
-  if (els.stageAdvanceModal) {
-    els.stageAdvanceModal.hidden = true;
-  }
 
   updatePlayfieldCamera();
   renderSidebar();
   renderTiles();
-  renderNegativeMix();
   renderHistory();
   renderSettings();
   clearFloatingWordNotice();
@@ -6915,11 +6883,14 @@ function initPlayfieldDropzone() {
   els.playfield.addEventListener("drop", (event) => {
     event.preventDefault();
     els.playfield.dataset.dragOver = "false";
+    if (isStageAdvanceBlockingPlay()) {
+      setStatus(stageAdvancePlayBlockedMessage(), "error");
+      return;
+    }
 
     const tokenType = event.dataTransfer.getData("application/x-token-type");
-    if (tokenType === "minus-mix") {
-      const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY);
-      activateNegativeMixToken(point);
+    if (tokenType === "broad-choice") {
+      setStatus("Drag a Broad Choice token onto a word on the field.", "error");
       return;
     }
     if (tokenType === "ban-word") {
@@ -6954,34 +6925,6 @@ function initPlayfieldDropzone() {
 
     spawnWordOnField(word, { x, y });
     setStatus(`${titleCase(word)} was dropped onto the field.`);
-  });
-}
-
-function initNegativeMixDropzones() {
-  els.negativeSlots.forEach((slotElement) => {
-    const slot = slotElement.dataset.negativeSlot;
-
-    slotElement.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      slotElement.dataset.dragOver = "true";
-    });
-
-    slotElement.addEventListener("dragleave", () => {
-      slotElement.dataset.dragOver = "false";
-    });
-
-    slotElement.addEventListener("drop", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      slotElement.dataset.dragOver = "false";
-      const word = event.dataTransfer.getData("text/plain");
-      if (!word) {
-        return;
-      }
-      assignNegativeSlot(slot, word);
-      setStatus(`${titleCase(word)} was placed into slot ${slot.toUpperCase()}.`);
-    });
   });
 }
 
@@ -7029,11 +6972,6 @@ function initEvents() {
     });
   }
 
-  els.negativePanel.addEventListener("pointerdown", startNegativeMixDrag);
-  els.negativePanel.addEventListener("contextmenu", (event) => {
-    event.preventDefault();
-    refundNegativeMixToken();
-  });
   els.wordSearch.addEventListener("input", (event) => {
     state.search = event.target.value.trim().toLowerCase();
     renderWordList();
@@ -7071,7 +7009,7 @@ function initEvents() {
         applyConfirmedStageAdvance(flow.selectedKeys);
         return;
       }
-      renderStageAdvanceModal();
+      renderQuest();
       renderWordList();
       queueProgressSave();
     });
@@ -7088,7 +7026,7 @@ function initEvents() {
         flow.step = "warn";
         flow.selectedKeys = [];
       }
-      renderStageAdvanceModal();
+      renderQuest();
       renderWordList();
       queueProgressSave();
     });
@@ -7109,8 +7047,6 @@ function initEvents() {
   els.zoomInButton.addEventListener("click", () => {
     adjustPlayfieldZoom(PLAYFIELD_ZOOM_STEP);
   });
-  els.clearNegativeButton.addEventListener("click", clearNegativeMix);
-  els.closeNegativeButton.addEventListener("click", refundNegativeMixToken);
   els.addCategoryButton.addEventListener("click", () => {
     const name = window.prompt("Category name?");
     if (!name) {
@@ -7136,16 +7072,6 @@ function initEvents() {
     setStatus(nextMode
       ? "Google mode is on. Click a field word or available word to search its meaning."
       : "Google mode is off.");
-  });
-  els.runNegativeButton.addEventListener("click", async (event) => {
-    try {
-      await runNegativeMix({
-        x: event.clientX,
-        y: event.clientY,
-      });
-    } catch (error) {
-      setStatus(error.message, "error");
-    }
   });
   if (els.openHistoryButton) {
     els.openHistoryButton.addEventListener("click", openHistory);
@@ -7294,7 +7220,6 @@ function initEvents() {
   });
 
   initPlayfieldDropzone();
-  initNegativeMixDropzones();
   initGarbageBinDropzone();
   initCategoryZoneStyleEditor();
 }

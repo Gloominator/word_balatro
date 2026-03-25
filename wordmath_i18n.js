@@ -13,7 +13,7 @@ const MESSAGES = {
     "tokenDock.label": "Tokens",
     "tokenDock.howLink": "How tokens work",
     "tokenDock.tooltip":
-      "Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced.",
+      "Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced. Broad Choice (B) charges a word: while mixing, you see up to ten matches and pick which result to produce.",
     "playfield.heading": "Mixing Field",
     "playfield.hint":
       "Right-click a word box to remove it. Drag one box onto another to create a new word.",
@@ -23,17 +23,8 @@ const MESSAGES = {
     "quest.objectiveLabel": "Objective Manuscript",
     "quest.inkLabel": "Ink Remaining",
     "quest.loading": "Loading...",
-    "negative.title": "Minus Mix Board",
-    "negative.refundAria": "Refund minus-mix token",
-    "negative.refund": "Refund",
-    "negative.instructions":
-      "Drag this board around, drop two words into the slots, then run A − B. Right-click the board to refund the token.",
-    "negative.slotA": "A",
-    "negative.slotB": "B",
-    "negative.dropWord": "Drop word",
-    "negative.clear": "Clear",
-    "negative.run": "Mix A − B",
     "playfield.empty": "Drag a starter or discovered word here.",
+    "tile.broadChoiceBadge": "Broad",
     "garbage.title": "Garbage Bin",
     "garbage.hint": "Drag words here to hide them forever. They can still be mixed.",
     "garbage.binTitle": "Garbage Bin",
@@ -61,6 +52,9 @@ const MESSAGES = {
     "modal.historySubtitle":
       "Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.",
     "modal.historySort": "Sort by Result",
+    "modal.broadChoiceTitle": "Broad Choice",
+    "modal.broadChoiceSubtitle":
+      "Pick which match to produce. Press Esc to take the first option listed.",
     "sidebar.matchHistoryButton": "History",
     "sidebar.genealogyContext": "View genealogy",
     "modal.genealogyTitle": "Genealogy",
@@ -113,6 +107,7 @@ const MESSAGES = {
     "questWin.copy": "All six stages complete. Encyclopedia mastered.",
     "questWin.goAgain": "Go Again",
     "stageAdvance.title": "Stage clear",
+    "stageAdvance.bannerLabel": "Stage clear",
     "stageAdvance.subtitle": "",
     "stageAdvance.warnSubtitle": "Before you continue",
     "stageAdvance.pickSubtitle": "Words to carry",
@@ -122,6 +117,9 @@ const MESSAGES = {
     "stageAdvance.nextPick": "Next: pick words",
     "stageAdvance.nextConfirm": "Next: confirm",
     "stageAdvance.startStage": "Start next stage",
+    "stageAdvance.blockedPlay":
+      "Finish stage clear first—mixing, wildcards, tokens, and word spawns stay disabled for now.",
+    "stageAdvance.blockedBooster": "Finish stage clear before buying Word Booster.",
   },
   ru: {
     "doc.title": "Смешивание слов",
@@ -135,7 +133,7 @@ const MESSAGES = {
     "tokenDock.label": "Токены",
     "tokenDock.howLink": "Как работают токены",
     "tokenDock.tooltip":
-      "Перетащите на слово на поле. Токены 2, 3, 4 и 5 дают 2-й, 3-й, 4-й или 5-й результат вместо 1-го. «Запретить слово» убирает первый результат — этот исход не произойдёт.",
+      "Перетащите на слово на поле. Токены 2, 3, 4 и 5 дают 2-й, 3-й, 4-й или 5-й результат вместо 1-го. «Запретить слово» убирает первый результат. «Широкий выбор» (B) заряжает слово: при смешивании видно до 10 вариантов и вы выбираете исход.",
     "playfield.heading": "Поле смешивания",
     "playfield.hint":
       "ПКМ по слову — удалить. Перетащите одно слово на другое, чтобы создать новое.",
@@ -145,17 +143,8 @@ const MESSAGES = {
     "quest.objectiveLabel": "Цель квеста",
     "quest.inkLabel": "Осталось ходов",
     "quest.loading": "Загрузка...",
-    "negative.title": "Доска «Минус-микс»",
-    "negative.refundAria": "Вернуть токен минус-микса",
-    "negative.refund": "Вернуть",
-    "negative.instructions":
-      "Перетащите доску, бросьте два слова в слоты и нажмите А − Б. ПКМ по доске — вернуть токен.",
-    "negative.slotA": "А",
-    "negative.slotB": "Б",
-    "negative.dropWord": "Бросьте слово",
-    "negative.clear": "Очистить",
-    "negative.run": "Микс А − Б",
     "playfield.empty": "Перетащите стартовое или открытое слово сюда.",
+    "tile.broadChoiceBadge": "Широкий",
     "garbage.title": "Корзина",
     "garbage.hint":
       "Перетащите слово сюда, чтобы скрыть его навсегда. Смешивать всё ещё можно.",
@@ -183,6 +172,9 @@ const MESSAGES = {
     "modal.historySubtitle":
       "Только уникальные комбинации. Повтор не добавляет запись. Хранятся последние 100.",
     "modal.historySort": "Сортировка по результату",
+    "modal.broadChoiceTitle": "Широкий выбор",
+    "modal.broadChoiceSubtitle":
+      "Выберите исход смешивания. Esc — первый вариант из списка.",
     "sidebar.matchHistoryButton": "История",
     "sidebar.genealogyContext": "Родословная",
     "modal.genealogyTitle": "Родословная",
@@ -235,6 +227,7 @@ const MESSAGES = {
     "questWin.copy": "Все 6 этапов пройдены. Энциклопедия открыта полностью.",
     "questWin.goAgain": "Ещё раз",
     "stageAdvance.title": "Этап пройден",
+    "stageAdvance.bannerLabel": "Этап пройден",
     "stageAdvance.subtitle": "",
     "stageAdvance.warnSubtitle": "Перед продолжением",
     "stageAdvance.pickSubtitle": "Слова с собой",
@@ -244,6 +237,9 @@ const MESSAGES = {
     "stageAdvance.nextPick": "Далее: выбор слов",
     "stageAdvance.nextConfirm": "Далее: подтверждение",
     "stageAdvance.startStage": "Начать этап",
+    "stageAdvance.blockedPlay":
+      "Завершите переход этапа: смешивание, вайлдкарды, токены и выкладка слов с панели сейчас отключены.",
+    "stageAdvance.blockedBooster": "Сначала завершите переход этапа, затем покупайте бустер слов.",
   },
 };
 
@@ -281,10 +277,10 @@ const SHOP_MESSAGES = {
       description: "",
       purchaseDone: (cost) => `Bought 1 Ban Word token for ${cost} coins.`,
     },
-    "shop-minus-mix": {
-      title: "Minus Mix Token",
-      description: "",
-      purchaseDone: (cost) => `Bought 1 Minus Mix token for ${cost} coins.`,
+    "shop-broad-choice": {
+      title: "Broad Choice Token",
+      description: "Charge a field word to see up to ten mix matches and pick the result.",
+      purchaseDone: (cost) => `Bought 1 Broad Choice token for ${cost} coins.`,
     },
     "shop-playfield-pan-zoom": {
       title: "Field Pan & Zoom",
@@ -342,10 +338,10 @@ const SHOP_MESSAGES = {
       description: "",
       purchaseDone: (cost) => `Куплен 1 токен «Запретить слово» за ${cost} монет.`,
     },
-    "shop-minus-mix": {
-      title: "Токен «Минус-микс»",
-      description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Минус-микс» за ${cost} монет.`,
+    "shop-broad-choice": {
+      title: "Токен «Широкий выбор»",
+      description: "Зарядите слово на поле: до 10 вариантов смешивания и выбор исхода.",
+      purchaseDone: (cost) => `Куплен 1 токен «Широкий выбор» за ${cost} монет.`,
     },
     "shop-playfield-pan-zoom": {
       title: "Панорама и масштаб поля",
