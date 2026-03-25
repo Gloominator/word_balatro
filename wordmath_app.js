@@ -134,6 +134,10 @@ const QUEST_SPEED_BONUS_TIERS = Object.freeze([
   { maxTurns: 30, coins: 100 },
 ]);
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["minus-mix", "ban-word", 2, 3, 4, 5]);
+/** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
+const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
+const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
+const SNAPSHOT_VERSION = 7;
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -384,7 +388,14 @@ const state = {
   availableFifthResultTokens: 0,
   totalFifthResultTokensEarned: 0,
   progressSecondResultTokensAwarded: 0,
-  completedEncyclopediaCategories: new Set(),
+  /** Run stage 1–6; each stage clears a batch of encyclopedia categories. */
+  runStage: 1,
+  /** Category names active for this stage (objectives). */
+  stageCategoryNames: [],
+  /** Categories fully cleared in earlier stages (encyclopedia + quest context). */
+  completedRunCategoryNames: new Set(),
+  /** When set, stage-clear flow: { active, step: 'warn'|'pick'|'confirm', selectedKeys: string[] }. */
+  stageAdvanceFlow: null,
   hasActiveNegativeMixToken: false,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
@@ -493,6 +504,12 @@ const els = {
   questTryAgainButton: document.querySelector("[data-action='quest-try-again']"),
   questWinModal: document.querySelector("[data-quest-win-modal]"),
   questGoAgainButton: document.querySelector("[data-action='quest-go-again']"),
+  stageAdvanceModal: document.querySelector("[data-stage-advance-modal]"),
+  stageAdvanceTitle: document.querySelector("[data-stage-advance-title]"),
+  stageAdvanceSubtitle: document.querySelector("[data-stage-advance-subtitle]"),
+  stageAdvanceBody: document.querySelector("[data-stage-advance-body]"),
+  stageAdvanceNextButton: document.querySelector("[data-action='stage-advance-next']"),
+  stageAdvanceBackButton: document.querySelector("[data-action='stage-advance-back']"),
   purchaseTokensRoot: document.querySelector("[data-purchase-tokens-root]"),
   purchaseTokensToggle: document.querySelector("[data-action='toggle-purchase-tokens']"),
   purchaseTokensMenu: document.querySelector("[data-purchase-tokens-menu]"),
@@ -938,8 +955,72 @@ function getUndiscoveredEncyclopediaWords() {
     .filter((word) => !discoveredWords.has(word));
 }
 
+function getStageCategoryPickCountForRunStage(runStage = state.runStage) {
+  const idx = Math.max(0, getSafeCount(runStage, 1) - 1);
+  return RUN_STAGE_CATEGORY_PICK_COUNTS[idx] ?? 1;
+}
+
+function isEncyclopediaCategoryRevealed(categoryName) {
+  return state.completedRunCategoryNames.has(categoryName)
+    || state.stageCategoryNames.includes(categoryName);
+}
+
+function pickRandomStageCategoryNames(count) {
+  const pool = ENCYCLOPEDIA_CATEGORIES
+    .map((c) => c.name)
+    .filter((name) => !state.completedRunCategoryNames.has(name));
+  const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
+  return shuffle(pool).slice(0, n);
+}
+
+function initializeStageCategoryNamesForNewRun() {
+  state.stageCategoryNames = pickRandomStageCategoryNames(getStageCategoryPickCountForRunStage(1));
+}
+
+function getUndiscoveredStageQuestWords() {
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  const words = [];
+  state.stageCategoryNames.forEach((name) => {
+    const cat = ENCYCLOPEDIA_CATEGORIES.find((c) => c.name === name);
+    if (!cat) {
+      return;
+    }
+    cat.words.forEach((word) => {
+      if (!discoveredWords.has(word)) {
+        words.push(word);
+      }
+    });
+  });
+  return words;
+}
+
+function getStageQuestWordSet() {
+  const words = new Set();
+  state.stageCategoryNames.forEach((name) => {
+    const cat = ENCYCLOPEDIA_CATEGORIES.find((c) => c.name === name);
+    if (cat) {
+      cat.words.forEach((w) => words.add(w));
+    }
+  });
+  return words;
+}
+
+function isCurrentStageComplete() {
+  if (!state.stageCategoryNames.length) {
+    return false;
+  }
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  return state.stageCategoryNames.every((name) => {
+    const cat = ENCYCLOPEDIA_CATEGORIES.find((c) => c.name === name);
+    if (!cat) {
+      return true;
+    }
+    return cat.words.every((word) => discoveredWords.has(word));
+  });
+}
+
 function sampleQuestWord(previousWord = null) {
-  const undiscoveredWords = getUndiscoveredEncyclopediaWords();
+  const undiscoveredWords = getUndiscoveredStageQuestWords();
   if (!undiscoveredWords.length) {
     return null;
   }
@@ -957,30 +1038,79 @@ function setQuestVictoryState({ questNumber = state.quest.number } = {}) {
   state.quest.turnsTaken = 0;
   state.quest.isLost = false;
   state.quest.isWon = true;
+  state.stageAdvanceFlow = null;
+  if (els.stageAdvanceModal) {
+    els.stageAdvanceModal.hidden = true;
+  }
   return {
     number: state.quest.number,
     targetWord: null,
     remainingDiscoveries: 0,
     turnsTaken: 0,
     isWon: true,
+    isStageAdvance: false,
   };
+}
+
+function beginStageAdvanceFlow() {
+  if (state.stageAdvanceFlow?.active) {
+    return;
+  }
+  state.stageAdvanceFlow = {
+    active: true,
+    step: "warn",
+    selectedKeys: [],
+  };
+  state.quest.targetWord = null;
+  state.quest.remainingDiscoveries = 0;
+  state.quest.isLost = false;
+  state.quest.isWon = false;
+  renderStageAdvanceModal();
+  renderQuest();
+  renderSidebar();
+  queueProgressSave();
 }
 
 function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) {
   const safeQuestNumber = Math.max(1, getSafeCount(questNumber, 1));
-  if (safeQuestNumber === 1) {
-    return 40;
+  if (state.runStage === 1) {
+    if (safeQuestNumber === 1) {
+      return 40;
+    }
+    if (safeQuestNumber === 2) {
+      return 20;
+    }
+    return 10;
   }
-  if (safeQuestNumber === 2) {
-    return 20;
+  return 20 + (safeQuestNumber - 1) * 10;
+}
+
+function getStartingGoldForRunStage(runStage) {
+  const s = Math.max(1, getSafeCount(runStage, 1));
+  if (s <= 1) {
+    return 0;
   }
-  return 10;
+  return 100 * s;
 }
 
 function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
   state.quest.number = initial ? 1 : Math.max(2, getSafeCount(state.quest.number, 1) + 1);
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
   if (!state.quest.targetWord) {
+    if (state.runStage >= RUN_STAGE_COUNT && isCurrentStageComplete()) {
+      return setQuestVictoryState({ questNumber: state.quest.number });
+    }
+    if (isCurrentStageComplete() && state.runStage < RUN_STAGE_COUNT) {
+      beginStageAdvanceFlow();
+      return {
+        number: state.quest.number,
+        targetWord: null,
+        remainingDiscoveries: 0,
+        turnsTaken: state.quest.turnsTaken,
+        isWon: false,
+        isStageAdvance: true,
+      };
+    }
     return setQuestVictoryState({ questNumber: state.quest.number });
   }
   const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
@@ -994,6 +1124,7 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
     remainingDiscoveries: state.quest.remainingDiscoveries,
     turnsTaken: state.quest.turnsTaken,
     isWon: false,
+    isStageAdvance: false,
   };
 }
 
@@ -1058,7 +1189,8 @@ function advanceQuest(canonicalResult, {
   const questResult = {
     completedQuest: false,
     failedQuest: false,
-    completedEncyclopedia: false,
+    completedFullRun: false,
+    pendingStageAdvance: false,
     completedTargetWord: state.quest.targetWord,
     nextTargetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
@@ -1092,7 +1224,8 @@ function advanceQuest(canonicalResult, {
       carryOverTurns,
     });
     questResult.completedQuest = true;
-    questResult.completedEncyclopedia = Boolean(nextQuest.isWon);
+    questResult.completedFullRun = Boolean(nextQuest.isWon);
+    questResult.pendingStageAdvance = Boolean(nextQuest.isStageAdvance);
     questResult.completedTargetWord = completedTargetWord;
     questResult.nextTargetWord = nextQuest.targetWord;
     questResult.remainingDiscoveries = nextQuest.remainingDiscoveries;
@@ -1135,7 +1268,7 @@ function getTaggedTokenRefundMessage(refundedTagCount) {
 
 function buildProgressSnapshot() {
   return {
-    version: 6,
+    version: SNAPSHOT_VERSION,
     starters: [...state.starters],
     discovered: [...state.discovered.entries()],
     wordParents: [...state.wordParents.entries()].map(([childKey, par]) => [
@@ -1215,7 +1348,16 @@ function buildProgressSnapshot() {
     availableFifthResultTokens: state.availableFifthResultTokens,
     totalFifthResultTokensEarned: state.totalFifthResultTokensEarned,
     progressSecondResultTokensAwarded: state.progressSecondResultTokensAwarded,
-    completedEncyclopediaCategories: [...state.completedEncyclopediaCategories],
+    runStage: state.runStage,
+    stageCategoryNames: [...state.stageCategoryNames],
+    completedRunCategoryNames: [...state.completedRunCategoryNames],
+    stageAdvanceFlow: state.stageAdvanceFlow
+      ? {
+        active: Boolean(state.stageAdvanceFlow.active),
+        step: state.stageAdvanceFlow.step,
+        selectedKeys: [...state.stageAdvanceFlow.selectedKeys],
+      }
+      : null,
     hasActiveNegativeMixToken: state.hasActiveNegativeMixToken,
     activeSidebarTab: state.activeSidebarTab,
     unseenTokenRewards: state.unseenTokenRewards,
@@ -1408,8 +1550,16 @@ function normalizeSavedWordAssignments(value, validCategoryIds) {
 }
 
 function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved game." } = {}) {
+  if (getSafeCount(snapshot?.version, 0) < SNAPSHOT_VERSION) {
+    return false;
+  }
+
   const starters = getStringList(snapshot?.starters);
-  if (starters.length < 2) {
+  const runStage = clamp(getSafeCount(snapshot.runStage, 1), 1, RUN_STAGE_COUNT);
+  if (runStage === 1 && starters.length < 2) {
+    return false;
+  }
+  if (runStage >= 2 && starters.length < 5) {
     return false;
   }
 
@@ -1436,6 +1586,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     .slice(-RECENT_DISCOVERED_WORD_LIMIT);
 
   state.starters = starters;
+  state.runStage = runStage;
   state.discovered = discovered;
   state.wordParents = normalizeSavedWordParents(snapshot.wordParents);
   state.selfMatchedWords = new Set(getStringList(snapshot.selfMatchedWords));
@@ -1499,13 +1650,25 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     getUnlockedSecondResultTokenCount(discovered.size),
     getSafeCount(snapshot.progressSecondResultTokensAwarded, getUnlockedSecondResultTokenCount(discovered.size)),
   );
-  state.completedEncyclopediaCategories = new Set(
-    getStringList(snapshot.completedEncyclopediaCategories).length > 0
-      ? getStringList(snapshot.completedEncyclopediaCategories)
-      : getCompletedEncyclopediaCategoryNames(new Set(
-        [...discovered.keys()].filter((word) => ENCYCLOPEDIA_LOOKUP.has(word)),
-      )),
+  const validEncCatNames = new Set(ENCYCLOPEDIA_CATEGORIES.map((c) => c.name));
+  const stageNames = getStringList(snapshot.stageCategoryNames).filter((n) => validEncCatNames.has(n));
+  if (stageNames.length === 0) {
+    return false;
+  }
+  state.stageCategoryNames = stageNames;
+  state.completedRunCategoryNames = new Set(
+    getStringList(snapshot.completedRunCategoryNames).filter((n) => validEncCatNames.has(n)),
   );
+  const rawFlow = snapshot.stageAdvanceFlow;
+  if (rawFlow && rawFlow.active && typeof rawFlow.step === "string" && Array.isArray(rawFlow.selectedKeys)) {
+    state.stageAdvanceFlow = {
+      active: true,
+      step: rawFlow.step,
+      selectedKeys: getStringList(rawFlow.selectedKeys),
+    };
+  } else {
+    state.stageAdvanceFlow = null;
+  }
   state.hasActiveNegativeMixToken = Boolean(snapshot.hasActiveNegativeMixToken);
   if (snapshot.activeSidebarTab === "upgrades") {
     state.activeSidebarTab = "upgrades";
@@ -1522,18 +1685,32 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     x: Number.isFinite(snapshot.negativeMixPosition?.x) ? snapshot.negativeMixPosition.x : getDefaultNegativeMixPosition().x,
     y: Number.isFinite(snapshot.negativeMixPosition?.y) ? snapshot.negativeMixPosition.y : getDefaultNegativeMixPosition().y,
   });
-  const savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
-    && ENCYCLOPEDIA_LOOKUP.has(snapshot.quest.targetWord)
-    ? snapshot.quest.targetWord
-    : null;
   const savedQuestNumber = Math.max(1, getSafeCount(snapshot.quest?.number, 1));
   const savedQuestRemaining = getSafeCount(snapshot.quest?.remainingDiscoveries);
   const savedQuestTurnsTaken = Math.max(0, getSafeCount(snapshot.quest?.turnsTaken));
   const savedQuestLost = Boolean(snapshot.quest?.isLost);
   const savedQuestWon = Boolean(snapshot.quest?.isWon);
   const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
-  if (getUndiscoveredEncyclopediaWords().length === 0 || savedQuestWon) {
+  const stageWordSet = getStageQuestWordSet();
+  const savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
+    && stageWordSet.has(snapshot.quest.targetWord)
+    ? snapshot.quest.targetWord
+    : null;
+  if (state.stageAdvanceFlow?.active) {
+    state.quest.number = savedQuestNumber;
+    state.quest.targetWord = null;
+    state.quest.remainingDiscoveries = savedQuestRemaining;
+    state.quest.turnsTaken = savedQuestTurnsTaken;
+    state.quest.isLost = savedQuestLost;
+    state.quest.isWon = false;
+    renderStageAdvanceModal();
+  } else if (savedQuestWon) {
     setQuestVictoryState({ questNumber: savedQuestNumber });
+  } else if (!savedQuestLost
+    && isCurrentStageComplete()
+    && state.runStage < RUN_STAGE_COUNT
+    && getUndiscoveredStageQuestWords().length === 0) {
+    beginStageAdvanceFlow();
   } else if (savedQuestTarget && !discoveredEncyclopediaWords.has(savedQuestTarget) && (savedQuestRemaining > 0 || savedQuestLost)) {
     state.quest.number = savedQuestNumber;
     state.quest.targetWord = savedQuestTarget;
@@ -1990,14 +2167,20 @@ function getDiscoveredEncyclopediaWords() {
   );
 }
 
-function getCompletedEncyclopediaCategoryNames(discoveredWords = getDiscoveredEncyclopediaWords()) {
-  return ENCYCLOPEDIA_CATEGORIES
-    .filter((category) => category.words.every((word) => discoveredWords.has(word)))
-    .map((category) => category.name);
-}
-
 function getEncyclopediaDiscoveryCount() {
-  return getDiscoveredEncyclopediaWords().size;
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  let n = 0;
+  ENCYCLOPEDIA_CATEGORIES.forEach((category) => {
+    if (!isEncyclopediaCategoryRevealed(category.name)) {
+      return;
+    }
+    category.words.forEach((word) => {
+      if (discoveredWords.has(word)) {
+        n += 1;
+      }
+    });
+  });
+  return n;
 }
 
 function getUnlockedNegativeMixTokenCount(discoveredCount = state.discovered.size) {
@@ -2367,9 +2550,17 @@ function showQuestCompletionNotice(questResult, overflowMessage = "") {
 
   const next = document.createElement("div");
   next.className = "quest-complete-toast-next";
-  next.textContent = questResult.completedEncyclopedia
-    ? "Encyclopedia complete. Run finished."
-    : `Next target: ${titleCase(questResult.nextTargetWord)}.`;
+  if (questResult.completedFullRun) {
+    next.textContent = getUiLang() === "ru" ? "Забег завершён." : "Run finished.";
+  } else if (questResult.pendingStageAdvance) {
+    next.textContent = getUiLang() === "ru"
+      ? "Этап пройден — продолжайте в окне."
+      : "Stage clear—continue in the dialog.";
+  } else if (questResult.nextTargetWord) {
+    next.textContent = `Next target: ${titleCase(questResult.nextTargetWord)}.`;
+  } else {
+    next.textContent = getUiLang() === "ru" ? "Следующее задание появится после продолжения." : "Next quest unlocks after you continue.";
+  }
 
   notice.append(title, body, next);
 
@@ -2741,10 +2932,17 @@ function updateCounts() {
 }
 
 function renderQuest() {
-  const targetWord = state.quest.isWon
-    ? "Encyclopedia complete"
-    : (state.quest.targetWord ? titleCase(state.quest.targetWord) : "None");
-  const countdown = state.quest.isWon ? "0" : state.quest.remainingDiscoveries;
+  let targetWord;
+  if (state.quest.isWon) {
+    targetWord = getUiLang() === "ru" ? "Забег завершён" : "Run complete";
+  } else if (state.stageAdvanceFlow?.active) {
+    targetWord = getUiLang() === "ru" ? "Этап пройден" : "Stage clear";
+  } else {
+    targetWord = state.quest.targetWord ? titleCase(state.quest.targetWord) : "—";
+  }
+  const countdown = state.quest.isWon || state.stageAdvanceFlow?.active
+    ? "0"
+    : state.quest.remainingDiscoveries;
   let questState = "active";
   if (state.quest.isWon) {
     questState = "active";
@@ -2989,9 +3187,20 @@ function buildSourceButton(entry) {
   button.className = "source-word";
   button.dataset.kind = "discovered";
   button.dataset.wordKey = key;
+  const carryFlow = state.stageAdvanceFlow;
+  const pickCarry = Boolean(carryFlow?.active && carryFlow.step === "pick");
   button.textContent = `${titleCase(word)}${state.selfMatchedWords.has(key) ? " ✔️" : ""}`;
-  button.draggable = true;
+  button.draggable = !pickCarry;
+  if (pickCarry) {
+    button.dataset.carryPick = carryFlow.selectedKeys.includes(key) ? "true" : "false";
+  } else {
+    delete button.dataset.carryPick;
+  }
   button.addEventListener("click", () => {
+    if (pickCarry) {
+      toggleStageCarryWordSelection(key);
+      return;
+    }
     if (state.googlePickMode) {
       openGoogleMeaning(word);
       return;
@@ -3776,7 +3985,10 @@ function renderEncyclopedia() {
   const discoveredWords = getDiscoveredEncyclopediaWords();
 
   ENCYCLOPEDIA_CATEGORIES.forEach((category) => {
-    const discoveredInCategory = category.words.filter((word) => discoveredWords.has(word));
+    const revealed = isEncyclopediaCategoryRevealed(category.name);
+    const discoveredInCategory = revealed
+      ? category.words.filter((word) => discoveredWords.has(word))
+      : [];
 
     const card = document.createElement("section");
     card.className = "category-card";
@@ -3789,7 +4001,9 @@ function renderEncyclopedia() {
 
     const count = document.createElement("span");
     count.className = "category-count";
-    count.textContent = `${discoveredInCategory.length} / ${category.words.length}`;
+    count.textContent = revealed
+      ? `${discoveredInCategory.length} / ${category.words.length}`
+      : `? / ${category.words.length}`;
 
     titleRow.append(title, count);
 
@@ -3798,16 +4012,236 @@ function renderEncyclopedia() {
 
     category.words.forEach((word) => {
       const entry = document.createElement("div");
-      const isDiscovered = discoveredWords.has(word);
+      const isDiscovered = Boolean(revealed && discoveredWords.has(word));
       entry.className = "encyclopedia-entry";
       entry.dataset.discovered = isDiscovered ? "true" : "false";
-      entry.textContent = titleCase(word);
+      entry.textContent = revealed ? titleCase(word) : "???";
       list.append(entry);
     });
 
     card.append(titleRow, list);
     els.encyclopediaGrid.append(card);
   });
+}
+
+function formatStageAdvanceWarnBody(nextGold, nextStage) {
+  if (getUiLang() === "ru") {
+    return `Этап ${nextStage} начнётся с ${nextGold} монет. Текущие монеты обнулятся — успейте купить улучшения. Сброс накопительных цен: токены в магазине и бустер слов.`;
+  }
+  return `Stage ${nextStage} starts you with ${nextGold} coins. Your current coins will reset when you continue—buy upgrades or shop tokens first. Word Booster and token shop scaling prices also reset.`;
+}
+
+function formatStageAdvancePickBody() {
+  return getUiLang() === "ru"
+    ? "В панели слов справа выберите ровно 5 слов, которые останутся на поле в следующем этапе."
+    : "In the word panel on the right, click exactly five discovered words to keep on the field next stage.";
+}
+
+function formatStageAdvanceConfirmBody(names) {
+  const list = names.join(", ");
+  if (getUiLang() === "ru") {
+    return `Вы несёте: ${list}. Случайные до пяти токенов из запаса перейдут в новый этап. Продолжить?`;
+  }
+  return `Carrying: ${list}. Up to five random tokens from your inventory will transfer. Continue?`;
+}
+
+function buildSpendableTokenCarryBag() {
+  const bag = [];
+  for (let i = 0; i < state.availableNegativeMixTokens; i += 1) {
+    bag.push("minus-mix");
+  }
+  for (let i = 0; i < state.availableBanWordTokens; i += 1) {
+    bag.push("ban-word");
+  }
+  for (let i = 0; i < state.availableWildcardTokens; i += 1) {
+    bag.push("wildcard");
+  }
+  POSITION_TOKEN_RANKS.forEach((rank) => {
+    const c = getAvailablePositionTokenCount(rank);
+    for (let i = 0; i < c; i += 1) {
+      bag.push(rank);
+    }
+  });
+  return bag;
+}
+
+function pickRandomTokensToCarryForward() {
+  const bag = buildSpendableTokenCarryBag();
+  shuffle(bag);
+  return bag.slice(0, Math.min(5, bag.length));
+}
+
+function zeroSpendableTokens() {
+  state.availableNegativeMixTokens = 0;
+  state.availableBanWordTokens = 0;
+  state.availableWildcardTokens = 0;
+  state.availableSecondResultTokens = 0;
+  state.availableThirdResultTokens = 0;
+  state.availableFourthResultTokens = 0;
+  state.availableFifthResultTokens = 0;
+}
+
+function applyCarriedTokenList(carried) {
+  carried.forEach((type) => {
+    if (type === "minus-mix") {
+      state.availableNegativeMixTokens += 1;
+      return;
+    }
+    if (type === "ban-word") {
+      state.availableBanWordTokens += 1;
+      return;
+    }
+    if (type === "wildcard") {
+      state.availableWildcardTokens += 1;
+      return;
+    }
+    addPositionTokens(type, 1);
+  });
+}
+
+function ensureCarryWordsOnField(words) {
+  const onField = new Set(state.tiles.map((t) => t.word.toLowerCase()));
+  const bounds = getPlayfieldBounds();
+  const centerX = Math.round((bounds.worldWidth / 2) - (TILE_WIDTH / 2));
+  const centerY = Math.round((bounds.worldHeight / 2) - (TILE_HEIGHT / 2));
+  const offsets = [-160, -80, 0, 80, 160];
+  words.forEach((word, index) => {
+    if (onField.has(word.toLowerCase())) {
+      return;
+    }
+    const offset = offsets[index] ?? (index * 100);
+    spawnWordOnField(word, {
+      x: clamp(centerX + offset, bounds.minX, bounds.maxX),
+      y: clamp(centerY, bounds.minY, bounds.maxY),
+    });
+  });
+}
+
+function toggleStageCarryWordSelection(key) {
+  const flow = state.stageAdvanceFlow;
+  if (!flow?.active || flow.step !== "pick") {
+    return;
+  }
+  const idx = flow.selectedKeys.indexOf(key);
+  if (idx >= 0) {
+    flow.selectedKeys.splice(idx, 1);
+  } else if (flow.selectedKeys.length < 5) {
+    flow.selectedKeys.push(key);
+  } else {
+    setStatus(getUiLang() === "ru" ? "Уже выбрано 5 слов." : "Already picked 5 words.", "error");
+  }
+  renderWordList();
+  renderStageAdvanceModal();
+  queueProgressSave();
+}
+
+function applyConfirmedStageAdvance(selectedKeys) {
+  if (!Array.isArray(selectedKeys) || selectedKeys.length !== 5) {
+    return;
+  }
+  const carryWords = selectedKeys.map((key) => state.discovered.get(key) || key);
+  const carriedTokens = pickRandomTokensToCarryForward();
+  state.stageCategoryNames.forEach((name) => state.completedRunCategoryNames.add(name));
+  state.runStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
+  const pickCount = getStageCategoryPickCountForRunStage(state.runStage);
+  state.stageCategoryNames = pickRandomStageCategoryNames(pickCount);
+  state.coins = getStartingGoldForRunStage(state.runStage);
+  state.totalCoinsEarned = Math.max(state.totalCoinsEarned, state.coins);
+  state.shopPurchaseCounts = {};
+  zeroSpendableTokens();
+  applyCarriedTokenList(carriedTokens);
+  state.hasActiveNegativeMixToken = false;
+  state.negativeMix = { a: null, b: null };
+  state.negativeMixSources = { a: null, b: null };
+  const carryLower = new Set(carryWords.map((w) => w.toLowerCase()));
+  state.tiles = state.tiles.filter((tile) => carryLower.has(tile.word.toLowerCase()));
+  state.removedResultWords = new Set();
+  carryWords.forEach((word) => {
+    getRemovalKeysForWord(word).forEach((rk) => state.removedResultWords.add(rk));
+  });
+  state.starters = [...carryWords];
+  state.garbageWordsSinceReward = 0;
+  state.stageAdvanceFlow = null;
+  if (els.stageAdvanceModal) {
+    els.stageAdvanceModal.hidden = true;
+  }
+  assignNewQuest({ initial: true });
+  state.nextTileId = Math.max(1, ...state.tiles.map((t) => t.id + 1), 1);
+  state.nextZIndex = Math.max(1, ...state.tiles.map((t) => t.zIndex + 1), 1);
+  ensureCarryWordsOnField(carryWords);
+  clampTilesToPlayfieldBounds();
+  updatePlayfieldCamera();
+  renderSidebar();
+  renderTiles();
+  renderNegativeMix();
+  renderHistory();
+  renderQuest();
+  queueProgressSave();
+  const msg = getUiLang() === "ru"
+    ? `Этап ${state.runStage}. Новая цель квеста: ${titleCase(state.quest.targetWord || "")}.`
+    : `Stage ${state.runStage}. New quest: ${titleCase(state.quest.targetWord || "")}.`;
+  setStatus(msg, "ok");
+}
+
+function renderStageAdvanceModal() {
+  if (!els.stageAdvanceModal) {
+    return;
+  }
+  if (!state.stageAdvanceFlow?.active) {
+    els.stageAdvanceModal.hidden = true;
+    return;
+  }
+  els.stageAdvanceModal.hidden = false;
+  const flow = state.stageAdvanceFlow;
+  const nextStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
+  const goldNext = getStartingGoldForRunStage(nextStage);
+  if (els.stageAdvanceTitle) {
+    els.stageAdvanceTitle.textContent = t("stageAdvance.title");
+  }
+  if (flow.step === "warn") {
+    if (els.stageAdvanceSubtitle) {
+      els.stageAdvanceSubtitle.textContent = t("stageAdvance.warnSubtitle");
+    }
+    if (els.stageAdvanceBody) {
+      els.stageAdvanceBody.textContent = formatStageAdvanceWarnBody(goldNext, nextStage);
+    }
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = true;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextPick");
+      els.stageAdvanceNextButton.disabled = false;
+    }
+  } else if (flow.step === "pick") {
+    if (els.stageAdvanceSubtitle) {
+      els.stageAdvanceSubtitle.textContent = t("stageAdvance.pickSubtitle");
+    }
+    if (els.stageAdvanceBody) {
+      els.stageAdvanceBody.textContent = `${formatStageAdvancePickBody()} (${flow.selectedKeys.length}/5)`;
+    }
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = false;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.nextConfirm");
+      els.stageAdvanceNextButton.disabled = flow.selectedKeys.length !== 5;
+    }
+  } else if (flow.step === "confirm") {
+    const names = flow.selectedKeys.map((k) => titleCase(state.discovered.get(k) || k));
+    if (els.stageAdvanceSubtitle) {
+      els.stageAdvanceSubtitle.textContent = t("stageAdvance.confirmSubtitle");
+    }
+    if (els.stageAdvanceBody) {
+      els.stageAdvanceBody.textContent = formatStageAdvanceConfirmBody(names);
+    }
+    if (els.stageAdvanceBackButton) {
+      els.stageAdvanceBackButton.hidden = false;
+    }
+    if (els.stageAdvanceNextButton) {
+      els.stageAdvanceNextButton.textContent = t("stageAdvance.startStage");
+      els.stageAdvanceNextButton.disabled = false;
+    }
+  }
 }
 
 function setActiveSidebarTab(tab) {
@@ -3926,63 +4360,6 @@ function handleDeadEndMixError(error, sources = []) {
     "reward",
   );
   return true;
-}
-
-function rollEqualRandomTokenReward() {
-  const rewardIndex = Math.floor(Math.random() * 3);
-  if (rewardIndex === 0) {
-    state.availableNegativeMixTokens += 1;
-    return "minus";
-  }
-  if (rewardIndex === 1) {
-    state.availableBanWordTokens += 1;
-    state.totalBanWordTokensEarned += 1;
-    return "ban";
-  }
-  addPositionTokens(2, 1);
-  return "second";
-}
-
-function rewardCompletedEncyclopediaCategories() {
-  const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
-  const newlyCompletedCategories = getCompletedEncyclopediaCategoryNames(discoveredEncyclopediaWords)
-    .filter((categoryName) => !state.completedEncyclopediaCategories.has(categoryName));
-
-  if (!newlyCompletedCategories.length) {
-    return {
-      completedCategories: [],
-      newNegativeMixTokens: 0,
-      newBanWordTokens: 0,
-      newSecondResultTokens: 0,
-    };
-  }
-
-  let newNegativeMixTokens = 0;
-  let newBanWordTokens = 0;
-  let newSecondResultTokens = 0;
-  newlyCompletedCategories.forEach((categoryName) => {
-    state.completedEncyclopediaCategories.add(categoryName);
-    for (let rewardIndex = 0; rewardIndex < 5; rewardIndex += 1) {
-      const rewardType = rollEqualRandomTokenReward();
-      if (rewardType === "minus") {
-        newNegativeMixTokens += 1;
-      } else if (rewardType === "ban") {
-        newBanWordTokens += 1;
-      } else {
-        newSecondResultTokens += 1;
-      }
-    }
-  });
-
-  const totalNewTokens = newNegativeMixTokens + newBanWordTokens + newSecondResultTokens;
-  state.unseenTokenRewards += totalNewTokens;
-
-  return {
-    completedCategories: newlyCompletedCategories,
-    newNegativeMixTokens,
-    newBanWordTokens,
-    newSecondResultTokens,
-  };
 }
 
 function getRelatedTileIdsForWord(word) {
@@ -4134,6 +4511,7 @@ async function useWildcardToken(position = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
@@ -4158,6 +4536,7 @@ async function useWildcardToken(position = null) {
       newZonesUnlocked,
       completedCategories,
       questResult,
+      hiddenEncyclopediaDiscovery,
     },
   );
   applyOutcomeStatus(status, { vocabularyOverflow, questResult });
@@ -4718,6 +5097,7 @@ function getMixOutcomeMessage(
     questResult = null,
     usedShift = 0,
     refundedTagCount = 0,
+    hiddenEncyclopediaDiscovery = false,
   } = {},
 ) {
   const operator = operation === "subtract" ? "-" : "+";
@@ -4725,8 +5105,13 @@ function getMixOutcomeMessage(
   let stateName;
 
   if (isInEncyclopedia && !wasDiscovered) {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`;
-    stateName = "success";
+    if (hiddenEncyclopediaDiscovery) {
+      message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. You discovered a hidden word (encyclopedia stays ??? until its category is in play).`;
+      stateName = "reward";
+    } else {
+      message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. It was added to the encyclopedia.`;
+      stateName = "success";
+    }
   } else if (isInEncyclopedia) {
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}.`;
     stateName = "ok";
@@ -4826,8 +5211,14 @@ function getQuestCompletionMessage(questResult) {
     rewardText = `${rewardText}, including a ${questResult.questSpeedBonusCoins}-coin speed bonus for finishing in ${questResult.turnsTaken} turns`;
   }
 
-  if (questResult.completedEncyclopedia) {
-    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Encyclopedia complete. Run finished.`;
+  if (questResult.pendingStageAdvance) {
+    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Stage clear—continue in the dialog.`;
+  }
+  if (questResult.completedFullRun) {
+    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Run finished.`;
+  }
+  if (!questResult.nextTargetWord) {
+    return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}.`;
   }
 
   return `Quest complete: you found ${titleCase(questResult.completedTargetWord)} and earned ${rewardText}. Your next quest is ${titleCase(questResult.nextTargetWord)} and you lose in ${questResult.remainingDiscoveries} turns.`;
@@ -4846,14 +5237,20 @@ function getWildcardOutcomeMessage(
     newZonesUnlocked = 0,
     completedCategories = [],
     questResult = null,
+    hiddenEncyclopediaDiscovery = false,
   } = {},
 ) {
   let message;
   let stateName;
 
   if (isInEncyclopedia && !wasDiscovered) {
-    message = `Wildcard revealed ${titleCase(canonicalResult)} and added it to your discovered words.`;
-    stateName = "success";
+    if (hiddenEncyclopediaDiscovery) {
+      message = `Wildcard revealed ${titleCase(canonicalResult)}. Hidden encyclopedia word—you earned a Ban Word token; the book still shows ??? until its category is in play.`;
+      stateName = "reward";
+    } else {
+      message = `Wildcard revealed ${titleCase(canonicalResult)} and added it to your discovered words.`;
+      stateName = "success";
+    }
   } else if (isInEncyclopedia) {
     message = `Wildcard revealed ${titleCase(canonicalResult)}. It was already discovered, so it only appeared on the field.`;
     stateName = "ok";
@@ -4920,6 +5317,7 @@ function getSpawnWordOutcomeMessage(
     newZonesUnlocked = 0,
     completedCategories = [],
     questResult = null,
+    hiddenEncyclopediaDiscovery = false,
   } = {},
 ) {
   let message;
@@ -4929,8 +5327,13 @@ function getSpawnWordOutcomeMessage(
     message = `Spawned ${titleCase(canonicalResult)} onto the field. It was already in your discovered words.`;
     stateName = "ok";
   } else if (isInEncyclopedia) {
-    message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to the encyclopedia.`;
-    stateName = "success";
+    if (hiddenEncyclopediaDiscovery) {
+      message = `Spawned ${titleCase(canonicalResult)}. You discovered a hidden encyclopedia word (still ??? in the book until its category is in play).`;
+      stateName = "reward";
+    } else {
+      message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to the encyclopedia.`;
+      stateName = "success";
+    }
   } else {
     message = `Spawned ${titleCase(canonicalResult)} onto the field and added it to your discovered words.`;
     stateName = "success";
@@ -4991,6 +5394,7 @@ function getShopWordBoosterOutcomeMessage(
     newZonesUnlocked = 0,
     completedCategories = [],
     questResult = null,
+    hiddenEncyclopediaDiscovery = false,
   } = {},
 ) {
   let message;
@@ -5000,8 +5404,13 @@ function getShopWordBoosterOutcomeMessage(
     message = `Word Booster revealed ${titleCase(canonicalResult)}, but it was already discovered.`;
     stateName = "ok";
   } else if (isInEncyclopedia) {
-    message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to the encyclopedia.`;
-    stateName = "success";
+    if (hiddenEncyclopediaDiscovery) {
+      message = `Word Booster discovered ${titleCase(canonicalResult)} as a hidden encyclopedia word (still ??? until its category is in play).`;
+      stateName = "reward";
+    } else {
+      message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to the encyclopedia.`;
+      stateName = "success";
+    }
   } else {
     message = `Word Booster discovered ${titleCase(canonicalResult)} and added it to your available words.`;
     stateName = "success";
@@ -5334,6 +5743,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
@@ -5375,6 +5785,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
+      hiddenEncyclopediaDiscovery,
     });
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
@@ -5389,6 +5800,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       questResult,
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
+      hiddenEncyclopediaDiscovery,
     });
     if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
@@ -5432,6 +5844,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
@@ -5482,6 +5895,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        hiddenEncyclopediaDiscovery,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -5504,6 +5918,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        hiddenEncyclopediaDiscovery,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -5530,6 +5945,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let completedCategories = [];
   let coinReward = null;
   let questResult = null;
+  let hiddenEncyclopediaDiscovery = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -5563,30 +5979,28 @@ function rememberResult(result, normalized = result, metadata = {}) {
     state.unseenTokenRewards += newNegativeMixTokens;
   }
 
-  if (didDiscoverNewWord && isInEncyclopedia) {
+  if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
+    hiddenEncyclopediaDiscovery = !isEncyclopediaCategoryRevealed(encyclopediaEntry.category);
     state.availableBanWordTokens += 1;
     state.totalBanWordTokensEarned += 1;
     state.unseenTokenRewards += 1;
     newBanWordTokens = 1;
-    const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
-    if (!discoveredEncyclopediaWords.has(canonicalResult)) {
-      console.warn("[wordmath] Encyclopedia reward mismatch", {
-        result,
-        normalized,
-        canonicalResult,
-        discoveryKey,
-        storedDiscoveredValue: state.discovered.get(discoveryKey) ?? null,
-        encyclopediaEntryByCanonical: getEncyclopediaEntry(canonicalResult, canonicalResult),
-        encyclopediaEntryByNormalized: getEncyclopediaEntry(normalized, normalized),
-        discoveredEncyclopediaKeys: [...discoveredEncyclopediaWords],
-      });
+    completedCategories = [];
+    if (!hiddenEncyclopediaDiscovery) {
+      const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
+      if (!discoveredEncyclopediaWords.has(canonicalResult)) {
+        console.warn("[wordmath] Encyclopedia reward mismatch", {
+          result,
+          normalized,
+          canonicalResult,
+          discoveryKey,
+          storedDiscoveredValue: state.discovered.get(discoveryKey) ?? null,
+          encyclopediaEntryByCanonical: getEncyclopediaEntry(canonicalResult, canonicalResult),
+          encyclopediaEntryByNormalized: getEncyclopediaEntry(normalized, normalized),
+          discoveredEncyclopediaKeys: [...discoveredEncyclopediaWords],
+        });
+      }
     }
-
-    const completionRewards = rewardCompletedEncyclopediaCategories();
-    completedCategories = completionRewards.completedCategories;
-    newNegativeMixTokensFromCompletion += completionRewards.newNegativeMixTokens;
-    newBanWordTokens += completionRewards.newBanWordTokens;
-    newPositionTokenRewards[2] += completionRewards.newSecondResultTokens;
   }
 
   if (didDiscoverNewWord) {
@@ -5634,10 +6048,18 @@ function rememberResult(result, normalized = result, metadata = {}) {
     renderSidebar();
   }
 
+  if (isCurrentStageComplete()
+    && state.runStage < RUN_STAGE_COUNT
+    && !state.stageAdvanceFlow?.active
+    && !state.quest.isWon) {
+    beginStageAdvanceFlow();
+  }
+
   return {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens: totalNewNegativeMixTokens,
     newBanWordTokens,
@@ -5703,6 +6125,7 @@ async function runNegativeMix(clientPoint = null) {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
@@ -5758,6 +6181,7 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        hiddenEncyclopediaDiscovery,
       },
     );
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
@@ -5780,6 +6204,7 @@ async function runNegativeMix(clientPoint = null) {
         questResult,
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
+        hiddenEncyclopediaDiscovery,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -6208,6 +6633,7 @@ function renderShopWordBooster() {
         canonicalResult,
         isInEncyclopedia,
         wasDiscovered,
+        hiddenEncyclopediaDiscovery,
         coinReward,
         newNegativeMixTokens,
         newBanWordTokens,
@@ -6233,6 +6659,7 @@ function renderShopWordBooster() {
         newZonesUnlocked,
         completedCategories,
         questResult,
+        hiddenEncyclopediaDiscovery,
       });
       applyOutcomeStatus(status, { vocabularyOverflow, questResult });
     });
@@ -6313,6 +6740,7 @@ async function promptSpawnWord() {
     canonicalResult,
     isInEncyclopedia,
     wasDiscovered,
+    hiddenEncyclopediaDiscovery,
     coinReward,
     newNegativeMixTokens,
     newBanWordTokens,
@@ -6336,6 +6764,7 @@ async function promptSpawnWord() {
     newZonesUnlocked,
     completedCategories,
     questResult,
+    hiddenEncyclopediaDiscovery,
   });
   applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
@@ -6415,7 +6844,10 @@ function resetRun() {
   state.availableFifthResultTokens = 0;
   state.totalFifthResultTokensEarned = 0;
   state.progressSecondResultTokensAwarded = 0;
-  state.completedEncyclopediaCategories = new Set();
+  state.runStage = 1;
+  state.completedRunCategoryNames = new Set();
+  state.stageAdvanceFlow = null;
+  initializeStageCategoryNamesForNewRun();
   state.hiddenWordPanelWords = new Set();
   state.garbageWordsSinceReward = 0;
   state.garbageRewardLevel = 0;
@@ -6435,6 +6867,9 @@ function resetRun() {
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
   els.questWinModal.hidden = true;
+  if (els.stageAdvanceModal) {
+    els.stageAdvanceModal.hidden = true;
+  }
 
   updatePlayfieldCamera();
   renderSidebar();
@@ -6618,7 +7053,55 @@ function initEvents() {
       markTokenRewardsSeen();
     });
   }
-  els.resetButton.addEventListener("click", resetRun);
+  if (els.stageAdvanceNextButton) {
+    els.stageAdvanceNextButton.addEventListener("click", () => {
+      const flow = state.stageAdvanceFlow;
+      if (!flow?.active) {
+        return;
+      }
+      if (flow.step === "warn") {
+        flow.step = "pick";
+        flow.selectedKeys = [];
+      } else if (flow.step === "pick") {
+        if (flow.selectedKeys.length !== 5) {
+          return;
+        }
+        flow.step = "confirm";
+      } else if (flow.step === "confirm") {
+        applyConfirmedStageAdvance(flow.selectedKeys);
+        return;
+      }
+      renderStageAdvanceModal();
+      renderWordList();
+      queueProgressSave();
+    });
+  }
+  if (els.stageAdvanceBackButton) {
+    els.stageAdvanceBackButton.addEventListener("click", () => {
+      const flow = state.stageAdvanceFlow;
+      if (!flow?.active) {
+        return;
+      }
+      if (flow.step === "confirm") {
+        flow.step = "pick";
+      } else if (flow.step === "pick") {
+        flow.step = "warn";
+        flow.selectedKeys = [];
+      }
+      renderStageAdvanceModal();
+      renderWordList();
+      queueProgressSave();
+    });
+  }
+  els.resetButton.addEventListener("click", () => {
+    const resetMessage = getUiLang() === "ru"
+      ? "Это сбросит весь прогресс. Продолжить?"
+      : "This will reset all progress. Continue?";
+    if (!window.confirm(resetMessage)) {
+      return;
+    }
+    resetRun();
+  });
   els.clearFieldButton.addEventListener("click", clearField);
   els.zoomOutButton.addEventListener("click", () => {
     adjustPlayfieldZoom(-PLAYFIELD_ZOOM_STEP);

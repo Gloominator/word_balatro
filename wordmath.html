@@ -371,12 +371,28 @@
         <div class="modal-head">
           <div>
             <h2 id="quest-win-title" data-i18n="questWin.title">You won!</h2>
-            <p class="muted" data-i18n="questWin.subtitle">You discovered every encyclopedia word and finished the run.</p>
+            <p class="muted" data-i18n="questWin.subtitle">You cleared every stage and finished the run.</p>
           </div>
         </div>
-        <p class="quest-loss-copy" data-i18n="questWin.copy">Encyclopedia completion reached 100%.</p>
+        <p class="quest-loss-copy" data-i18n="questWin.copy">All six stages complete. Encyclopedia mastered.</p>
         <div class="settings-actions">
           <button type="button" data-action="quest-go-again" data-i18n="questWin.goAgain">Go Again</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-stage-advance-modal hidden>
+      <section class="modal-card stage-advance-modal-card" role="dialog" aria-modal="true" aria-labelledby="stage-advance-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="stage-advance-title" data-stage-advance-title data-i18n="stageAdvance.title">Stage clear</h2>
+            <p class="muted" data-stage-advance-subtitle data-i18n="stageAdvance.subtitle"></p>
+          </div>
+        </div>
+        <div class="stage-advance-body" data-stage-advance-body></div>
+        <div class="settings-actions">
+          <button type="button" class="ghost-button" data-action="stage-advance-back" data-i18n="stageAdvance.back" hidden>Back</button>
+          <button type="button" data-action="stage-advance-next" data-i18n="stageAdvance.next">Next</button>
         </div>
       </section>
     </div>
