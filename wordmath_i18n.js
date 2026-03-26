@@ -249,9 +249,12 @@ const SHOP_MESSAGES = {
   en: {
     "shop-word-booster": {
       title: "Word Booster",
-      description: "Roll 10 random words from the common-word list, then pick 1 to discover.",
+      description:
+        "Roll 10 random words from the common-word list, then pick 1 to discover. Your first roll each stage is free; later rolls start at 70 coins (then increase as before).",
       purchaseDone: (cost) =>
-        `Bought a Word Booster for ${cost} coins. Pick 1 rolled word to discover it.`,
+        cost <= 0
+          ? "Claimed your free Word Booster for this stage. Pick 1 rolled word to discover it."
+          : `Bought a Word Booster for ${cost} coins. Pick 1 rolled word to discover it.`,
       reopen: "Reopened your pending Word Booster.",
     },
     "shop-match-2": {
@@ -338,9 +341,12 @@ const SHOP_MESSAGES = {
   ru: {
     "shop-word-booster": {
       title: "Бустер слов",
-      description: "10 случайных слов из частотного списка — выберите 1, чтобы открыть.",
+      description:
+        "10 случайных слов из частотного списка — выберите 1, чтобы открыть. Первый набор на этапе бесплатен; следующие снова от 70 монет (как раньше первый, дальше дороже).",
       purchaseDone: (cost) =>
-        `Куплен бустер слов за ${cost} монет. Выберите 1 из выпавших слов.`,
+        cost <= 0
+          ? "Получен бесплатный бустер слов на этом этапе. Выберите 1 из выпавших слов."
+          : `Куплен бустер слов за ${cost} монет. Выберите 1 из выпавших слов.`,
       reopen: "Снова открыт незавершённый бустер слов.",
     },
     "shop-match-2": {
@@ -458,10 +464,14 @@ export function formatCoinsCount(count) {
 }
 
 export function formatShopBuyLine(itemCost) {
-  if (activeUiLang === "ru") {
-    return `Купить за ${itemCost} монет`;
+  const c = Math.max(0, Math.floor(Number(itemCost)) || 0);
+  if (c === 0) {
+    return activeUiLang === "ru" ? "Бесплатно" : "Free";
   }
-  return `Buy for ${itemCost} coins`;
+  if (activeUiLang === "ru") {
+    return `Купить за ${c} монет`;
+  }
+  return `Buy for ${c} coins`;
 }
 
 export function getWordBoosterTopTitle(pending, reason, boosterCost) {
@@ -473,9 +483,15 @@ export function getWordBoosterTopTitle(pending, reason, boosterCost) {
   if (reason) {
     return reason;
   }
+  const cost = Math.max(0, Math.floor(Number(boosterCost)) || 0);
+  if (cost === 0) {
+    return activeUiLang === "ru"
+      ? "Бесплатно: первый бустер на этом этапе."
+      : "Free: first Word Booster this stage.";
+  }
   return activeUiLang === "ru"
-    ? `Купить за ${boosterCost} монет.`
-    : `Buy for ${boosterCost} coins.`;
+    ? `Купить за ${cost} монет.`
+    : `Buy for ${cost} coins.`;
 }
 
 export function setUiLang(lang) {

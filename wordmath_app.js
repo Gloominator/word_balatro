@@ -261,7 +261,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 14;
+const SNAPSHOT_VERSION = 15;
 
 /** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
 const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
@@ -542,6 +542,8 @@ const state = {
   totalCoinsEarned: 0,
   purchasedUpgrades: createDefaultPurchasedUpgradeState(),
   shopPurchaseCounts: {},
+  /** Word Booster rolls started this stage (first each stage is free). */
+  wordBoosterPurchasesThisStage: 0,
   /** 0–5: bonus random quest-pool tokens after carry when entering a new stage (run-wide). */
   runPermanentRandomTokens: 0,
   /** 0–5: bonus quest ink on each new stage’s first quest (run-wide). */
@@ -824,6 +826,13 @@ function getShopItemCost(item) {
   }
   if (item.id === "shop-run-permanent-more-ink") {
     return getNextRunPermanentUpgradeShopCost(state.runPermanentMoreInk);
+  }
+  if (item.id === "shop-word-booster") {
+    const n = getSafeCount(state.wordBoosterPurchasesThisStage, 0);
+    if (n === 0) {
+      return 0;
+    }
+    return getIncrementalShopPrice(SHOP_WORD_BOOSTER_COST, n - 1, item.id);
   }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
     return getIncrementalShopPrice(
@@ -1669,6 +1678,7 @@ function buildProgressSnapshot() {
     totalCoinsEarned: state.totalCoinsEarned,
     purchasedUpgrades: { ...state.purchasedUpgrades },
     shopPurchaseCounts: { ...state.shopPurchaseCounts },
+    wordBoosterPurchasesThisStage: state.wordBoosterPurchasesThisStage,
     runPermanentRandomTokens: state.runPermanentRandomTokens,
     runPermanentMoreInk: state.runPermanentMoreInk,
     availableBanWordTokens: state.availableBanWordTokens,
@@ -2009,6 +2019,9 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   }
   state.purchasedUpgrades = loadedPurchases;
   state.shopPurchaseCounts = normalizeSavedShopPurchaseCounts(snapshot.shopPurchaseCounts);
+  state.wordBoosterPurchasesThisStage = snapshotVersion >= 15
+    ? getSafeCount(snapshot.wordBoosterPurchasesThisStage, 0)
+    : getShopPurchaseCount("shop-word-booster");
   state.runPermanentRandomTokens = snapshotVersion >= 13
     ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentRandomTokens)
     : 0;
@@ -5076,6 +5089,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.coins = getStartingGoldForRunStage(state.runStage);
   state.totalCoinsEarned = Math.max(state.totalCoinsEarned, state.coins);
   state.shopPurchaseCounts = {};
+  state.wordBoosterPurchasesThisStage = 0;
   zeroSpendableTokens();
   applyCarriedTokenList(carriedTokens);
   grantRunPermanentRandomTokensAfterStageCarry(state.runPermanentRandomTokens);
@@ -5704,7 +5718,7 @@ async function purchaseShopItem(itemId) {
       const message = await item.purchase();
       if (willRollNewBooster) {
         state.coins -= itemCost;
-        recordIncrementalShopPurchase(item.id);
+        state.wordBoosterPurchasesThisStage = getSafeCount(state.wordBoosterPurchasesThisStage, 0) + 1;
       }
       renderSidebar();
       queueProgressSave();
@@ -5790,7 +5804,9 @@ function renderTopBarShop() {
     titleSpan.textContent = localizedShopTitle(item.id);
     const costSpan = document.createElement("span");
     costSpan.className = "purchase-tokens-menu-item-cost";
-    costSpan.textContent = `${itemCost}G`;
+    costSpan.textContent = item.id === "shop-word-booster" && itemCost <= 0
+      ? formatShopBuyLine(0)
+      : `${itemCost}G`;
     row.append(titleSpan, costSpan);
     row.addEventListener("click", async () => {
       if (row.disabled) {
@@ -5808,7 +5824,9 @@ function renderTopBarShop() {
     const boosterCost = getShopItemCost(booster);
     const boosterBlocked = isStageAdvanceBlockingWordBooster();
     if (els.wordBoosterCost) {
-      els.wordBoosterCost.textContent = boosterCost.toString();
+      els.wordBoosterCost.textContent = boosterCost <= 0
+        ? (getUiLang() === "ru" ? "Бесплатно" : "Free")
+        : boosterCost.toString();
     }
     els.wordBoosterTopButton.disabled = boosterBlocked || !boosterState.canBuy;
     const pending = hasPendingShopWordBooster();
@@ -7703,6 +7721,7 @@ function resetRun() {
   state.totalCoinsEarned = state.coins;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
   state.shopPurchaseCounts = {};
+  state.wordBoosterPurchasesThisStage = 0;
   state.runPermanentRandomTokens = 0;
   state.runPermanentMoreInk = 0;
   state.availableBanWordTokens = 0;
