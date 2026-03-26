@@ -1646,6 +1646,19 @@ input:focus {
   line-height: 1.35;
 }
 
+.floating-match-preview-encyc-mark {
+  margin-left: 0.15em;
+  color: var(--accent-bright, #e8c76a);
+  font-weight: 800;
+  /* Lets regional-indicator “🇪” follow text color on more browsers. */
+  font-variant-emoji: text;
+}
+
+.floating-match-preview-token-mark {
+  margin-left: 0.12em;
+  font-weight: 800;
+}
+
 @keyframes floating-match-preview-rise {
   0% { opacity: 0; transform: translateY(8px) scale(0.98); }
   12% { opacity: 1; transform: translateY(0) scale(1); }

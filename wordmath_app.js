@@ -131,16 +131,22 @@ const QUEST_INITIAL_DISCOVERY_TIMER = 60;
 /** Starting quest timer when a stage begins (quest #1 only). */
 const QUEST_FIRST_BUDGET_STAGE_1 = 30;
 const QUEST_FIRST_BUDGET_STAGE_2_PLUS = 20;
-/** Bonus turns **added** on each quest completion within a stage (1st completion +5, then +4, +3, then +2). */
-const QUEST_COMPLETION_BONUS_LADDER = Object.freeze([5, 4, 3]);
-const QUEST_COMPLETION_BONUS_AFTER_LADDER = 2;
+/** Bonus discoveries added when you complete a quest and roll the next target. */
+const QUEST_COMPLETION_BONUS_TURNS = 5;
 const QUEST_COMPLETION_COIN_REWARD = 100;
 const QUEST_COMPLETION_REWARD_COUNT = 1;
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "ban-word", 2, 3, 4, 5]);
+const QUEST_REWARD_TOKEN_TYPE_SET = new Set(QUEST_REWARD_TOKEN_POOL);
+/** Only rows 1–5 in the hover “Top matches” list can register a super-rare preview roll (Broad Choice rows 6–10 do not). */
+const SUPER_RARE_PREVIEW_ROLL_ROWS = 5;
+/** Top “extremely rare” band (zipf &lt; 2): preview bonus roll chance. */
+const SUPER_RARE_PREVIEW_TOP_TIER_BONUS_CHANCE = 0.2;
+/** Next band (very rare + rare, zipf 2–4): same bonus mechanics, lower odds. */
+const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 10;
+const SNAPSHOT_VERSION = 11;
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -410,6 +416,11 @@ const state = {
   nextTileId: 1,
   nextZIndex: 1,
   wordParents: new Map(),
+  /**
+   * Per run: keys from top-matches preview (candidate normalized key).
+   * null = rolled miss (no bonus); { rewardType } = pending token from preview (granted on first discovery).
+   */
+  superRarePreviewByKey: new Map(),
 };
 
 const els = {
@@ -633,6 +644,17 @@ function isRareDiscoveryZipf(zipf) {
 
 function isCommonDiscoveryZipf(zipf) {
   return normalizeZipfFrequency(zipf) >= 6;
+}
+
+/** Highest coin tier (zipf &lt; 2): “extremely rare” / mega payout. */
+function isHighestPayoutDiscoveryZipf(zipf) {
+  return normalizeZipfFrequency(zipf) < 2;
+}
+
+/** Next preview-bonus band: zipf in [2, 4) — “very rare” and “rare” discovery tiers. */
+function isSecondTierRarePreviewZipf(zipf) {
+  const z = normalizeZipfFrequency(zipf);
+  return z >= 2 && z < 4;
 }
 
 function getDiscoveryCoinReward({ zipf, isInEncyclopedia = false } = {}) {
@@ -1084,14 +1106,8 @@ function getInitialQuestTurnBudgetForStage(runStage = state.runStage) {
   return stage === 1 ? QUEST_FIRST_BUDGET_STAGE_1 : QUEST_FIRST_BUDGET_STAGE_2_PLUS;
 }
 
-/** @param {number} completedQuestNumber 1-based index of the quest you just finished */
-function getQuestCompletionBonusTurns(completedQuestNumber) {
-  const n = Math.max(1, getSafeCount(completedQuestNumber, 1));
-  const idx = n - 1;
-  if (idx < QUEST_COMPLETION_BONUS_LADDER.length) {
-    return QUEST_COMPLETION_BONUS_LADDER[idx];
-  }
-  return QUEST_COMPLETION_BONUS_AFTER_LADDER;
+function getQuestCompletionBonusTurns() {
+  return QUEST_COMPLETION_BONUS_TURNS;
 }
 
 function getStartingGoldForRunStage() {
@@ -1099,11 +1115,10 @@ function getStartingGoldForRunStage() {
 }
 
 function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
-  let completedQuestNumber = null;
   if (initial) {
     state.quest.number = 1;
   } else {
-    completedQuestNumber = Math.max(1, getSafeCount(state.quest.number, 1));
+    const completedQuestNumber = Math.max(1, getSafeCount(state.quest.number, 1));
     state.quest.number = Math.max(2, completedQuestNumber + 1);
   }
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
@@ -1128,7 +1143,7 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   if (initial) {
     state.quest.remainingDiscoveries = getInitialQuestTurnBudgetForStage(state.runStage) + carry;
   } else {
-    const bonus = getQuestCompletionBonusTurns(completedQuestNumber);
+    const bonus = getQuestCompletionBonusTurns();
     state.quest.remainingDiscoveries = state.quest.remainingDiscoveries + bonus + carry;
   }
   state.quest.turnsTaken = 0;
@@ -1144,6 +1159,34 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   };
 }
 
+/** Grant a single quest-pool token type (same pool as quest / encyclopedia bonus). */
+function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
+  if (rewardType === "broad-choice") {
+    state.availableBroadChoiceTokens += 1;
+    state.totalBroadChoiceTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newBroadChoiceTokens += 1;
+    return;
+  }
+  if (rewardType === "ban-word") {
+    state.availableBanWordTokens += 1;
+    state.totalBanWordTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newBanWordTokens += 1;
+    return;
+  }
+
+  addPositionTokens(rewardType, 1);
+  state.unseenTokenRewards += 1;
+  rewardSummary.newPositionTokenRewards[rewardType] += 1;
+}
+
+/** One random pick from QUEST_REWARD_TOKEN_POOL (equal odds); mutates state and rewardSummary deltas. */
+function grantOneRandomQuestPoolToken(rewardSummary) {
+  const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
+  grantQuestPoolTokenOfType(rewardType, rewardSummary);
+}
+
 function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   const rewardSummary = {
     newBroadChoiceTokens: 0,
@@ -1153,25 +1196,7 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   };
 
   for (let index = 0; index < count; index += 1) {
-    const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
-    if (rewardType === "broad-choice") {
-      state.availableBroadChoiceTokens += 1;
-      state.totalBroadChoiceTokensEarned += 1;
-      state.unseenTokenRewards += 1;
-      rewardSummary.newBroadChoiceTokens += 1;
-      continue;
-    }
-    if (rewardType === "ban-word") {
-      state.availableBanWordTokens += 1;
-      state.totalBanWordTokensEarned += 1;
-      state.unseenTokenRewards += 1;
-      rewardSummary.newBanWordTokens += 1;
-      continue;
-    }
-
-    addPositionTokens(rewardType, 1);
-    state.unseenTokenRewards += 1;
-    rewardSummary.newPositionTokenRewards[rewardType] += 1;
+    grantOneRandomQuestPoolToken(rewardSummary);
   }
 
   return rewardSummary;
@@ -1394,6 +1419,10 @@ function buildProgressSnapshot() {
     },
     nextTileId: state.nextTileId,
     nextZIndex: state.nextZIndex,
+    superRarePreviewByKey: [...state.superRarePreviewByKey.entries()].map(([key, value]) => [
+      key,
+      value === null ? { miss: true } : { rewardType: value.rewardType },
+    ]),
   };
 }
 
@@ -1567,6 +1596,31 @@ function normalizeSavedWordAssignments(value, validCategoryIds) {
       set.add(raw);
     }
     map.set(wordKey, set);
+  });
+  return map;
+}
+
+function normalizeSavedSuperRarePreviewByKey(value) {
+  const map = new Map();
+  if (!Array.isArray(value)) {
+    return map;
+  }
+  value.forEach((entry) => {
+    if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== "string" || !entry[0]) {
+      return;
+    }
+    const key = entry[0].trim().toLowerCase();
+    if (!key) {
+      return;
+    }
+    const raw = entry[1];
+    if (raw && typeof raw === "object" && raw.miss === true) {
+      map.set(key, null);
+      return;
+    }
+    if (raw && typeof raw === "object" && QUEST_REWARD_TOKEN_TYPE_SET.has(raw.rewardType)) {
+      map.set(key, { rewardType: raw.rewardType });
+    }
   });
   return map;
 }
@@ -1757,6 +1811,9 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     ...tiles.map((tile) => tile.zIndex + 1),
     1,
   );
+  state.superRarePreviewByKey = snapshotVersion >= 11
+    ? normalizeSavedSuperRarePreviewByKey(snapshot.superRarePreviewByKey)
+    : new Map();
   els.wordSearch.value = "";
 
   clampTilesToPlayfieldBounds();
@@ -2471,6 +2528,123 @@ function shouldBanLineDiscoverEncyclopediaWord(canonicalResult, normalizedKey) {
   return true;
 }
 
+function isMixPreviewCandidateNewDiscovery(candidate) {
+  const rawWord = candidate?.word || candidate?.normalized || "";
+  const normalized = candidate?.normalized || rawWord;
+  if (!rawWord || !normalized) {
+    return false;
+  }
+  const canonicalResult = getCanonicalWord(rawWord, normalized);
+  if (state.starters.includes(canonicalResult)) {
+    return false;
+  }
+  const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
+  const discoveryKey = encyclopediaEntry?.word ?? normalized;
+  const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
+  return !existing;
+}
+
+function getQuestPoolRewardPreviewEmoji(rewardType) {
+  if (rewardType === "broad-choice" || rewardType === "ban-word") {
+    return getTokenDockEmoji(rewardType);
+  }
+  if (QUEST_REWARD_TOKEN_TYPE_SET.has(rewardType) && typeof rewardType === "number") {
+    return getTokenDockEmoji(getPositionTokenDragType(rewardType));
+  }
+  return "";
+}
+
+function registerSuperRarePreviewCandidatesForRoll(candidates) {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return;
+  }
+  let changed = false;
+  const limit = Math.min(SUPER_RARE_PREVIEW_ROLL_ROWS, candidates.length);
+  for (let index = 0; index < limit; index += 1) {
+    const candidate = candidates[index];
+    if (!candidate || !Number.isFinite(candidate.zipf)) {
+      continue;
+    }
+    const bonusChance = isHighestPayoutDiscoveryZipf(candidate.zipf)
+      ? SUPER_RARE_PREVIEW_TOP_TIER_BONUS_CHANCE
+      : isSecondTierRarePreviewZipf(candidate.zipf)
+        ? SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE
+        : 0;
+    if (bonusChance <= 0) {
+      continue;
+    }
+    const key = getCandidateResultKey(candidate);
+    if (!key || state.superRarePreviewByKey.has(key)) {
+      continue;
+    }
+    if (!isMixPreviewCandidateNewDiscovery(candidate)) {
+      continue;
+    }
+    if (Math.random() < bonusChance) {
+      const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
+      state.superRarePreviewByKey.set(key, { rewardType });
+    } else {
+      state.superRarePreviewByKey.set(key, null);
+    }
+    changed = true;
+  }
+  if (changed) {
+    queueProgressSave();
+  }
+}
+
+function pruneSuperRarePreviewBonusesForDiscoveredWords() {
+  let changed = false;
+  for (const [key, entry] of state.superRarePreviewByKey) {
+    if (entry === null || !entry?.rewardType) {
+      continue;
+    }
+    if (!isMixPreviewCandidateNewDiscovery({ word: key, normalized: key })) {
+      state.superRarePreviewByKey.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
+    queueProgressSave();
+  }
+}
+
+function getSuperRarePreviewBonusEmojiSuffix(candidate) {
+  if (!isMixPreviewCandidateNewDiscovery(candidate)) {
+    return "";
+  }
+  const key = getCandidateResultKey(candidate);
+  const entry = state.superRarePreviewByKey.get(key);
+  if (!entry?.rewardType) {
+    return "";
+  }
+  const emoji = getQuestPoolRewardPreviewEmoji(entry.rewardType);
+  return emoji ? ` ${emoji}` : "";
+}
+
+/** Mix preview: encyclopedia entry that would grant the random encyclopedia bonus token on first discovery (normal mix, not ban-line skip). */
+function candidateShowsEncyclopediaTokenBadge(candidate) {
+  const rawWord = candidate?.word || candidate?.normalized || "";
+  const normalized = candidate?.normalized || rawWord;
+  if (!rawWord || !normalized) {
+    return false;
+  }
+  const canonicalResult = getCanonicalWord(rawWord, normalized);
+  const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
+  if (!encyclopediaEntry) {
+    return false;
+  }
+  if (state.starters.includes(canonicalResult)) {
+    return false;
+  }
+  const discoveryKey = encyclopediaEntry.word ?? normalized;
+  const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
+  if (existing) {
+    return false;
+  }
+  return true;
+}
+
 function resolvePendingBanMixIfNeeded({
   firstTile = null,
   secondTile = null,
@@ -2907,6 +3081,9 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
     return;
   }
 
+  pruneSuperRarePreviewBonusesForDiscoveredWords();
+  registerSuperRarePreviewCandidatesForRoll(candidates);
+
   clearFloatingCandidatePreview();
 
   const preview = document.createElement("div");
@@ -2922,7 +3099,22 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
   candidates.slice(0, cap).forEach((candidate, index) => {
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
-    line.textContent = `${index + 1}. ${titleCase(candidate.word || candidate.normalized || "")}`;
+    const label = titleCase(candidate.word || candidate.normalized || "");
+    line.append(`${index + 1}. ${label}`);
+    if (candidateShowsEncyclopediaTokenBadge(candidate)) {
+      const encSpan = document.createElement("span");
+      encSpan.className = "floating-match-preview-encyc-mark";
+      encSpan.textContent = "\u00A0🇪";
+      encSpan.setAttribute("title", "Encyclopedia");
+      line.append(encSpan);
+    }
+    const rareMark = getSuperRarePreviewBonusEmojiSuffix(candidate).trim();
+    if (rareMark) {
+      const rareSpan = document.createElement("span");
+      rareSpan.className = "floating-match-preview-token-mark";
+      rareSpan.textContent = `\u00A0${rareMark}`;
+      line.append(rareSpan);
+    }
     preview.append(line);
   });
 
@@ -5505,7 +5697,7 @@ function getWildcardOutcomeMessage(
 
   if (isInEncyclopedia && !wasDiscovered) {
     if (hiddenEncyclopediaDiscovery) {
-      message = `Wildcard revealed ${titleCase(canonicalResult)}. Hidden encyclopedia word—you earned a Ban Word token; the book still shows ??? until its category is in play.`;
+      message = `Wildcard revealed ${titleCase(canonicalResult)}. Hidden encyclopedia word—the book still shows ??? until its category is in play.`;
       stateName = "reward";
     } else {
       message = `Wildcard revealed ${titleCase(canonicalResult)} and added it to your discovered words.`;
@@ -6311,10 +6503,17 @@ function rememberResult(result, normalized = result, metadata = {}) {
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
     hiddenEncyclopediaDiscovery = !isEncyclopediaCategoryRevealed(encyclopediaEntry.category);
     if (!metadata.skipEncyclopediaBanTokenReward) {
-      state.availableBanWordTokens += 1;
-      state.totalBanWordTokensEarned += 1;
-      state.unseenTokenRewards += 1;
-      newBanWordTokens = 1;
+      const encTokenDelta = {
+        newBroadChoiceTokens: 0,
+        newBanWordTokens: 0,
+        newWildcardTokens: 0,
+        newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+      };
+      grantOneRandomQuestPoolToken(encTokenDelta);
+      newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
+      newBanWordTokens += encTokenDelta.newBanWordTokens;
+      newWildcardTokens += encTokenDelta.newWildcardTokens;
+      mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
     }
     completedCategories = [];
     if (!hiddenEncyclopediaDiscovery) {
@@ -6331,6 +6530,26 @@ function rememberResult(result, normalized = result, metadata = {}) {
           discoveredEncyclopediaKeys: [...discoveredEncyclopediaWords],
         });
       }
+    }
+  }
+
+  if (didDiscoverNewWord) {
+    const previewKey = getCandidateResultKey({ word: result, normalized });
+    const pendingRare = state.superRarePreviewByKey.get(previewKey);
+    if (pendingRare?.rewardType && QUEST_REWARD_TOKEN_TYPE_SET.has(pendingRare.rewardType)) {
+      const rareDelta = {
+        newBroadChoiceTokens: 0,
+        newBanWordTokens: 0,
+        newWildcardTokens: 0,
+        newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+      };
+      grantQuestPoolTokenOfType(pendingRare.rewardType, rareDelta);
+      newBroadChoiceTokensFromCompletion += rareDelta.newBroadChoiceTokens;
+      newBanWordTokens += rareDelta.newBanWordTokens;
+      newWildcardTokens += rareDelta.newWildcardTokens;
+      mergePositionTokenRewardSummary(newPositionTokenRewards, rareDelta.newPositionTokenRewards);
+      state.superRarePreviewByKey.delete(previewKey);
+      queueProgressSave();
     }
   }
 
@@ -6958,6 +7177,7 @@ function resetRun() {
   assignNewQuest({ initial: true });
   state.nextTileId = 1;
   state.nextZIndex = 1;
+  state.superRarePreviewByKey = new Map();
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
   els.questWinModal.hidden = true;
