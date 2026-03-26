@@ -135,8 +135,11 @@ const QUEST_FIRST_BUDGET_STAGE_2_PLUS = 20;
 const QUEST_COMPLETION_BONUS_TURNS = 5;
 const QUEST_COMPLETION_COIN_REWARD = 100;
 const QUEST_COMPLETION_REWARD_COUNT = 1;
-const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "ban-word", 2, 3, 4, 5]);
+/** All types that can appear in weighted quest / preview / encyclopedia bonus rolls (see pickRandomQuestPoolRewardType). */
+const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "minus-mix", "ban-word", 2, 3, 4, 5]);
 const QUEST_REWARD_TOKEN_TYPE_SET = new Set(QUEST_REWARD_TOKEN_POOL);
+/** Broad was 1/7; now 1/14. Minus-mix matches broad. Ban + rank tokens share the rest (6/35 each). Weights sum to 70. */
+const QUEST_POOL_REWARD_WEIGHT_TOTAL = 70;
 /** Only rows 1–5 in the hover “Top matches” list can register a super-rare preview roll (Broad Choice rows 6–10 do not). */
 const SUPER_RARE_PREVIEW_ROLL_ROWS = 5;
 /** Top “extremely rare” band (zipf &lt; 2): preview bonus roll chance. */
@@ -146,7 +149,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 11;
+const SNAPSHOT_VERSION = 12;
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -164,6 +167,7 @@ const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
   "shop-match-5",
   "shop-ban-word",
   "shop-broad-choice",
+  "shop-minus-mix",
   "shop-quest-turn",
 ]);
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
@@ -259,6 +263,19 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-minus-mix",
+    title: "Minus Mix Token",
+    cost: 200,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableMinusMixTokens += 1;
+      state.totalMinusMixTokensEarned += 1;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-minus-mix"));
+      return formatShopPurchaseMessage("shop-minus-mix", [cost]);
+    },
+  },
+  {
     id: "shop-playfield-pan-zoom",
     title: "Field Pan & Zoom",
     cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
@@ -315,6 +332,7 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-match-5",
   "shop-ban-word",
   "shop-broad-choice",
+  "shop-minus-mix",
 ]);
 
 /** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
@@ -373,6 +391,8 @@ const state = {
   shopPurchaseCounts: {},
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
+  availableMinusMixTokens: 0,
+  totalMinusMixTokensEarned: 0,
   availableWildcardTokens: 0,
   totalWildcardTokensEarned: 0,
   availableSecondResultTokens: 0,
@@ -1159,6 +1179,29 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   };
 }
 
+function pickRandomQuestPoolRewardType() {
+  const r = Math.floor(Math.random() * QUEST_POOL_REWARD_WEIGHT_TOTAL);
+  if (r < 5) {
+    return "broad-choice";
+  }
+  if (r < 10) {
+    return "minus-mix";
+  }
+  if (r < 22) {
+    return "ban-word";
+  }
+  if (r < 34) {
+    return 2;
+  }
+  if (r < 46) {
+    return 3;
+  }
+  if (r < 58) {
+    return 4;
+  }
+  return 5;
+}
+
 /** Grant a single quest-pool token type (same pool as quest / encyclopedia bonus). */
 function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
   if (rewardType === "broad-choice") {
@@ -1166,6 +1209,13 @@ function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
     state.totalBroadChoiceTokensEarned += 1;
     state.unseenTokenRewards += 1;
     rewardSummary.newBroadChoiceTokens += 1;
+    return;
+  }
+  if (rewardType === "minus-mix") {
+    state.availableMinusMixTokens += 1;
+    state.totalMinusMixTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newMinusMixTokens += 1;
     return;
   }
   if (rewardType === "ban-word") {
@@ -1181,15 +1231,15 @@ function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
   rewardSummary.newPositionTokenRewards[rewardType] += 1;
 }
 
-/** One random pick from QUEST_REWARD_TOKEN_POOL (equal odds); mutates state and rewardSummary deltas. */
+/** Weighted quest-pool pick (broad half of old 1/7; minus-mix same as broad); mutates state and rewardSummary deltas. */
 function grantOneRandomQuestPoolToken(rewardSummary) {
-  const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
-  grantQuestPoolTokenOfType(rewardType, rewardSummary);
+  grantQuestPoolTokenOfType(pickRandomQuestPoolRewardType(), rewardSummary);
 }
 
 function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
   const rewardSummary = {
     newBroadChoiceTokens: 0,
+    newMinusMixTokens: 0,
     newBanWordTokens: 0,
     newWildcardTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
@@ -1245,6 +1295,7 @@ function advanceQuest(canonicalResult, {
     nextTargetWord: state.quest.targetWord,
     remainingDiscoveries: state.quest.remainingDiscoveries,
     newBroadChoiceTokens: 0,
+    newMinusMixTokens: 0,
     newBanWordTokens: 0,
     newWildcardTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
@@ -1285,6 +1336,7 @@ function advanceQuest(canonicalResult, {
     questResult.questSpeedBonusCoins = coinReward.speedBonusCoins;
     questResult.questTotalCoins = coinReward.totalCoins;
     questResult.newBroadChoiceTokens = rewardSummary.newBroadChoiceTokens;
+    questResult.newMinusMixTokens = rewardSummary.newMinusMixTokens;
     questResult.newBanWordTokens = rewardSummary.newBanWordTokens;
     questResult.newWildcardTokens = rewardSummary.newWildcardTokens;
     mergePositionTokenRewardSummary(questResult.newPositionTokenRewards, rewardSummary.newPositionTokenRewards);
@@ -1335,6 +1387,7 @@ function buildProgressSnapshot() {
       resultTagRank: getTileTagRank(tile),
       pendingBan: Boolean(tile.pendingBan),
       broadChoiceCharged: Boolean(tile.broadChoiceCharged),
+      minusMixTagged: Boolean(tile.minusMixTagged),
       x: tile.x,
       y: tile.y,
       zIndex: tile.zIndex,
@@ -1386,6 +1439,8 @@ function buildProgressSnapshot() {
     shopPurchaseCounts: { ...state.shopPurchaseCounts },
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
+    availableMinusMixTokens: state.availableMinusMixTokens,
+    totalMinusMixTokensEarned: state.totalMinusMixTokensEarned,
     availableWildcardTokens: state.availableWildcardTokens,
     totalWildcardTokensEarned: state.totalWildcardTokensEarned,
     availableSecondResultTokens: state.availableSecondResultTokens,
@@ -1477,6 +1532,7 @@ function normalizeSavedTiles(value) {
         : (tile.secondResultTagged ? 2 : 0),
       pendingBan: Boolean(tile.pendingBan),
       broadChoiceCharged: Boolean(tile.broadChoiceCharged),
+      minusMixTagged: Boolean(tile.minusMixTagged),
       x: Number.isFinite(tile.x) ? tile.x : 0,
       y: Number.isFinite(tile.y) ? tile.y : 0,
       zIndex: getSafeCount(tile.zIndex, 1),
@@ -1720,6 +1776,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.shopPurchaseCounts = normalizeSavedShopPurchaseCounts(snapshot.shopPurchaseCounts);
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
+  state.availableMinusMixTokens = getSafeCount(snapshot.availableMinusMixTokens);
+  state.totalMinusMixTokensEarned = getSafeCount(snapshot.totalMinusMixTokensEarned);
   state.availableWildcardTokens = getSafeCount(snapshot.availableWildcardTokens);
   state.totalWildcardTokensEarned = getSafeCount(snapshot.totalWildcardTokensEarned);
   state.availableSecondResultTokens = getSafeCount(snapshot.availableSecondResultTokens);
@@ -2317,6 +2375,7 @@ function replaceTrackedDiscoveredWordKey(previousKey, nextKey) {
 function getTotalUsableTokenCount() {
   return state.availableBroadChoiceTokens
     + state.availableBanWordTokens
+    + state.availableMinusMixTokens
     + state.availableWildcardTokens
     + POSITION_TOKEN_RANKS.reduce((total, rank) => total + getAvailablePositionTokenCount(rank), 0);
 }
@@ -2324,12 +2383,37 @@ function getTotalUsableTokenCount() {
 function hasUnlockedAnyTokenType() {
   return state.availableBroadChoiceTokens > 0
     || state.availableBanWordTokens > 0
+    || state.availableMinusMixTokens > 0
     || state.availableWildcardTokens > 0
     || POSITION_TOKEN_RANKS.some((rank) => getAvailablePositionTokenCount(rank) > 0)
     || state.totalBroadChoiceTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
+    || state.totalMinusMixTokensEarned > 0
     || state.totalWildcardTokensEarned > 0
     || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
+}
+
+/** True if this pair should use vector subtraction (stationary minus dragged). */
+function tilePairUsesSubtractMix(draggedTile, targetTile) {
+  return Boolean(draggedTile?.minusMixTagged || targetTile?.minusMixTagged);
+}
+
+function spendMinusMixTagsAfterPairMix(draggedTile, targetTile) {
+  if (!tilePairUsesSubtractMix(draggedTile, targetTile)) {
+    return;
+  }
+  const dragHad = Boolean(draggedTile?.minusMixTagged);
+  const targetHad = Boolean(targetTile?.minusMixTagged);
+  if (!dragHad && !targetHad) {
+    return;
+  }
+  if (dragHad && targetHad) {
+    draggedTile.minusMixTagged = false;
+  } else if (dragHad) {
+    draggedTile.minusMixTagged = false;
+  } else {
+    targetTile.minusMixTagged = false;
+  }
 }
 
 function shouldFlashTokenDock() {
@@ -2548,7 +2632,7 @@ function isMixPreviewCandidateNewDiscovery(candidate) {
 }
 
 function getQuestPoolRewardPreviewEmoji(rewardType) {
-  if (rewardType === "broad-choice" || rewardType === "ban-word") {
+  if (rewardType === "broad-choice" || rewardType === "ban-word" || rewardType === "minus-mix") {
     return getTokenDockEmoji(rewardType);
   }
   if (QUEST_REWARD_TOKEN_TYPE_SET.has(rewardType) && typeof rewardType === "number") {
@@ -2584,7 +2668,7 @@ function registerSuperRarePreviewCandidatesForRoll(candidates) {
       continue;
     }
     if (Math.random() < bonusChance) {
-      const rewardType = QUEST_REWARD_TOKEN_POOL[Math.floor(Math.random() * QUEST_REWARD_TOKEN_POOL.length)];
+      const rewardType = pickRandomQuestPoolRewardType();
       state.superRarePreviewByKey.set(key, { rewardType });
     } else {
       state.superRarePreviewByKey.set(key, null);
@@ -2626,9 +2710,9 @@ function getSuperRarePreviewBonusEmojiSuffix(candidate) {
 }
 
 /**
- * Top-matches encyclopedia marker: white = ??? / hidden category (yellowed slot) or already in book
- * (first discovery or remix spends quest ink + bonus coin + enc token where applicable);
- * red = category revealed, not yet discovered, not quest target.
+ * Top-matches encyclopedia E marker:
+ * yellow = hidden category (book still ???); white = stage word not target or already in book;
+ * black = current quest target (revealed, not yet discovered).
  */
 function getEncyclopediaPreviewBadgeTier(candidate) {
   const rawWord = candidate?.word || candidate?.normalized || "";
@@ -2646,16 +2730,16 @@ function getEncyclopediaPreviewBadgeTier(candidate) {
   }
   const discoveryKey = encyclopediaEntry.word ?? normalized;
   if (!isEncyclopediaCategoryRevealed(encyclopediaEntry.category)) {
-    return "white";
+    return "yellow";
   }
   const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
   if (existing) {
     return "white";
   }
   if (state.quest.targetWord && discoveryKey === state.quest.targetWord) {
-    return null;
+    return "black";
   }
-  return "red";
+  return "white";
 }
 
 function resolvePendingBanMixIfNeeded({
@@ -2692,6 +2776,7 @@ function resolvePendingBanMixIfNeeded({
       hiddenEncyclopediaDiscovery,
       coinReward,
       newBroadChoiceTokens,
+      newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -2706,7 +2791,7 @@ function resolvePendingBanMixIfNeeded({
         right: rightWord,
       },
       zipf: selectedCandidate.zipf,
-      skipEncyclopediaBanTokenReward: true,
+      fromBanLineEncyclopediaDiscover: true,
     });
     if (isSelfMatch) {
       markWordAsSelfMatched(leftWord);
@@ -2731,6 +2816,7 @@ function resolvePendingBanMixIfNeeded({
     const messageOpts = {
       coinReward,
       newBroadChoiceTokens,
+      newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -3120,10 +3206,10 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
       encSpan.className = `floating-match-preview-encyc-mark floating-match-preview-encyc-${encTier}`;
       encSpan.textContent = "\u00A0E";
       const hint = encTier === "yellow"
-        ? "Encyclopedia hint tier (yellow)."
-        : encTier === "white"
-          ? "Encyclopedia (??? or already found). Discovery or remix spends quest ink; bonus coin + token apply."
-          : "Stage encyclopedia (not the quest target). First discovery spends quest ink.";
+        ? "Hidden encyclopedia (??? until category is in play). Coin + token on discovery; does not spend quest ink."
+        : encTier === "black"
+          ? "Quest-target encyclopedia word. Coin + token on discovery; spends quest ink."
+          : "Stage encyclopedia (not the quest target) or already in book. Coin + token; discovery or remix spends quest ink (Ban line discover does not).";
       encSpan.setAttribute("title", hint);
       line.append(encSpan);
     }
@@ -3250,7 +3336,12 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
   clearFloatingCandidatePreview();
 
   try {
-    const mix = await getAssociationCached(sourceTile.word, targetTile.word, "add");
+    const useSubtract = tilePairUsesSubtractMix(sourceTile, targetTile);
+    const mix = await getAssociationCached(
+      useSubtract ? targetTile.word : sourceTile.word,
+      useSubtract ? sourceTile.word : targetTile.word,
+      useSubtract ? "subtract" : "add",
+    );
     if (
       dragMixPreviewState.pairKey !== pairKey
       || dragMixPreviewState.requestId !== requestId
@@ -4606,6 +4697,9 @@ function buildSpendableTokenCarryBag() {
   for (let i = 0; i < state.availableBanWordTokens; i += 1) {
     bag.push("ban-word");
   }
+  for (let i = 0; i < state.availableMinusMixTokens; i += 1) {
+    bag.push("minus-mix");
+  }
   for (let i = 0; i < state.availableWildcardTokens; i += 1) {
     bag.push("wildcard");
   }
@@ -4633,6 +4727,7 @@ function pickRandomTokensToCarryForward() {
 function zeroSpendableTokens() {
   state.availableBroadChoiceTokens = 0;
   state.availableBanWordTokens = 0;
+  state.availableMinusMixTokens = 0;
   state.availableWildcardTokens = 0;
   state.availableSecondResultTokens = 0;
   state.availableThirdResultTokens = 0;
@@ -4648,6 +4743,10 @@ function applyCarriedTokenList(carried) {
     }
     if (type === "ban-word") {
       state.availableBanWordTokens += 1;
+      return;
+    }
+    if (type === "minus-mix") {
+      state.availableMinusMixTokens += 1;
       return;
     }
     if (type === "wildcard") {
@@ -4744,6 +4843,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
       resultTagRank: 0,
       pendingBan: false,
       broadChoiceCharged: false,
+      minusMixTagged: false,
     }));
   const encyclopediaRetained = new Map();
   prevDiscovered.forEach((word, key) => {
@@ -4815,10 +4915,15 @@ function rollGarbageRewardToken() {
     addPositionTokens(2, 1);
     return "Second Result";
   }
-  if (roll < 0.45) {
+  if (roll < 0.3875) {
     state.availableBroadChoiceTokens += 1;
     state.totalBroadChoiceTokensEarned += 1;
     return "Broad Choice";
+  }
+  if (roll < 0.45) {
+    state.availableMinusMixTokens += 1;
+    state.totalMinusMixTokensEarned += 1;
+    return "Minus mix";
   }
   if (roll < 0.5) {
     state.availableBanWordTokens += 1;
@@ -5018,6 +5123,32 @@ function banTileWordFromResults(tileId) {
   setStatus(`${titleCase(tile.word)} is charged with a Ban line: the next mix using it strikes the mix result from the pool (no spawn, no discovery).`, "reward");
 }
 
+function tagTileWithMinusMixToken(tileId) {
+  const tile = getTileById(tileId);
+  if (!tile) {
+    setStatus("Drop that token onto a word on the field.", "error");
+    return;
+  }
+  if (tile.minusMixTagged) {
+    setStatus(`${titleCase(tile.word)} already has a Minus mix tag.`, "ok");
+    return;
+  }
+  if (state.availableMinusMixTokens <= 0) {
+    setStatus("You do not have any Minus mix tokens yet.", "error");
+    return;
+  }
+
+  state.availableMinusMixTokens -= 1;
+  tile.minusMixTagged = true;
+  renderSidebar();
+  renderTiles();
+  queueProgressSave();
+  setStatus(
+    `${titleCase(tile.word)} is tagged: mixes with this word use subtraction (word under pointer minus word you drag).`,
+    "ok",
+  );
+}
+
 async function useWildcardToken(position = null) {
   if (isStageAdvanceBlockingPlay()) {
     setStatus(stageAdvancePlayBlockedMessage(), "error");
@@ -5048,6 +5179,7 @@ async function useWildcardToken(position = null) {
     hiddenEncyclopediaDiscovery,
     coinReward,
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5064,6 +5196,7 @@ async function useWildcardToken(position = null) {
     {
       coinReward,
       newBroadChoiceTokens,
+      newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -5082,6 +5215,9 @@ function getTokenDockEmoji(dragType) {
   }
   if (dragType === "ban-word") {
     return "🚫";
+  }
+  if (dragType === "minus-mix") {
+    return "➖";
   }
   if (dragType === "wildcard") {
     return "🃏";
@@ -5189,6 +5325,18 @@ function renderTokenPanel() {
       dragType: "ban-word",
       onClick: () => {
         setStatus("Drag a Ban Word token onto a field word to charge a Ban line.", "ok");
+      },
+    }));
+  }
+
+  if (state.availableMinusMixTokens > 0) {
+    els.tokenDock.append(buildTokenDockPill({
+      title: "Minus mix",
+      description: "Drag onto a field word. If either word in a mix has this tag, the mix is stationary word minus dragged word (vector subtraction). Only one tag is spent per mix; if both words are tagged, the dragged word loses its tag.",
+      count: state.availableMinusMixTokens,
+      dragType: "minus-mix",
+      onClick: () => {
+        setStatus("Drag a Minus mix token onto a word on the field.", "ok");
       },
     }));
   }
@@ -5585,6 +5733,7 @@ function getMixOutcomeMessage(
   {
     coinReward = null,
     newBroadChoiceTokens = 0,
+    newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5645,6 +5794,7 @@ function getMixOutcomeMessage(
 
   const rewardParts = getTokenRewardParts({
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5669,6 +5819,7 @@ function getMixOutcomeMessage(
 
 function getTokenRewardParts({
   newBroadChoiceTokens = 0,
+  newMinusMixTokens = 0,
   newBanWordTokens = 0,
   newWildcardTokens = 0,
   newPositionTokenRewards = null,
@@ -5677,6 +5828,10 @@ function getTokenRewardParts({
   if (newBroadChoiceTokens > 0) {
     const tokenSuffix = newBroadChoiceTokens === 1 ? "token" : "tokens";
     rewardParts.push(`${newBroadChoiceTokens} Broad Choice ${tokenSuffix}`);
+  }
+  if (newMinusMixTokens > 0) {
+    const tokenSuffix = newMinusMixTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newMinusMixTokens} Minus mix ${tokenSuffix}`);
   }
   if (newBanWordTokens > 0) {
     const tokenSuffix = newBanWordTokens === 1 ? "token" : "tokens";
@@ -5727,6 +5882,7 @@ function getWildcardOutcomeMessage(
   {
     coinReward = null,
     newBroadChoiceTokens = 0,
+    newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5778,6 +5934,7 @@ function getWildcardOutcomeMessage(
 
   const rewardParts = getTokenRewardParts({
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5807,6 +5964,7 @@ function getSpawnWordOutcomeMessage(
   {
     coinReward = null,
     newBroadChoiceTokens = 0,
+    newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5855,6 +6013,7 @@ function getSpawnWordOutcomeMessage(
 
   const rewardParts = getTokenRewardParts({
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -5884,6 +6043,7 @@ function getShopWordBoosterOutcomeMessage(
   {
     coinReward = null,
     newBroadChoiceTokens = 0,
+    newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
     newPositionTokenRewards = null,
@@ -5932,6 +6092,7 @@ function getShopWordBoosterOutcomeMessage(
 
   const rewardParts = getTokenRewardParts({
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6081,6 +6242,7 @@ function makeTile(word, x, y) {
     resultTagRank: 0,
     pendingBan: false,
     broadChoiceCharged: false,
+    minusMixTagged: false,
     x: clamp(x, bounds.minX, bounds.maxX),
     y: clamp(y, bounds.minY, bounds.maxY),
     zIndex: state.nextZIndex,
@@ -6120,6 +6282,9 @@ function removeTile(tileId) {
   const tile = state.tiles.find((t) => t.id === tileId);
   if (tile?.broadChoiceCharged) {
     state.availableBroadChoiceTokens += 1;
+  }
+  if (tile?.minusMixTagged) {
+    state.availableMinusMixTokens += 1;
   }
   const refundedTagCount = releaseTaggedResultTokens([tileId], { refund: true });
   state.tiles = state.tiles.filter((t) => t.id !== tileId);
@@ -6275,6 +6440,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     hiddenEncyclopediaDiscovery,
     coinReward,
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6306,6 +6472,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
       newBroadChoiceTokens,
+      newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -6321,6 +6488,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
       newBroadChoiceTokens,
+      newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
       newPositionTokenRewards,
@@ -6343,9 +6511,16 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     setStatus(stageAdvancePlayBlockedMessage(), "error");
     return;
   }
+  const useSubtract = tilePairUsesSubtractMix(firstTile, secondTile);
+  const mixAssocA = useSubtract ? secondTile.word : firstTile.word;
+  const mixAssocB = useSubtract ? firstTile.word : secondTile.word;
+  const mixOperation = useSubtract ? "subtract" : "add";
+  const leftWord = mixAssocA;
+  const rightWord = mixAssocB;
+
   let mix;
   try {
-    mix = await getAssociation(firstTile.word, secondTile.word, "add");
+    mix = await getAssociation(mixAssocA, mixAssocB, mixOperation);
   } catch (error) {
     if (handleDeadEndMixError(error, [
       { word: firstTile.word, wordKey: getWordKey(firstTile.word), tileId: firstTile.id },
@@ -6391,18 +6566,24 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     }
     selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
   }
-  setLastMix(`${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`, "add", selection.candidates);
+  const mixLabel = useSubtract
+    ? `${titleCase(leftWord)} - ${titleCase(rightWord)}`
+    : `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`;
+  setLastMix(mixLabel, mixOperation, selection.candidates);
   showFloatingCandidatePreview(selection.candidates, clientPoint);
   const selectedCandidate = selection.candidate;
   if (resolvePendingBanMixIfNeeded({
     firstTile,
     secondTile,
-    operation: "add",
-    leftWord: firstTile.word,
-    rightWord: secondTile.word,
+    operation: mixOperation,
+    leftWord,
+    rightWord,
     selection,
     clientPoint,
   })) {
+    spendMinusMixTagsAfterPairMix(firstTile, secondTile);
+    renderTiles();
+    queueProgressSave();
     return;
   }
   const {
@@ -6412,6 +6593,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     hiddenEncyclopediaDiscovery,
     coinReward,
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6423,14 +6605,15 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     zipf: selectedCandidate.zipf,
     fromMix: true,
     mixParentWords: {
-      left: firstTile.word,
-      right: secondTile.word,
+      left: leftWord,
+      right: rightWord,
     },
   });
   if (firstTile.word.toLowerCase() === secondTile.word.toLowerCase()) {
     markWordAsSelfMatched(firstTile.word);
   }
-  recordMatch(firstTile.word, secondTile.word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
+  recordMatch(leftWord, rightWord, canonicalResult, mixOperation, selection.candidates, selectedCandidate.word);
+  spendMinusMixTagsAfterPairMix(firstTile, secondTile);
   const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
@@ -6443,15 +6626,16 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   let status;
   if (shouldBlockSpawn) {
     status = getMixOutcomeMessage(
-      firstTile.word,
-      secondTile.word,
+      leftWord,
+      rightWord,
       canonicalResult,
-      "add",
+      mixOperation,
       isInEncyclopedia,
       wasDiscovered,
       {
         coinReward,
         newBroadChoiceTokens,
+        newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -6466,15 +6650,16 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
   } else {
     status = getMixOutcomeMessage(
-      firstTile.word,
-      secondTile.word,
+      leftWord,
+      rightWord,
       canonicalResult,
-      "add",
+      mixOperation,
       isInEncyclopedia,
       wasDiscovered,
       {
         coinReward,
         newBroadChoiceTokens,
+        newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -6490,6 +6675,8 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       status.stateName = "success";
     }
   }
+  renderTiles();
+  queueProgressSave();
   applyOutcomeStatus(status, { vocabularyOverflow, questResult });
 }
 
@@ -6504,6 +6691,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   const canonicalIsStarter = state.starters.includes(canonicalResult);
   let didDiscoverNewWord = false;
   let newBroadChoiceTokensFromCompletion = 0;
+  let newMinusMixTokensFromCompletion = 0;
   let newBanWordTokens = 0;
   let newWildcardTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
@@ -6516,8 +6704,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     metadata.fromMix
     && wasDiscovered
     && isInEncyclopedia
-    && encyclopediaEntry
-    && !metadata.skipEncyclopediaBanTokenReward,
+    && encyclopediaEntry,
   );
 
   if (!existing && !canonicalIsStarter) {
@@ -6554,19 +6741,19 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
     hiddenEncyclopediaDiscovery = !isEncyclopediaCategoryRevealed(encyclopediaEntry.category);
-    if (!metadata.skipEncyclopediaBanTokenReward) {
-      const encTokenDelta = {
-        newBroadChoiceTokens: 0,
-        newBanWordTokens: 0,
-        newWildcardTokens: 0,
-        newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
-      };
-      grantOneRandomQuestPoolToken(encTokenDelta);
-      newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
-      newBanWordTokens += encTokenDelta.newBanWordTokens;
-      newWildcardTokens += encTokenDelta.newWildcardTokens;
-      mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
-    }
+    const encTokenDelta = {
+      newBroadChoiceTokens: 0,
+      newMinusMixTokens: 0,
+      newBanWordTokens: 0,
+      newWildcardTokens: 0,
+      newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+    };
+    grantOneRandomQuestPoolToken(encTokenDelta);
+    newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
+    newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
+    newBanWordTokens += encTokenDelta.newBanWordTokens;
+    newWildcardTokens += encTokenDelta.newWildcardTokens;
+    mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
     completedCategories = [];
     if (!hiddenEncyclopediaDiscovery) {
       const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
@@ -6588,12 +6775,14 @@ function rememberResult(result, normalized = result, metadata = {}) {
   if (whiteRemixEncyclopedia) {
     const encTokenDelta = {
       newBroadChoiceTokens: 0,
+      newMinusMixTokens: 0,
       newBanWordTokens: 0,
       newWildcardTokens: 0,
       newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
     };
     grantOneRandomQuestPoolToken(encTokenDelta);
     newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
+    newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
     newBanWordTokens += encTokenDelta.newBanWordTokens;
     newWildcardTokens += encTokenDelta.newWildcardTokens;
     mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
@@ -6610,12 +6799,14 @@ function rememberResult(result, normalized = result, metadata = {}) {
       skipQuestTurnForPreviewTokenBonus = true;
       const rareDelta = {
         newBroadChoiceTokens: 0,
+        newMinusMixTokens: 0,
         newBanWordTokens: 0,
         newWildcardTokens: 0,
         newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
       };
       grantQuestPoolTokenOfType(pendingRare.rewardType, rareDelta);
       newBroadChoiceTokensFromCompletion += rareDelta.newBroadChoiceTokens;
+      newMinusMixTokensFromCompletion += rareDelta.newMinusMixTokens;
       newBanWordTokens += rareDelta.newBanWordTokens;
       newWildcardTokens += rareDelta.newWildcardTokens;
       mergePositionTokenRewardSummary(newPositionTokenRewards, rareDelta.newPositionTokenRewards);
@@ -6636,7 +6827,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     });
   }
 
-  const allowQuestTurnTick = metadata.countQuestDiscoveryTurn !== false && !skipQuestTurnForPreviewTokenBonus;
+  const allowQuestTurnTick = metadata.countQuestDiscoveryTurn !== false
+    && !skipQuestTurnForPreviewTokenBonus
+    && !(didDiscoverNewWord && hiddenEncyclopediaDiscovery)
+    && !metadata.fromBanLineEncyclopediaDiscover;
 
   questResult = advanceQuest(canonicalResult, {
     didDiscoverNewWord,
@@ -6645,6 +6839,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     spendQuestTurnWithoutNewWord: allowQuestTurnTick && whiteRemixEncyclopedia,
   });
   newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
+  newMinusMixTokensFromCompletion += questResult.newMinusMixTokens;
   newBanWordTokens += questResult.newBanWordTokens;
   newWildcardTokens += questResult.newWildcardTokens;
   mergePositionTokenRewardSummary(newPositionTokenRewards, questResult.newPositionTokenRewards);
@@ -6662,13 +6857,14 @@ function rememberResult(result, normalized = result, metadata = {}) {
   }
 
   const totalNewBroadChoiceTokens = newBroadChoiceTokens + newBroadChoiceTokensFromCompletion;
+  const totalNewMinusMixTokens = newMinusMixTokensFromCompletion;
   const newZonesUnlocked = Math.max(0, getUnlockedPlayfieldZoneCount() - previousUnlockedZones);
   const totalNewPositionTokens = getPositionTokenRewardCount(newPositionTokenRewards);
 
 
   const vocabularyOverflow = null;
 
-  if (didDiscoverNewWord || whiteRemixEncyclopedia || coinReward || totalNewBroadChoiceTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
+  if (didDiscoverNewWord || whiteRemixEncyclopedia || coinReward || totalNewBroadChoiceTokens > 0 || totalNewMinusMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
     renderSidebar();
   }
 
@@ -6686,6 +6882,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     hiddenEncyclopediaDiscovery,
     coinReward,
     newBroadChoiceTokens: totalNewBroadChoiceTokens,
+    newMinusMixTokens: totalNewMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -6886,6 +7083,7 @@ function renderTiles(options = {}) {
       tileElement.dataset.tagged = getTileTagRank(tile) >= 2 ? "true" : "false";
       tileElement.dataset.pendingBan = tile.pendingBan ? "true" : "false";
       tileElement.dataset.broadChoice = tile.broadChoiceCharged ? "true" : "false";
+      tileElement.dataset.minusMix = tile.minusMixTagged ? "true" : "false";
       tileElement.style.left = `${tile.x}px`;
       tileElement.style.top = `${tile.y}px`;
       tileElement.style.zIndex = String(Math.min(tile.zIndex, DRAGGING_TILE_Z_INDEX - 1));
@@ -6953,6 +7151,11 @@ function renderTiles(options = {}) {
         }
         if (tokenType === "broad-choice") {
           chargeBroadChoiceOnTile(tile.id);
+          return;
+        }
+        if (tokenType === "minus-mix") {
+          tagTileWithMinusMixToken(tile.id);
+          return;
         }
       });
       tileElement.addEventListener("contextmenu", (event) => {
@@ -6983,13 +7186,18 @@ function renderTiles(options = {}) {
       broadLineElement.textContent = t("tile.broadChoiceBadge");
       broadLineElement.hidden = !tile.broadChoiceCharged;
 
+      const minusMixLineElement = document.createElement("div");
+      minusMixLineElement.className = "tile-minus-mix-line";
+      minusMixLineElement.textContent = t("tile.minusMixBadge");
+      minusMixLineElement.hidden = !tile.minusMixTagged;
+
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
       const tintLabel = tint?.categoryName || "";
       metaElement.textContent = tintLabel;
       metaElement.hidden = !tintLabel;
 
-      tileElement.append(tagElement, banLineElement, broadLineElement, wordElement, metaElement);
+      tileElement.append(tagElement, banLineElement, broadLineElement, minusMixLineElement, wordElement, metaElement);
       els.playfieldSurface.append(tileElement);
     });
 
@@ -7025,6 +7233,7 @@ function renderShopWordBooster() {
         hiddenEncyclopediaDiscovery,
         coinReward,
         newBroadChoiceTokens,
+        newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -7042,6 +7251,7 @@ function renderShopWordBooster() {
       const status = getShopWordBoosterOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
         coinReward,
         newBroadChoiceTokens,
+        newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
         newPositionTokenRewards,
@@ -7136,6 +7346,7 @@ async function promptSpawnWord() {
     hiddenEncyclopediaDiscovery,
     coinReward,
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -7151,6 +7362,7 @@ async function promptSpawnWord() {
   const status = getSpawnWordOutcomeMessage(canonicalResult, isInEncyclopedia, wasDiscovered, {
     coinReward,
     newBroadChoiceTokens,
+    newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
     newPositionTokenRewards,
@@ -7221,6 +7433,8 @@ function resetRun() {
   state.shopPurchaseCounts = {};
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
+  state.availableMinusMixTokens = 0;
+  state.totalMinusMixTokensEarned = 0;
   state.availableWildcardTokens = 0;
   state.totalWildcardTokensEarned = 0;
   state.availableSecondResultTokens = 0;
@@ -7311,6 +7525,10 @@ function initPlayfieldDropzone() {
     }
     if (tokenType === "ban-word") {
       setStatus("Drop a Ban Word token onto a word on the field to charge a Ban line.", "error");
+      return;
+    }
+    if (tokenType === "minus-mix") {
+      setStatus("Drop a Minus mix token onto a word on the field.", "error");
       return;
     }
     const bounds = getPlayfieldBounds();

@@ -13,7 +13,7 @@ const MESSAGES = {
     "tokenDock.label": "Tokens",
     "tokenDock.howLink": "How tokens work",
     "tokenDock.tooltip":
-      "Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced. Broad Choice (B) charges a word: while mixing, you see up to ten matches and pick which result to produce.",
+      "Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced. Broad Choice (B) charges a word: while mixing, you see up to ten matches and pick which result to produce. Minus mix (➖) tags a word: if either word has it, the mix is the word under the pointer minus the word you drag (vector subtraction). Only one tag is spent; if both are tagged, the dragged word loses its tag.",
     "playfield.heading": "Mixing Field",
     "playfield.hint":
       "Right-click a word box to remove it. Drag one box onto another to create a new word.",
@@ -25,6 +25,7 @@ const MESSAGES = {
     "quest.loading": "Loading...",
     "playfield.empty": "Drag a starter or discovered word here.",
     "tile.broadChoiceBadge": "Broad",
+    "tile.minusMixBadge": "Minus",
     "garbage.title": "Garbage Bin",
     "garbage.hint": "Drag words here to hide them forever. They can still be mixed.",
     "garbage.binTitle": "Garbage Bin",
@@ -133,7 +134,7 @@ const MESSAGES = {
     "tokenDock.label": "Токены",
     "tokenDock.howLink": "Как работают токены",
     "tokenDock.tooltip":
-      "Перетащите на слово на поле. Токены 2, 3, 4 и 5 дают 2-й, 3-й, 4-й или 5-й результат вместо 1-го. «Запретить слово» убирает первый результат. «Широкий выбор» (B) заряжает слово: при смешивании видно до 10 вариантов и вы выбираете исход.",
+      "Перетащите на слово на поле. Токены 2, 3, 4 и 5 дают 2-й, 3-й, 4-й или 5-й результат вместо 1-го. «Запретить слово» убирает первый результат. «Широкий выбор» (B) заряжает слово: при смешивании видно до 10 вариантов и вы выбираете исход. «Минус-смешение» (➖) помечает слово: если у любого из пары есть метка, смешение — слово под курсором минус перетаскиваемое (векторное вычитание). Тратится одна метка; если оба с меткой, метку теряет перетаскиваемое.",
     "playfield.heading": "Поле смешивания",
     "playfield.hint":
       "ПКМ по слову — удалить. Перетащите одно слово на другое, чтобы создать новое.",
@@ -145,6 +146,7 @@ const MESSAGES = {
     "quest.loading": "Загрузка...",
     "playfield.empty": "Перетащите стартовое или открытое слово сюда.",
     "tile.broadChoiceBadge": "Широкий",
+    "tile.minusMixBadge": "Минус",
     "garbage.title": "Корзина",
     "garbage.hint":
       "Перетащите слово сюда, чтобы скрыть его навсегда. Смешивать всё ещё можно.",
@@ -282,6 +284,11 @@ const SHOP_MESSAGES = {
       description: "Charge a field word to see up to ten mix matches and pick the result.",
       purchaseDone: (cost) => `Bought 1 Broad Choice token for ${cost} coins.`,
     },
+    "shop-minus-mix": {
+      title: "Minus Mix Token",
+      description: "Tag a field word so mixes use subtraction: stationary word minus dragged word.",
+      purchaseDone: (cost) => `Bought 1 Minus mix token for ${cost} coins.`,
+    },
     "shop-playfield-pan-zoom": {
       title: "Field Pan & Zoom",
       description:
@@ -342,6 +349,11 @@ const SHOP_MESSAGES = {
       title: "Токен «Широкий выбор»",
       description: "Зарядите слово на поле: до 10 вариантов смешивания и выбор исхода.",
       purchaseDone: (cost) => `Куплен 1 токен «Широкий выбор» за ${cost} монет.`,
+    },
+    "shop-minus-mix": {
+      title: "Токен «Минус-смешение»",
+      description: "Пометьте слово: смешение — слово под курсором минус перетаскиваемое.",
+      purchaseDone: (cost) => `Куплен 1 токен «Минус-смешение» за ${cost} монет.`,
     },
     "shop-playfield-pan-zoom": {
       title: "Панорама и масштаб поля",

@@ -1479,6 +1479,16 @@ input:focus {
   box-shadow: 0 0 0 2px rgba(255, 138, 155, 0.35), 0 14px 28px rgba(0, 0, 0, 0.4);
 }
 
+.tile[data-minus-mix="true"] {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.28), 0 10px 24px rgba(27, 29, 14, 0.12);
+}
+
+[data-theme="dark"] .tile[data-minus-mix="true"] {
+  border-color: #a5b4fc;
+  box-shadow: 0 0 0 2px rgba(165, 180, 252, 0.35), 0 14px 28px rgba(0, 0, 0, 0.4);
+}
+
 [data-theme="dark"] .tile[data-tagged="true"] {
   box-shadow: 0 14px 30px rgba(86, 49, 18, 0.42);
 }
@@ -1629,6 +1639,32 @@ input:focus {
   display: none;
 }
 
+.tile-minus-mix-line {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: rgba(79, 70, 229, 0.12);
+  border: 1px solid rgba(79, 70, 229, 0.5);
+  color: #4338ca;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-family: var(--font-body);
+}
+
+[data-theme="dark"] .tile-minus-mix-line {
+  background: rgba(165, 180, 252, 0.14);
+  border-color: rgba(165, 180, 252, 0.45);
+  color: #c7d2fe;
+}
+
+.tile-minus-mix-line[hidden] {
+  display: none;
+}
+
 .tile-broad-line {
   display: inline-flex;
   align-items: center;
@@ -1724,14 +1760,15 @@ input:focus {
   text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
 }
 
-/* White: already found in encyclopedia — remix spends ink + bonuses */
+/* White: stage word (not quest target) or already in book */
 .floating-match-preview-encyc-white {
   color: #f4f6fb;
 }
 
-/* Red: stage encyclopedia, not quest target — first discovery spends ink */
-.floating-match-preview-encyc-red {
-  color: #ff6b6b;
+/* Black: current quest-target encyclopedia word (revealed, not yet discovered) */
+.floating-match-preview-encyc-black {
+  color: #1a1d24;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.65), 0 0 1px rgba(244, 246, 251, 0.9);
 }
 
 .floating-match-preview-token-mark {
