@@ -6467,6 +6467,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let coinReward = null;
   let questResult = null;
   let hiddenEncyclopediaDiscovery = false;
+  let skipQuestTurnForPreviewTokenBonus = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -6537,6 +6538,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     const previewKey = getCandidateResultKey({ word: result, normalized });
     const pendingRare = state.superRarePreviewByKey.get(previewKey);
     if (pendingRare?.rewardType && QUEST_REWARD_TOKEN_TYPE_SET.has(pendingRare.rewardType)) {
+      skipQuestTurnForPreviewTokenBonus = true;
       const rareDelta = {
         newBroadChoiceTokens: 0,
         newBanWordTokens: 0,
@@ -6568,7 +6570,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   questResult = advanceQuest(canonicalResult, {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
-    countQuestDiscoveryTurn: metadata.countQuestDiscoveryTurn !== false,
+    countQuestDiscoveryTurn: metadata.countQuestDiscoveryTurn !== false && !skipQuestTurnForPreviewTokenBonus,
   });
   newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
   newBanWordTokens += questResult.newBanWordTokens;
