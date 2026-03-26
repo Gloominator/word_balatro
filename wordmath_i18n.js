@@ -42,7 +42,7 @@ const MESSAGES = {
     "sidebar.availableLabel": "Available words",
     "sidebar.shopHeading": "Shop",
     "sidebar.shopHint":
-      "Buy tokens above via Purchase Tokens or Word Booster. Cap and quest turns stay here.",
+      "Buy tokens above via Purchase Tokens or Word Booster. Field upgrades stay here; add quest ink from the manuscript banner.",
     "sidebar.shopCoinsSuffix": "coins",
     "sidebar.shopLoading": "Loading shop...",
     "modal.encyclopediaTitle": "Encyclopedia",
@@ -162,7 +162,7 @@ const MESSAGES = {
     "sidebar.availableLabel": "Доступные слова",
     "sidebar.shopHeading": "Магазин",
     "sidebar.shopHint":
-      "Покупайте токены через «Купить токены» или «Бустер слов». Лимит и ходы квеста — здесь.",
+      "Покупайте токены через «Купить токены» или «Бустер слов». Расширения поля — здесь; чернила квеста — на плашке цели.",
     "sidebar.shopCoinsSuffix": "монет",
     "sidebar.shopLoading": "Загрузка магазина...",
     "modal.encyclopediaTitle": "Энциклопедия",

@@ -317,12 +317,11 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-broad-choice",
 ]);
 
-/** Cap / quest upgrades stay in the sidebar Shop tab. */
+/** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
 const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-playfield-pan-zoom",
   "shop-playfield-expand",
   "shop-playfield-expand-2",
-  "shop-quest-turn",
 ]);
 
 const SHOP_ITEM_IDS_PLAYFIELD_EXPAND_HIDDEN_UNTIL_PAN_ZOOM = new Set([
@@ -437,6 +436,7 @@ const els = {
   stageAdvanceBannerNext: document.querySelector("[data-stage-advance-banner-next]"),
   stageAdvanceBannerTokens: document.querySelector("[data-stage-advance-banner-tokens]"),
   questCountdown: document.querySelector("[data-quest-countdown]"),
+  questBuyTurnButton: document.querySelector("[data-action='buy-quest-turn']"),
   availableCount: document.querySelector("[data-available-count]"),
   wordSearch: document.querySelector("[data-word-search]"),
   wordList: document.querySelector("[data-word-list]"),
@@ -1234,6 +1234,7 @@ function advanceQuest(canonicalResult, {
   didDiscoverNewWord = false,
   questMatchedWord = canonicalResult,
   countQuestDiscoveryTurn = true,
+  spendQuestTurnWithoutNewWord = false,
 } = {}) {
   const questResult = {
     completedQuest: false,
@@ -1256,7 +1257,9 @@ function advanceQuest(canonicalResult, {
     return questResult;
   }
 
-  if (didDiscoverNewWord && countQuestDiscoveryTurn) {
+  const shouldTickQuestTurn = countQuestDiscoveryTurn
+    && (didDiscoverNewWord || spendQuestTurnWithoutNewWord);
+  if (shouldTickQuestTurn) {
     state.quest.remainingDiscoveries = Math.max(0, state.quest.remainingDiscoveries - 1);
     state.quest.turnsTaken += 1;
     questResult.turnsTaken = state.quest.turnsTaken;
@@ -1289,7 +1292,7 @@ function advanceQuest(canonicalResult, {
   }
 
   questResult.remainingDiscoveries = state.quest.remainingDiscoveries;
-  if (didDiscoverNewWord && countQuestDiscoveryTurn && state.quest.remainingDiscoveries <= 0) {
+  if (shouldTickQuestTurn && state.quest.remainingDiscoveries <= 0) {
     state.quest.isLost = true;
     questResult.failedQuest = true;
   }
@@ -2622,27 +2625,37 @@ function getSuperRarePreviewBonusEmojiSuffix(candidate) {
   return emoji ? ` ${emoji}` : "";
 }
 
-/** Mix preview: encyclopedia entry that would grant the random encyclopedia bonus token on first discovery (normal mix, not ban-line skip). */
-function candidateShowsEncyclopediaTokenBadge(candidate) {
+/**
+ * Top-matches encyclopedia marker: white = ??? / hidden category (yellowed slot) or already in book
+ * (first discovery or remix spends quest ink + bonus coin + enc token where applicable);
+ * red = category revealed, not yet discovered, not quest target.
+ */
+function getEncyclopediaPreviewBadgeTier(candidate) {
   const rawWord = candidate?.word || candidate?.normalized || "";
   const normalized = candidate?.normalized || rawWord;
   if (!rawWord || !normalized) {
-    return false;
+    return null;
   }
   const canonicalResult = getCanonicalWord(rawWord, normalized);
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
   if (!encyclopediaEntry) {
-    return false;
+    return null;
   }
   if (state.starters.includes(canonicalResult)) {
-    return false;
+    return null;
   }
   const discoveryKey = encyclopediaEntry.word ?? normalized;
+  if (!isEncyclopediaCategoryRevealed(encyclopediaEntry.category)) {
+    return "white";
+  }
   const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
   if (existing) {
-    return false;
+    return "white";
   }
-  return true;
+  if (state.quest.targetWord && discoveryKey === state.quest.targetWord) {
+    return null;
+  }
+  return "red";
 }
 
 function resolvePendingBanMixIfNeeded({
@@ -3101,11 +3114,17 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
     line.className = "floating-match-preview-line";
     const label = titleCase(candidate.word || candidate.normalized || "");
     line.append(`${index + 1}. ${label}`);
-    if (candidateShowsEncyclopediaTokenBadge(candidate)) {
+    const encTier = getEncyclopediaPreviewBadgeTier(candidate);
+    if (encTier) {
       const encSpan = document.createElement("span");
-      encSpan.className = "floating-match-preview-encyc-mark";
-      encSpan.textContent = "\u00A0🇪";
-      encSpan.setAttribute("title", "Encyclopedia");
+      encSpan.className = `floating-match-preview-encyc-mark floating-match-preview-encyc-${encTier}`;
+      encSpan.textContent = "\u00A0E";
+      const hint = encTier === "yellow"
+        ? "Encyclopedia hint tier (yellow)."
+        : encTier === "white"
+          ? "Encyclopedia (??? or already found). Discovery or remix spends quest ink; bonus coin + token apply."
+          : "Stage encyclopedia (not the quest target). First discovery spends quest ink.";
+      encSpan.setAttribute("title", hint);
       line.append(encSpan);
     }
     const rareMark = getSuperRarePreviewBonusEmojiSuffix(candidate).trim();
@@ -3447,6 +3466,31 @@ function renderQuest() {
 
   if (inStageAdvance) {
     renderQuestStageAdvanceBanner();
+  }
+
+  if (els.questBuyTurnButton) {
+    const questTurnItem = SHOP_ITEM_BY_ID.get("shop-quest-turn");
+    const showBuyTurn = !inStageAdvance && !state.quest.isWon;
+    els.questBuyTurnButton.hidden = !showBuyTurn;
+    if (showBuyTurn && questTurnItem) {
+      const purchaseState = getShopItemPurchaseState(questTurnItem);
+      const itemCost = getShopItemCost(questTurnItem);
+      els.questBuyTurnButton.disabled = !purchaseState.canBuy;
+      const labelEl = els.questBuyTurnButton.querySelector("[data-quest-buy-turn-label]");
+      if (labelEl) {
+        labelEl.textContent = `${itemCost}`;
+      }
+      const titleParts = [
+        localizedShopTitle("shop-quest-turn"),
+        getShopItemDescription(questTurnItem),
+        purchaseState.canBuy ? "" : purchaseState.reason,
+      ].filter(Boolean);
+      els.questBuyTurnButton.title = titleParts.join(" — ");
+      els.questBuyTurnButton.setAttribute(
+        "aria-label",
+        `${localizedShopTitle("shop-quest-turn")}: ${formatShopBuyLine(itemCost)}`,
+      );
+    }
   }
 }
 
@@ -6468,6 +6512,13 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let questResult = null;
   let hiddenEncyclopediaDiscovery = false;
   let skipQuestTurnForPreviewTokenBonus = false;
+  const whiteRemixEncyclopedia = Boolean(
+    metadata.fromMix
+    && wasDiscovered
+    && isInEncyclopedia
+    && encyclopediaEntry
+    && !metadata.skipEncyclopediaBanTokenReward,
+  );
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -6534,6 +6585,24 @@ function rememberResult(result, normalized = result, metadata = {}) {
     }
   }
 
+  if (whiteRemixEncyclopedia) {
+    const encTokenDelta = {
+      newBroadChoiceTokens: 0,
+      newBanWordTokens: 0,
+      newWildcardTokens: 0,
+      newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+    };
+    grantOneRandomQuestPoolToken(encTokenDelta);
+    newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
+    newBanWordTokens += encTokenDelta.newBanWordTokens;
+    newWildcardTokens += encTokenDelta.newWildcardTokens;
+    mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
+    coinReward = awardDiscoveryCoins({
+      zipf: metadata?.zipf,
+      isInEncyclopedia: true,
+    });
+  }
+
   if (didDiscoverNewWord) {
     const previewKey = getCandidateResultKey({ word: result, normalized });
     const pendingRare = state.superRarePreviewByKey.get(previewKey);
@@ -6567,10 +6636,13 @@ function rememberResult(result, normalized = result, metadata = {}) {
     });
   }
 
+  const allowQuestTurnTick = metadata.countQuestDiscoveryTurn !== false && !skipQuestTurnForPreviewTokenBonus;
+
   questResult = advanceQuest(canonicalResult, {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
-    countQuestDiscoveryTurn: metadata.countQuestDiscoveryTurn !== false && !skipQuestTurnForPreviewTokenBonus,
+    countQuestDiscoveryTurn: allowQuestTurnTick,
+    spendQuestTurnWithoutNewWord: allowQuestTurnTick && whiteRemixEncyclopedia,
   });
   newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
   newBanWordTokens += questResult.newBanWordTokens;
@@ -6596,7 +6668,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   const vocabularyOverflow = null;
 
-  if (didDiscoverNewWord || coinReward || totalNewBroadChoiceTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
+  if (didDiscoverNewWord || whiteRemixEncyclopedia || coinReward || totalNewBroadChoiceTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
     renderSidebar();
   }
 
@@ -7451,6 +7523,9 @@ function initEvents() {
   els.importSaveButton.addEventListener("click", promptSaveImport);
   els.questTryAgainButton.addEventListener("click", resetRun);
   els.questGoAgainButton.addEventListener("click", resetRun);
+  els.questBuyTurnButton?.addEventListener("click", () => {
+    purchaseShopItem("shop-quest-turn");
+  });
   els.spawnExistingWordsToggle.addEventListener("change", () => {
     state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
     queueProgressSave();

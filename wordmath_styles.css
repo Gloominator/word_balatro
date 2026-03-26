@@ -1124,6 +1124,72 @@ input:focus {
   width: 100%;
 }
 
+.quest-strip-play-right {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-shrink: 0;
+}
+
+.quest-buy-turn-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.28rem 0.5rem;
+  margin: 0;
+  border-radius: var(--radius);
+  border: 1px solid rgba(184, 92, 92, 0.45);
+  background: rgba(184, 92, 92, 0.12);
+  color: var(--manuscript-ink-label);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.quest-buy-turn-button:hover:not(:disabled) {
+  background: rgba(184, 92, 92, 0.22);
+  border-color: rgba(184, 92, 92, 0.65);
+}
+
+.quest-buy-turn-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Matches .coin-counter-icon / shop price glyph */
+.quest-buy-turn-coin {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: radial-gradient(circle at 35% 35%, #fff6a3, #ffcf45 45%, #cf8e0d 78%, #8c5f00 100%);
+  box-shadow: 0 0 0 1px rgba(255, 228, 124, 0.25);
+}
+
+.quest-buy-turn-label {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+[data-theme="dark"] .quest-buy-turn-button {
+  border-color: rgba(255, 152, 152, 0.35);
+  background: rgba(255, 152, 152, 0.1);
+  color: #ffb3b3;
+}
+
+[data-theme="dark"] .quest-buy-turn-button:hover:not(:disabled) {
+  background: rgba(255, 152, 152, 0.18);
+  border-color: rgba(255, 217, 139, 0.45);
+}
+
+[data-theme="dark"] .quest-buy-turn-coin {
+  box-shadow: 0 0 0 1px rgba(255, 217, 139, 0.35);
+}
+
 .quest-strip-stage {
   width: 100%;
   min-width: 0;
@@ -1648,10 +1714,24 @@ input:focus {
 
 .floating-match-preview-encyc-mark {
   margin-left: 0.15em;
-  color: var(--accent-bright, #e8c76a);
   font-weight: 800;
-  /* Lets regional-indicator “🇪” follow text color on more browsers. */
   font-variant-emoji: text;
+}
+
+/* Yellow: ??? / hidden category — first discovery does not spend quest ink */
+.floating-match-preview-encyc-yellow {
+  color: #ffe066;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+/* White: already found in encyclopedia — remix spends ink + bonuses */
+.floating-match-preview-encyc-white {
+  color: #f4f6fb;
+}
+
+/* Red: stage encyclopedia, not quest target — first discovery spends ink */
+.floating-match-preview-encyc-red {
+  color: #ff6b6b;
 }
 
 .floating-match-preview-token-mark {
@@ -2843,5 +2923,16 @@ input:focus {
 
   .quest-countdown-manuscript {
     text-align: center;
+  }
+
+  .quest-strip-play-right {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .quest-buy-turn-button {
+    justify-content: center;
+    width: 100%;
   }
 }
