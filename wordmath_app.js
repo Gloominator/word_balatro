@@ -119,24 +119,28 @@ const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
 const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
 const SHOP_PLAYFIELD_EXPAND_COST = 600;
 const SHOP_PLAYFIELD_EXPAND_2_COST = 2000;
-const DISCOVERY_COIN_REWARD_COMMON = 30;
-const DISCOVERY_COIN_REWARD_UNCOMMON = 35;
-const DISCOVERY_COIN_REWARD_RARE = 40;
-const DISCOVERY_COIN_REWARD_VERY_RARE = 50;
-const DISCOVERY_COIN_REWARD_MEGA_RARE = 60;
+const DISCOVERY_COIN_REWARD_COMMON = 15;
+const DISCOVERY_COIN_REWARD_UNCOMMON = 20;
+const DISCOVERY_COIN_REWARD_RARE = 25;
+const DISCOVERY_COIN_REWARD_VERY_RARE = 30;
+const DISCOVERY_COIN_REWARD_MEGA_RARE = 35;
 const DISCOVERY_RARITY_MAX_ZIPF = 6;
-const DISCOVERY_TOKEN_DROP_CHANCE = 0.1;
+const DISCOVERY_TOKEN_DROP_CHANCE = 0.05;
 const RANDOM_DISCOVERY_TOKEN_POOL = Object.freeze([3, 4, 5]);
 const QUEST_INITIAL_DISCOVERY_TIMER = 60;
-/** Extra turns added when completing a quest on stage 2+ (stage 1 still carries remaining timer). */
-const QUEST_COMPLETION_CARRYOVER_TURNS_STAGE_2_PLUS = 5;
-const QUEST_COMPLETION_COIN_REWARD = 200;
-const QUEST_COMPLETION_REWARD_COUNT = 2;
+/** Starting quest timer when a stage begins (quest #1 only). */
+const QUEST_FIRST_BUDGET_STAGE_1 = 30;
+const QUEST_FIRST_BUDGET_STAGE_2_PLUS = 20;
+/** Bonus turns **added** on each quest completion within a stage (1st completion +5, then +4, +3, then +2). */
+const QUEST_COMPLETION_BONUS_LADDER = Object.freeze([5, 4, 3]);
+const QUEST_COMPLETION_BONUS_AFTER_LADDER = 2;
+const QUEST_COMPLETION_COIN_REWARD = 100;
+const QUEST_COMPLETION_REWARD_COUNT = 1;
 const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "ban-word", 2, 3, 4, 5]);
 /** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 8;
+const SNAPSHOT_VERSION = 10;
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -238,7 +242,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-broad-choice",
     title: "Broad Choice Token",
-    cost: 50,
+    cost: 200,
     description: "",
     canPurchase: () => true,
     purchase: () => {
@@ -1075,30 +1079,33 @@ function beginStageAdvanceFlow() {
   queueProgressSave();
 }
 
-function getQuestDiscoveryTimerForQuestNumber(questNumber = state.quest.number) {
-  const safeQuestNumber = Math.max(1, getSafeCount(questNumber, 1));
-  if (state.runStage === 1) {
-    if (safeQuestNumber === 1) {
-      return 40;
-    }
-    if (safeQuestNumber === 2) {
-      return 20;
-    }
-    return 10;
-  }
-  return 20 + (safeQuestNumber - 1) * 10;
+function getInitialQuestTurnBudgetForStage(runStage = state.runStage) {
+  const stage = Math.max(1, getSafeCount(runStage, 1));
+  return stage === 1 ? QUEST_FIRST_BUDGET_STAGE_1 : QUEST_FIRST_BUDGET_STAGE_2_PLUS;
 }
 
-function getStartingGoldForRunStage(runStage) {
-  const s = Math.max(1, getSafeCount(runStage, 1));
-  if (s <= 1) {
-    return 0;
+/** @param {number} completedQuestNumber 1-based index of the quest you just finished */
+function getQuestCompletionBonusTurns(completedQuestNumber) {
+  const n = Math.max(1, getSafeCount(completedQuestNumber, 1));
+  const idx = n - 1;
+  if (idx < QUEST_COMPLETION_BONUS_LADDER.length) {
+    return QUEST_COMPLETION_BONUS_LADDER[idx];
   }
-  return 100 * s;
+  return QUEST_COMPLETION_BONUS_AFTER_LADDER;
+}
+
+function getStartingGoldForRunStage() {
+  return 100;
 }
 
 function assignNewQuest({ initial = false, previousTargetWord = null, carryOverTurns = 0 } = {}) {
-  state.quest.number = initial ? 1 : Math.max(2, getSafeCount(state.quest.number, 1) + 1);
+  let completedQuestNumber = null;
+  if (initial) {
+    state.quest.number = 1;
+  } else {
+    completedQuestNumber = Math.max(1, getSafeCount(state.quest.number, 1));
+    state.quest.number = Math.max(2, completedQuestNumber + 1);
+  }
   state.quest.targetWord = sampleQuestWord(previousTargetWord);
   if (!state.quest.targetWord) {
     if (state.runStage >= RUN_STAGE_COUNT && isCurrentStageComplete()) {
@@ -1117,8 +1124,13 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
     }
     return setQuestVictoryState({ questNumber: state.quest.number });
   }
-  const baseTurns = getQuestDiscoveryTimerForQuestNumber(state.quest.number);
-  state.quest.remainingDiscoveries = baseTurns + getSafeCount(carryOverTurns);
+  const carry = getSafeCount(carryOverTurns);
+  if (initial) {
+    state.quest.remainingDiscoveries = getInitialQuestTurnBudgetForStage(state.runStage) + carry;
+  } else {
+    const bonus = getQuestCompletionBonusTurns(completedQuestNumber);
+    state.quest.remainingDiscoveries = state.quest.remainingDiscoveries + bonus + carry;
+  }
   state.quest.turnsTaken = 0;
   state.quest.isLost = false;
   state.quest.isWon = false;
@@ -1168,13 +1180,13 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
 function getQuestSpeedBonusCoins(turnsTaken = state.quest.turnsTaken) {
   const t = Math.max(0, getSafeCount(turnsTaken));
   if (t <= 1) {
-    return 300;
+    return 150;
   }
   if (t <= 5) {
-    return 200;
+    return 100;
   }
   if (t <= 10) {
-    return 100;
+    return 50;
   }
   return 0;
 }
@@ -1229,13 +1241,10 @@ function advanceQuest(canonicalResult, {
     const coinReward = awardQuestCompletionCoins(state.quest.turnsTaken);
     const rewardSummary = awardQuestCompletionTokens();
     const completedTargetWord = state.quest.targetWord;
-    const carryOverTurns = state.runStage >= 2
-      ? QUEST_COMPLETION_CARRYOVER_TURNS_STAGE_2_PLUS
-      : state.quest.remainingDiscoveries;
     const nextQuest = assignNewQuest({
       initial: false,
       previousTargetWord: completedTargetWord,
-      carryOverTurns,
+      carryOverTurns: 0,
     });
     questResult.completedQuest = true;
     questResult.completedFullRun = Boolean(nextQuest.isWon);
@@ -2439,6 +2448,29 @@ function applyAutoBanForNewMixDiscovery(canonicalResult) {
   return !hadAll;
 }
 
+/** Ban-line mix would strike this result; discover instead if it's a current-stage, revealed encyclopedia word. */
+function shouldBanLineDiscoverEncyclopediaWord(canonicalResult, normalizedKey) {
+  const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalizedKey);
+  if (!encyclopediaEntry) {
+    return false;
+  }
+  if (!state.stageCategoryNames.includes(encyclopediaEntry.category)) {
+    return false;
+  }
+  if (!isEncyclopediaCategoryRevealed(encyclopediaEntry.category)) {
+    return false;
+  }
+  const discoveryKey = encyclopediaEntry.word ?? normalizedKey;
+  const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalizedKey);
+  if (existing) {
+    return false;
+  }
+  if (state.starters.includes(canonicalResult)) {
+    return false;
+  }
+  return true;
+}
+
 function resolvePendingBanMixIfNeeded({
   firstTile = null,
   secondTile = null,
@@ -2447,6 +2479,7 @@ function resolvePendingBanMixIfNeeded({
   rightWord,
   selection,
   clientPoint = null,
+  selfMatchSpawnPosition = null,
 }) {
   const tiles = [firstTile, secondTile].filter(Boolean);
   if (!tiles.some((t) => t.pendingBan)) {
@@ -2457,10 +2490,92 @@ function resolvePendingBanMixIfNeeded({
     return false;
   }
   const canonicalResult = getCanonicalWord(selectedCandidate.word, selectedCandidate.normalized);
+  const normKey = getCandidateResultKey(selectedCandidate);
+
+  if (shouldBanLineDiscoverEncyclopediaWord(canonicalResult, normKey)) {
+    const chargedTile = tiles.find((t) => t.pendingBan);
+    if (chargedTile) {
+      chargedTile.pendingBan = false;
+    }
+    const isSelfMatch = Boolean(firstTile && secondTile && firstTile.id === secondTile.id);
+    const {
+      canonicalResult: rememberedCanon,
+      isInEncyclopedia,
+      wasDiscovered,
+      hiddenEncyclopediaDiscovery,
+      coinReward,
+      newBroadChoiceTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newPositionTokenRewards,
+      newZonesUnlocked,
+      completedCategories,
+      questResult,
+      vocabularyOverflow,
+    } = rememberResult(selectedCandidate.word, selectedCandidate.normalized, {
+      fromMix: true,
+      mixParentWords: {
+        left: leftWord,
+        right: rightWord,
+      },
+      zipf: selectedCandidate.zipf,
+      skipEncyclopediaBanTokenReward: true,
+    });
+    if (isSelfMatch) {
+      markWordAsSelfMatched(leftWord);
+    }
+    recordMatch(leftWord, rightWord, rememberedCanon, "add", selection.candidates, selectedCandidate.word);
+    const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
+    if (shouldBlockSpawn) {
+      if (clientPoint) {
+        showFloatingWordNotice("❌", "error", clientPoint);
+      }
+    } else if (isSelfMatch) {
+      spawnWordOnField(rememberedCanon, selfMatchSpawnPosition);
+      if (!state.spawnExistingWords && clientPoint) {
+        showFloatingWordNotice("💡", "success", clientPoint);
+      }
+    } else {
+      spawnResultTile(rememberedCanon, firstTile, secondTile);
+      if (!state.spawnExistingWords && clientPoint) {
+        showFloatingWordNotice("💡", "success", clientPoint);
+      }
+    }
+    const messageOpts = {
+      coinReward,
+      newBroadChoiceTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newPositionTokenRewards,
+      newZonesUnlocked,
+      completedCategories,
+      questResult,
+      usedShift: selection.usedShift,
+      refundedTagCount: selection.refundedTagCount,
+      hiddenEncyclopediaDiscovery,
+    };
+    let status;
+    if (shouldBlockSpawn) {
+      status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
+      status.message = `${status.message} ${titleCase(rememberedCanon)} is already in your discovered words, so it was not spawned.`;
+    } else {
+      status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
+      if (!state.spawnExistingWords && status.stateName === "ok") {
+        status.stateName = "success";
+      }
+    }
+    const banNote = getUiLang() === "ru"
+      ? " Линия бана израсходована на это открытие энциклопедии."
+      : " Ban line spent to discover this active encyclopedia word.";
+    status.message = `${status.message}${banNote}`;
+    applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+    return true;
+  }
+
   const newlyStruck = applyAutoBanForNewMixDiscovery(canonicalResult);
-  const chargedTile = tiles.find((t) => t.pendingBan);
-  if (chargedTile) {
-    chargedTile.pendingBan = false;
+  const strikeChargedTile = tiles.find((t) => t.pendingBan);
+  if (strikeChargedTile) {
+    strikeChargedTile.pendingBan = false;
   }
   renderTiles();
   renderSidebar();
@@ -4460,18 +4575,22 @@ function setActiveSidebarTab(tab) {
 
 function rollGarbageRewardToken() {
   const roll = Math.random();
-  if (roll < 0.65) {
+  if (roll < 0.325) {
     addPositionTokens(2, 1);
     return "Second Result";
   }
-  if (roll < 0.9) {
+  if (roll < 0.45) {
     state.availableBroadChoiceTokens += 1;
     state.totalBroadChoiceTokensEarned += 1;
     return "Broad Choice";
   }
-  state.availableBanWordTokens += 1;
-  state.totalBanWordTokensEarned += 1;
-  return "Ban Word";
+  if (roll < 0.5) {
+    state.availableBanWordTokens += 1;
+    state.totalBanWordTokensEarned += 1;
+    return "Ban Word";
+  }
+  addPositionTokens(2, 1);
+  return "Second Result";
 }
 
 function retireDeadEndWord(word, explicitWordKey = null, tileIds = []) {
@@ -5909,6 +6028,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     rightWord: word,
     selection,
     clientPoint: noticePoint,
+    selfMatchSpawnPosition: position,
   })) {
     return;
   }
@@ -6190,10 +6310,12 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
     hiddenEncyclopediaDiscovery = !isEncyclopediaCategoryRevealed(encyclopediaEntry.category);
-    state.availableBanWordTokens += 1;
-    state.totalBanWordTokensEarned += 1;
-    state.unseenTokenRewards += 1;
-    newBanWordTokens = 1;
+    if (!metadata.skipEncyclopediaBanTokenReward) {
+      state.availableBanWordTokens += 1;
+      state.totalBanWordTokensEarned += 1;
+      state.unseenTokenRewards += 1;
+      newBanWordTokens = 1;
+    }
     completedCategories = [];
     if (!hiddenEncyclopediaDiscovery) {
       const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
@@ -6800,8 +6922,8 @@ function resetRun() {
   state.availableBroadChoiceTokens = 0;
   state.totalBroadChoiceTokensEarned = 0;
   state.progressBroadChoiceTokensAwarded = 0;
-  state.coins = 0;
-  state.totalCoinsEarned = 0;
+  state.coins = getStartingGoldForRunStage(1);
+  state.totalCoinsEarned = state.coins;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
   state.shopPurchaseCounts = {};
   state.availableBanWordTokens = 0;
