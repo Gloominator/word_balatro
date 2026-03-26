@@ -17,13 +17,20 @@ import {
 
 let gameLocale = "en";
 let STARTER_POOL = LOCALES.en.starterPool.slice();
-let ENCYCLOPEDIA_CATEGORIES = LOCALES.en.encyclopediaCategories.map((c) => ({
+let ENCYCLOPEDIA_CATEGORY_POOL = LOCALES.en.encyclopediaCategories.map((c) => ({
+  name: c.name,
+  words: c.words.slice(),
+}));
+let ENCYCLOPEDIA_CATEGORIES = ENCYCLOPEDIA_CATEGORY_POOL.map((c) => ({
   name: c.name,
   words: c.words.slice(),
 }));
 let ENCYCLOPEDIA_WORDS = [];
 let ENCYCLOPEDIA_LOOKUP = new Map();
 let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
+
+/** How many encyclopedia categories are in play for one run (80 words at 5 per category). */
+const RUN_ENCYCLOPEDIA_CATEGORY_COUNT = 16;
 
 function rebuildEncyclopediaIndexes() {
   ENCYCLOPEDIA_WORDS = ENCYCLOPEDIA_CATEGORIES.flatMap((category) =>
@@ -37,18 +44,123 @@ function rebuildEncyclopediaIndexes() {
   );
 }
 
+function applyEncyclopediaCategoriesForRunFromSlots() {
+  const pool = ENCYCLOPEDIA_CATEGORY_POOL;
+  const slots = state.runEncyclopediaSlots;
+  const k = RUN_ENCYCLOPEDIA_CATEGORY_COUNT;
+  if (slots.length !== k || pool.length < k) {
+    ENCYCLOPEDIA_CATEGORIES = pool.map((c) => ({
+      name: c.name,
+      words: c.words.slice(),
+    }));
+    rebuildEncyclopediaIndexes();
+    return;
+  }
+  const seenIdx = new Set();
+  const picked = [];
+  for (let s = 0; s < slots.length; s += 1) {
+    const i = Math.floor(getSafeCount(slots[s], -1));
+    if (!Number.isFinite(i) || i < 0 || i >= pool.length || seenIdx.has(i)) {
+      ENCYCLOPEDIA_CATEGORIES = pool.map((c) => ({
+        name: c.name,
+        words: c.words.slice(),
+      }));
+      rebuildEncyclopediaIndexes();
+      return;
+    }
+    seenIdx.add(i);
+    picked.push(pool[i]);
+  }
+  ENCYCLOPEDIA_CATEGORIES = picked.map((c) => ({
+    name: c.name,
+    words: c.words.slice(),
+  }));
+  rebuildEncyclopediaIndexes();
+}
+
+function pickRandomRunEncyclopediaSlots() {
+  const n = ENCYCLOPEDIA_CATEGORY_POOL.length;
+  const k = RUN_ENCYCLOPEDIA_CATEGORY_COUNT;
+  if (n < k) {
+    return [...Array(n).keys()];
+  }
+  return shuffle([...Array(n).keys()]).slice(0, k);
+}
+
+function migrateRunEncyclopediaSlotsFromLegacySnapshot(snapshot) {
+  const pool = ENCYCLOPEDIA_CATEGORY_POOL;
+  const poolLen = pool.length;
+  const k = RUN_ENCYCLOPEDIA_CATEGORY_COUNT;
+  const nameToIdx = new Map(pool.map((c, i) => [c.name, i]));
+  const acc = new Set();
+  const addByName = (name) => {
+    if (typeof name !== "string") {
+      return;
+    }
+    const idx = nameToIdx.get(name);
+    if (idx !== undefined) {
+      acc.add(idx);
+    }
+  };
+  getStringList(snapshot.runEncyclopediaCategoryNames).forEach(addByName);
+  getStringList(snapshot.stageCategoryNames).forEach(addByName);
+  getStringList(snapshot.completedRunCategoryNames).forEach(addByName);
+  const flow = snapshot.stageAdvanceFlow;
+  getStringList(flow?.nextStageCategoryNames).forEach(addByName);
+  let slots = [...acc];
+  if (slots.length < k) {
+    const rest = shuffle([...Array(poolLen).keys()].filter((i) => !acc.has(i)));
+    while (slots.length < k && rest.length) {
+      slots.push(rest.pop());
+    }
+  }
+  if (slots.length > k) {
+    slots = shuffle(slots).slice(0, k);
+  }
+  return slots;
+}
+
+function normalizeRunEncyclopediaSlotsFromSnapshot(snapshot, snapshotVersion) {
+  const poolLen = ENCYCLOPEDIA_CATEGORY_POOL.length;
+  const k = RUN_ENCYCLOPEDIA_CATEGORY_COUNT;
+  if (poolLen < k) {
+    return [...Array(poolLen).keys()];
+  }
+  const raw = snapshot?.runEncyclopediaSlots;
+  if (snapshotVersion >= 14 && Array.isArray(raw) && raw.length === k) {
+    const seen = new Set();
+    for (let j = 0; j < raw.length; j += 1) {
+      const i = Math.floor(getSafeCount(raw[j], -1));
+      if (!Number.isFinite(i) || i < 0 || i >= poolLen || seen.has(i)) {
+        return migrateRunEncyclopediaSlotsFromLegacySnapshot(snapshot);
+      }
+      seen.add(i);
+    }
+    return raw.map((v) => Math.floor(getSafeCount(v, 0)));
+  }
+  return migrateRunEncyclopediaSlotsFromLegacySnapshot(snapshot);
+}
+
 rebuildEncyclopediaIndexes();
 
 function applyGameLocale(locale) {
   const pack = LOCALES[locale] || LOCALES.en;
   gameLocale = locale === "ru" ? "ru" : "en";
   STARTER_POOL = pack.starterPool.slice();
-  ENCYCLOPEDIA_CATEGORIES = pack.encyclopediaCategories.map((c) => ({
+  ENCYCLOPEDIA_CATEGORY_POOL = pack.encyclopediaCategories.map((c) => ({
+    name: c.name,
+    words: c.words.slice(),
+  }));
+  ENCYCLOPEDIA_CATEGORIES = ENCYCLOPEDIA_CATEGORY_POOL.map((c) => ({
     name: c.name,
     words: c.words.slice(),
   }));
   SHOP_WORD_BOOSTER_SOURCE_PATH = pack.wordBoosterPoolPath;
-  rebuildEncyclopediaIndexes();
+  if (state.runEncyclopediaSlots.length === RUN_ENCYCLOPEDIA_CATEGORY_COUNT) {
+    applyEncyclopediaCategoriesForRunFromSlots();
+  } else {
+    rebuildEncyclopediaIndexes();
+  }
   associationPreviewCache.clear();
   cachedShopWordBoosterPool = null;
   shopWordBoosterPoolPromise = null;
@@ -146,10 +258,10 @@ const SUPER_RARE_PREVIEW_ROLL_ROWS = 5;
 const SUPER_RARE_PREVIEW_TOP_TIER_BONUS_CHANCE = 0.2;
 /** Next band (very rare + rare, zipf 2–4): same bonus mechanics, lower odds. */
 const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
-/** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
+/** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 13;
+const SNAPSHOT_VERSION = 14;
 
 /** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
 const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
@@ -186,6 +298,22 @@ const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
   "shop-minus-mix",
   "shop-quest-turn",
 ]);
+
+/** Rank 2–5 + Ban: effective base cost = list price × current run stage (stage 1 = 1×, 2 = 2×, …). */
+const SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE = new Set([
+  "shop-match-2",
+  "shop-match-3",
+  "shop-match-4",
+  "shop-match-5",
+  "shop-ban-word",
+]);
+
+/** Broad + Minus: base × (1 + 0.5×(stage−1)) — stage 1 = 1×, 2 = 1.5×, 3 = 2×, …. */
+const SHOP_ITEM_IDS_STAGE_HALFPACE_MULTIPLIER = new Set([
+  "shop-broad-choice",
+  "shop-minus-mix",
+]);
+
 const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-word-booster",
@@ -439,6 +567,8 @@ const state = {
   stageCategoryNames: [],
   /** Categories fully cleared in earlier stages (encyclopedia + quest context). */
   completedRunCategoryNames: new Set(),
+  /** Indices into ENCYCLOPEDIA_CATEGORY_POOL for this run’s active book categories. */
+  runEncyclopediaSlots: [],
   /** When set, stage-clear flow: { active, step: 'warn'|'pick'|'confirm', selectedKeys: string[] }. */
   stageAdvanceFlow: null,
   activeSidebarTab: "words",
@@ -663,6 +793,25 @@ function recordIncrementalShopPurchase(itemId) {
   state.shopPurchaseCounts[itemId] = getShopPurchaseCount(itemId) + 1;
 }
 
+function getShopStageForPricing() {
+  return clamp(getSafeCount(state.runStage, 1), 1, RUN_STAGE_COUNT);
+}
+
+/** Base gold for incremental shop lines before per-stage +10% (or booster +20%) stacking. */
+function getShopIncrementalBaseCost(item) {
+  if (!item) {
+    return 0;
+  }
+  const stage = getShopStageForPricing();
+  if (SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE.has(item.id)) {
+    return Math.max(1, Math.ceil(item.cost * stage));
+  }
+  if (SHOP_ITEM_IDS_STAGE_HALFPACE_MULTIPLIER.has(item.id)) {
+    return Math.max(1, Math.ceil(item.cost * (1 + 0.5 * (stage - 1))));
+  }
+  return item.cost;
+}
+
 function getShopItemCost(item) {
   if (!item) {
     return 0;
@@ -677,7 +826,11 @@ function getShopItemCost(item) {
     return getNextRunPermanentUpgradeShopCost(state.runPermanentMoreInk);
   }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
-    return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id), item.id);
+    return getIncrementalShopPrice(
+      getShopIncrementalBaseCost(item),
+      getShopPurchaseCount(item.id),
+      item.id,
+    );
   }
   return item.cost;
 }
@@ -1056,9 +1209,10 @@ function isEncyclopediaCategoryRevealed(categoryName) {
 }
 
 function pickRandomStageCategoryNames(count) {
-  const pool = ENCYCLOPEDIA_CATEGORIES
-    .map((c) => c.name)
-    .filter((name) => !state.completedRunCategoryNames.has(name));
+  const runNames = state.runEncyclopediaSlots
+    .map((i) => ENCYCLOPEDIA_CATEGORY_POOL[Math.floor(i)]?.name)
+    .filter((name) => typeof name === "string");
+  const pool = runNames.filter((name) => !state.completedRunCategoryNames.has(name));
   const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
   return shuffle(pool).slice(0, n);
 }
@@ -1096,8 +1250,11 @@ function getStageQuestWordSet() {
 }
 
 function peekNextStageCategoryNamesForAfterAdvance() {
+  const runNames = state.runEncyclopediaSlots
+    .map((i) => ENCYCLOPEDIA_CATEGORY_POOL[Math.floor(i)]?.name)
+    .filter((name) => typeof name === "string");
   const used = new Set([...state.completedRunCategoryNames, ...state.stageCategoryNames]);
-  const pool = ENCYCLOPEDIA_CATEGORIES.map((c) => c.name).filter((name) => !used.has(name));
+  const pool = runNames.filter((name) => !used.has(name));
   const count = getStageCategoryPickCountForRunStage(state.runStage + 1);
   const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
   return shuffle(pool).slice(0, n);
@@ -1530,6 +1687,7 @@ function buildProgressSnapshot() {
     totalFifthResultTokensEarned: state.totalFifthResultTokensEarned,
     progressSecondResultTokensAwarded: state.progressSecondResultTokensAwarded,
     runStage: state.runStage,
+    runEncyclopediaSlots: [...state.runEncyclopediaSlots],
     stageCategoryNames: [...state.stageCategoryNames],
     completedRunCategoryNames: [...state.completedRunCategoryNames],
     stageAdvanceFlow: state.stageAdvanceFlow
@@ -1875,6 +2033,8 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     getUnlockedSecondResultTokenCount(discovered.size),
     getSafeCount(snapshot.progressSecondResultTokensAwarded, getUnlockedSecondResultTokenCount(discovered.size)),
   );
+  state.runEncyclopediaSlots = normalizeRunEncyclopediaSlotsFromSnapshot(snapshot, snapshotVersion);
+  applyEncyclopediaCategoriesForRunFromSlots();
   const validEncCatNames = new Set(ENCYCLOPEDIA_CATEGORIES.map((c) => c.name));
   const stageNames = getStringList(snapshot.stageCategoryNames).filter((n) => validEncCatNames.has(n));
   if (stageNames.length === 0) {
@@ -7562,6 +7722,8 @@ function resetRun() {
   state.progressSecondResultTokensAwarded = 0;
   state.runStage = 1;
   state.completedRunCategoryNames = new Set();
+  state.runEncyclopediaSlots = pickRandomRunEncyclopediaSlots();
+  applyEncyclopediaCategoriesForRunFromSlots();
   state.stageAdvanceFlow = null;
   initializeStageCategoryNamesForNewRun();
   state.hiddenWordPanelWords = new Set();
