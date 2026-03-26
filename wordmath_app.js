@@ -149,7 +149,23 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to 16 encyclopedia categories. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 12;
+const SNAPSHOT_VERSION = 13;
+
+/** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
+const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
+const RUN_PERMANENT_UPGRADE_TIER_COSTS = Object.freeze([500, 1000, 2000, 3000, 4000]);
+
+function normalizeRunPermanentUpgradeTier(value) {
+  return clamp(getSafeCount(value, 0), 0, RUN_PERMANENT_UPGRADE_MAX_TIER);
+}
+
+function getNextRunPermanentUpgradeShopCost(currentTier) {
+  const tier = normalizeRunPermanentUpgradeTier(currentTier);
+  if (tier >= RUN_PERMANENT_UPGRADE_MAX_TIER) {
+    return 0;
+  }
+  return RUN_PERMANENT_UPGRADE_TIER_COSTS[tier];
+}
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
@@ -276,36 +292,53 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
-    id: "shop-playfield-pan-zoom",
-    title: "Field Pan & Zoom",
+    id: "shop-playfield-upgrade-track",
+    title: "Field & view",
     cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
-    description: "Unlock dragging the view and zooming on the full mixing field. Further size comes from Expand purchases in the Shop.",
-    canPurchase: () => getPlayfieldUpgradeTier() < 1,
+    description: "",
+    canPurchase: () => getPlayfieldUpgradeTier() < PLAYFIELD_SHOP_STEP_COUNT,
     purchase: () => {
-      state.purchasedUpgrades.playfieldTier = 1;
-      return formatShopPurchaseMessage("shop-playfield-pan-zoom", []);
+      const t = getPlayfieldUpgradeTier();
+      if (t < 1) {
+        state.purchasedUpgrades.playfieldTier = 1;
+        return formatShopPurchaseMessage("shop-playfield-pan-zoom", []);
+      }
+      if (t === 1) {
+        state.purchasedUpgrades.playfieldTier = 2;
+        return formatShopPurchaseMessage("shop-playfield-expand", []);
+      }
+      if (t === 2) {
+        state.purchasedUpgrades.playfieldTier = 3;
+        return formatShopPurchaseMessage("shop-playfield-expand-2", []);
+      }
+      return "";
     },
   },
   {
-    id: "shop-playfield-expand",
-    title: "Expand Mixing Field +50%",
-    cost: SHOP_PLAYFIELD_EXPAND_COST,
-    description: "Increase playfield size by 50% (requires Field Pan & Zoom).",
-    canPurchase: () => getPlayfieldUpgradeTier() === 1,
+    id: "shop-run-permanent-random-tokens",
+    title: "1 random token",
+    cost: RUN_PERMANENT_UPGRADE_TIER_COSTS[0],
+    description: "",
+    canPurchase: () => normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
+      < RUN_PERMANENT_UPGRADE_MAX_TIER,
     purchase: () => {
-      state.purchasedUpgrades.playfieldTier = 2;
-      return formatShopPurchaseMessage("shop-playfield-expand", []);
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-run-permanent-random-tokens"));
+      state.runPermanentRandomTokens = normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
+        + 1;
+      return formatShopPurchaseMessage("shop-run-permanent-random-tokens", [cost, state.runPermanentRandomTokens]);
     },
   },
   {
-    id: "shop-playfield-expand-2",
-    title: "Expand Mixing Field +50% (again)",
-    cost: SHOP_PLAYFIELD_EXPAND_2_COST,
-    description: "Grow the playfield by another 50% (after the first expansion).",
-    canPurchase: () => getPlayfieldUpgradeTier() === 2,
+    id: "shop-run-permanent-more-ink",
+    title: "More ink",
+    cost: RUN_PERMANENT_UPGRADE_TIER_COSTS[0],
+    description: "",
+    canPurchase: () => normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk)
+      < RUN_PERMANENT_UPGRADE_MAX_TIER,
     purchase: () => {
-      state.purchasedUpgrades.playfieldTier = 3;
-      return formatShopPurchaseMessage("shop-playfield-expand-2", []);
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-run-permanent-more-ink"));
+      state.runPermanentMoreInk = normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk) + 1;
+      return formatShopPurchaseMessage("shop-run-permanent-more-ink", [cost, state.runPermanentMoreInk]);
     },
   },
   {
@@ -337,20 +370,12 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
 
 /** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
 const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
-  "shop-playfield-pan-zoom",
-  "shop-playfield-expand",
-  "shop-playfield-expand-2",
-]);
-
-const SHOP_ITEM_IDS_PLAYFIELD_EXPAND_HIDDEN_UNTIL_PAN_ZOOM = new Set([
-  "shop-playfield-expand",
-  "shop-playfield-expand-2",
+  "shop-playfield-upgrade-track",
+  "shop-run-permanent-random-tokens",
+  "shop-run-permanent-more-ink",
 ]);
 
 function isSidebarShopUpgradeVisible(item) {
-  if (SHOP_ITEM_IDS_PLAYFIELD_EXPAND_HIDDEN_UNTIL_PAN_ZOOM.has(item.id)) {
-    return getPlayfieldUpgradeTier() >= 1;
-  }
   return true;
 }
 
@@ -389,6 +414,10 @@ const state = {
   totalCoinsEarned: 0,
   purchasedUpgrades: createDefaultPurchasedUpgradeState(),
   shopPurchaseCounts: {},
+  /** 0–5: bonus random quest-pool tokens after carry when entering a new stage (run-wide). */
+  runPermanentRandomTokens: 0,
+  /** 0–5: bonus quest ink on each new stage’s first quest (run-wide). */
+  runPermanentMoreInk: 0,
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableMinusMixTokens: 0,
@@ -575,6 +604,25 @@ function getPlayfieldUpgradeTier() {
   return clamp(getSafeCount(state.purchasedUpgrades.playfieldTier, 0), 0, 3);
 }
 
+const PLAYFIELD_SHOP_STEP_COUNT = 3;
+
+/** Sidebar uses one card; i18n matches the next purchase (pan → expand → expand‑2). */
+function getPlayfieldShopNextStepId() {
+  const t = getPlayfieldUpgradeTier();
+  if (t < 1) return "shop-playfield-pan-zoom";
+  if (t === 1) return "shop-playfield-expand";
+  if (t === 2) return "shop-playfield-expand-2";
+  return null;
+}
+
+function getPlayfieldUpgradeTrackShopCost() {
+  const t = getPlayfieldUpgradeTier();
+  if (t < 1) return SHOP_PLAYFIELD_PAN_ZOOM_COST;
+  if (t === 1) return SHOP_PLAYFIELD_EXPAND_COST;
+  if (t === 2) return SHOP_PLAYFIELD_EXPAND_2_COST;
+  return 0;
+}
+
 function getMaximumPlayfieldZoom() {
   return getPlayfieldUpgradeTier() < 1 ? 1 : MAX_PLAYFIELD_ZOOM;
 }
@@ -618,6 +666,15 @@ function recordIncrementalShopPurchase(itemId) {
 function getShopItemCost(item) {
   if (!item) {
     return 0;
+  }
+  if (item.id === "shop-playfield-upgrade-track") {
+    return getPlayfieldUpgradeTrackShopCost();
+  }
+  if (item.id === "shop-run-permanent-random-tokens") {
+    return getNextRunPermanentUpgradeShopCost(state.runPermanentRandomTokens);
+  }
+  if (item.id === "shop-run-permanent-more-ink") {
+    return getNextRunPermanentUpgradeShopCost(state.runPermanentMoreInk);
   }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
     return getIncrementalShopPrice(item.cost, getShopPurchaseCount(item.id), item.id);
@@ -1161,7 +1218,8 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   }
   const carry = getSafeCount(carryOverTurns);
   if (initial) {
-    state.quest.remainingDiscoveries = getInitialQuestTurnBudgetForStage(state.runStage) + carry;
+    const inkBonus = normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk);
+    state.quest.remainingDiscoveries = getInitialQuestTurnBudgetForStage(state.runStage) + carry + inkBonus;
   } else {
     const bonus = getQuestCompletionBonusTurns();
     state.quest.remainingDiscoveries = state.quest.remainingDiscoveries + bonus + carry;
@@ -1234,6 +1292,23 @@ function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
 /** Weighted quest-pool pick (broad half of old 1/7; minus-mix same as broad); mutates state and rewardSummary deltas. */
 function grantOneRandomQuestPoolToken(rewardSummary) {
   grantQuestPoolTokenOfType(pickRandomQuestPoolRewardType(), rewardSummary);
+}
+
+function grantRunPermanentRandomTokensAfterStageCarry(count) {
+  const n = normalizeRunPermanentUpgradeTier(count);
+  if (n <= 0) {
+    return;
+  }
+  const rewardSummary = {
+    newBroadChoiceTokens: 0,
+    newMinusMixTokens: 0,
+    newBanWordTokens: 0,
+    newWildcardTokens: 0,
+    newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+  };
+  for (let i = 0; i < n; i += 1) {
+    grantOneRandomQuestPoolToken(rewardSummary);
+  }
 }
 
 function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
@@ -1437,6 +1512,8 @@ function buildProgressSnapshot() {
     totalCoinsEarned: state.totalCoinsEarned,
     purchasedUpgrades: { ...state.purchasedUpgrades },
     shopPurchaseCounts: { ...state.shopPurchaseCounts },
+    runPermanentRandomTokens: state.runPermanentRandomTokens,
+    runPermanentMoreInk: state.runPermanentMoreInk,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableMinusMixTokens: state.availableMinusMixTokens,
@@ -1774,6 +1851,12 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   }
   state.purchasedUpgrades = loadedPurchases;
   state.shopPurchaseCounts = normalizeSavedShopPurchaseCounts(snapshot.shopPurchaseCounts);
+  state.runPermanentRandomTokens = snapshotVersion >= 13
+    ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentRandomTokens)
+    : 0;
+  state.runPermanentMoreInk = snapshotVersion >= 13
+    ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentMoreInk)
+    : 0;
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableMinusMixTokens = getSafeCount(snapshot.availableMinusMixTokens);
@@ -4835,6 +4918,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.shopPurchaseCounts = {};
   zeroSpendableTokens();
   applyCarriedTokenList(carriedTokens);
+  grantRunPermanentRandomTokensAfterStageCarry(state.runPermanentRandomTokens);
   const carryLower = new Set(carryWords.map((w) => w.toLowerCase()));
   state.tiles = state.tiles
     .filter((tile) => carryLower.has(tile.word.toLowerCase()))
@@ -5403,34 +5487,25 @@ function getShopItemPurchaseState(item) {
         reason: state.quest.isLost ? "Quest already failed." : "No active quest.",
       };
     }
-    if (item.id === "shop-playfield-pan-zoom") {
+    if (item.id === "shop-run-permanent-random-tokens") {
       return {
         canBuy: false,
-        reason: getPlayfieldUpgradeTier() >= 1 ? "Already unlocked." : "Unavailable right now.",
+        reason: getUiLang() === "ru" ? "Максимальный уровень." : "Fully upgraded.",
       };
     }
-    if (item.id === "shop-playfield-expand") {
-      const tier = getPlayfieldUpgradeTier();
-      if (tier < 1) {
-        return { canBuy: false, reason: "Buy Field Pan & Zoom first." };
-      }
-      if (tier >= 2) {
-        return { canBuy: false, reason: "Already purchased." };
-      }
-      return { canBuy: false, reason: "Unavailable right now." };
+    if (item.id === "shop-run-permanent-more-ink") {
+      return {
+        canBuy: false,
+        reason: getUiLang() === "ru" ? "Максимальный уровень." : "Fully upgraded.",
+      };
     }
-    if (item.id === "shop-playfield-expand-2") {
-      const tier = getPlayfieldUpgradeTier();
-      if (tier < 1) {
-        return { canBuy: false, reason: "Buy Field Pan & Zoom first." };
-      }
-      if (tier < 2) {
-        return { canBuy: false, reason: "Buy the first +50% expansion first." };
-      }
-      if (tier >= 3) {
-        return { canBuy: false, reason: "Already purchased." };
-      }
-      return { canBuy: false, reason: "Unavailable right now." };
+    if (item.id === "shop-playfield-upgrade-track") {
+      return {
+        canBuy: false,
+        reason: getUiLang() === "ru"
+          ? "Все улучшения поля куплены."
+          : "All field upgrades unlocked.",
+      };
     }
     return {
       canBuy: false,
@@ -5487,9 +5562,7 @@ async function purchaseShopItem(itemId) {
     const message = await item.purchase();
     state.coins -= itemCost;
     recordIncrementalShopPurchase(item.id);
-    if (item.id === "shop-playfield-pan-zoom"
-      || item.id === "shop-playfield-expand"
-      || item.id === "shop-playfield-expand-2") {
+    if (item.id === "shop-playfield-upgrade-track") {
       refreshPlayfieldAfterTierUpgrade();
     }
     renderSidebar();
@@ -5609,30 +5682,69 @@ function renderUpgradePanel() {
 
     const title = document.createElement("div");
     title.className = "upgrade-card-name";
-    title.textContent = localizedShopTitle(item.id);
+    const isPlayfieldTrack = item.id === "shop-playfield-upgrade-track";
+    const playfieldNextId = isPlayfieldTrack ? getPlayfieldShopNextStepId() : null;
+    const playfieldAtMax = isPlayfieldTrack && playfieldNextId === null;
+    title.textContent = playfieldAtMax
+      ? localizedShopTitle("shop-playfield-upgrade-track")
+      : isPlayfieldTrack
+        ? localizedShopTitle(playfieldNextId)
+        : localizedShopTitle(item.id);
 
     titleWrap.append(title);
     head.append(titleWrap);
 
     const price = document.createElement("div");
     price.className = "upgrade-cost";
-    price.textContent = itemCost.toString();
+    const isPermanentRandom = item.id === "shop-run-permanent-random-tokens";
+    const isPermanentInk = item.id === "shop-run-permanent-more-ink";
+    const permanentTier = isPermanentRandom
+      ? normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
+      : isPermanentInk
+        ? normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk)
+        : 0;
+    const permanentAtMax = (isPermanentRandom || isPermanentInk)
+      && permanentTier >= RUN_PERMANENT_UPGRADE_MAX_TIER;
+    const atMax = permanentAtMax || playfieldAtMax;
+    price.textContent = atMax ? "—" : itemCost.toString();
     head.append(price);
 
     const blurb = document.createElement("p");
     blurb.className = "upgrade-card-text";
-    blurb.textContent = getShopItemDescription(item);
+    if (isPlayfieldTrack) {
+      const pfTier = getPlayfieldUpgradeTier();
+      const stepHint = getUiLang() === "ru"
+        ? (playfieldAtMax
+          ? `Готово: ${PLAYFIELD_SHOP_STEP_COUNT}/${PLAYFIELD_SHOP_STEP_COUNT}.`
+          : `Шаг ${pfTier + 1}/${PLAYFIELD_SHOP_STEP_COUNT}.`)
+        : (playfieldAtMax
+          ? `Complete: ${PLAYFIELD_SHOP_STEP_COUNT}/${PLAYFIELD_SHOP_STEP_COUNT}.`
+          : `Step ${pfTier + 1}/${PLAYFIELD_SHOP_STEP_COUNT}.`);
+      const desc = playfieldAtMax
+        ? localizedShopDescription("shop-playfield-upgrade-track")
+        : localizedShopDescription(playfieldNextId);
+      blurb.textContent = [desc, stepHint].filter(Boolean).join(" ");
+    } else if (isPermanentRandom || isPermanentInk) {
+      const tierHint = getUiLang() === "ru"
+        ? `Уровень ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`
+        : `Tier ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`;
+      blurb.textContent = [getShopItemDescription(item), tierHint].filter(Boolean).join(" ");
+    } else {
+      blurb.textContent = getShopItemDescription(item);
+    }
 
     const effect = document.createElement("p");
     effect.className = "upgrade-card-effect";
     effect.textContent = purchaseState.reason;
-    effect.hidden = !purchaseState.reason;
+    effect.hidden = atMax || !purchaseState.reason;
 
     const button = document.createElement("button");
     button.type = "button";
     button.className = "upgrade-buy-button";
     button.disabled = !purchaseState.canBuy;
-    button.textContent = formatShopBuyLine(itemCost);
+    button.textContent = atMax
+      ? (getUiLang() === "ru" ? "Максимум" : "Maxed")
+      : formatShopBuyLine(itemCost);
     button.addEventListener("click", () => {
       purchaseShopItem(item.id);
     });
@@ -7431,6 +7543,8 @@ function resetRun() {
   state.totalCoinsEarned = state.coins;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
   state.shopPurchaseCounts = {};
+  state.runPermanentRandomTokens = 0;
+  state.runPermanentMoreInk = 0;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableMinusMixTokens = 0;

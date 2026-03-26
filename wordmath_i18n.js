@@ -305,6 +305,29 @@ const SHOP_MESSAGES = {
       description: "Grow the playfield by another 50% (after the first expansion).",
       purchaseDone: () => "Mixing field expanded by another +50%.",
     },
+    "shop-playfield-upgrade-track": {
+      title: "Mixing field & view",
+      description: "All upgrades unlocked: pan and zoom on the full field, plus two +50% size expansions.",
+      purchaseDone: () => "",
+    },
+    "shop-run-permanent-random-tokens": {
+      title: "1 random token",
+      description:
+        "For this entire run: every time you enter a new stage, after token carry you also gain random quest-pool tokens—one per tier, up to 5 at tier 5. Resets on New Game.",
+      purchaseDone: (cost, tier) =>
+        `Paid ${cost} coins (tier ${tier}/5). You now receive ${tier} random token${
+          tier === 1 ? "" : "s"
+        } at the start of each new stage (after carry).`,
+    },
+    "shop-run-permanent-more-ink": {
+      title: "More ink",
+      description:
+        "For this entire run: each new stage's first quest starts with +1 extra turn per tier (+5 at tier 5). Resets on New Game.",
+      purchaseDone: (cost, tier) =>
+        `Paid ${cost} coins (tier ${tier}/5). New stages now start with +${tier} quest turn${
+          tier === 1 ? "" : "s"
+        } on the first quest.`,
+    },
     "shop-quest-turn": {
       title: "Quest Turn +1",
       description: "Add 1 turn before you lose the current active quest.",
@@ -370,6 +393,26 @@ const SHOP_MESSAGES = {
       title: "Расширить поле ещё +50%",
       description: "Ещё +50% размера поля (после первого расширения).",
       purchaseDone: () => "Поле смешивания снова расширено на +50%.",
+    },
+    "shop-playfield-upgrade-track": {
+      title: "Поле и вид",
+      description:
+        "Все улучшения куплены: панорама и масштаб на всём поле и два расширения размера +50%.",
+      purchaseDone: () => "",
+    },
+    "shop-run-permanent-random-tokens": {
+      title: "1 случайный токен",
+      description:
+        "На весь забег: при входе на новый этап после переноса токенов вы получаете ещё случайные токены из пула квеста — по одному за уровень, до 5 на 5-м. Сбрасывается при «Новая игра».",
+      purchaseDone: (cost, tier) =>
+        `Потрачено ${cost} монет (уровень ${tier}/5). На старте каждого нового этапа (после переноса): ${tier}× случайный токен из пула квеста.`,
+    },
+    "shop-run-permanent-more-ink": {
+      title: "Больше чернил",
+      description:
+        "На весь забег: первый квест нового этапа начинается с +1 ход за уровень (+5 на 5-м). Сбрасывается при «Новая игра».",
+      purchaseDone: (cost, tier) =>
+        `Потрачено ${cost} монет (уровень ${tier}/5). Первый квест нового этапа: +${tier} к лимиту чернил.`,
     },
     "shop-quest-turn": {
       title: "Квест: +1 ход",
