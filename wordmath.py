@@ -30,9 +30,14 @@ def get_nltk_wordnet():
     return wn
 
 
+def _lexicon_is_single_token_label(nm: str) -> bool:
+    """True for one whitespace-delimited word; multi-word phrases are skipped."""
+    return bool(nm) and len(nm.split()) == 1
+
+
 def _lexicon_push(name: str, exclude: set[str], banned_keys: set[str], seen: set[str], out: list[str]) -> None:
     nm = name.replace("_", " ").strip().lower()
-    if not nm or nm in seen or nm in exclude:
+    if not nm or not _lexicon_is_single_token_label(nm) or nm in seen or nm in exclude:
         return
     cand = {nm}
     cand.update(get_word_family_forms(nm))
@@ -54,7 +59,7 @@ def _lexicon_synonyms_from_synset(
         if len(out) >= max_total:
             return
         nm = lem.name().replace("_", " ").strip().lower()
-        if nm in exclude or nm in seen:
+        if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
             continue
         cand = {nm}
         cand.update(get_word_family_forms(nm))
@@ -111,15 +116,69 @@ def _lexicon_antonyms_from_synset(
                         return
 
 
+def _lexicon_hypernyms_from_synset(
+    syn,
+    exclude: set[str],
+    banned_keys: set[str],
+    seen: set[str],
+    out: list[str],
+    max_total: int,
+) -> None:
+    """Immediate parent synsets (more general terms)."""
+    for hyp in syn.hypernyms():
+        if len(out) >= max_total:
+            return
+        for lem in hyp.lemmas():
+            if len(out) >= max_total:
+                return
+            nm = lem.name().replace("_", " ").strip().lower()
+            if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
+                continue
+            cand = {nm}
+            cand.update(get_word_family_forms(nm))
+            if cand & banned_keys:
+                continue
+            seen.add(nm)
+            out.append(nm)
+
+
+def _lexicon_hyponyms_from_synset(
+    syn,
+    exclude: set[str],
+    banned_keys: set[str],
+    seen: set[str],
+    out: list[str],
+    max_total: int,
+    *,
+    max_child_synsets: int = 36,
+) -> None:
+    """Child synsets (more specific kinds); breadth-capped per sense."""
+    for hypo in syn.hyponyms()[:max_child_synsets]:
+        if len(out) >= max_total:
+            return
+        for lem in hypo.lemmas():
+            if len(out) >= max_total:
+                return
+            nm = lem.name().replace("_", " ").strip().lower()
+            if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
+                continue
+            cand = {nm}
+            cand.update(get_word_family_forms(nm))
+            if cand & banned_keys:
+                continue
+            seen.add(nm)
+            out.append(nm)
+
+
 def lexicon_lookup(word: str, mode: str, banned_list: list, max_count: int = 5) -> dict:
-    """WordNet synonyms or antonyms: walk senses in order until max_count (English only)."""
+    """WordNet relations: walk senses in order until max_count single-token lemmas (English only)."""
     try:
         cap = max(1, min(int(max_count), 20))
     except (TypeError, ValueError):
         cap = 5
-    empty = {"ok": True, "placeholder": False, "words": []}
+    empty = {"ok": True, "placeholder": False, "words": [], "candidates": []}
     if GAME_LOCALE == "ru":
-        return {"ok": True, "placeholder": True, "words": []}
+        return {"ok": True, "placeholder": True, "words": [], "candidates": []}
     wn = get_nltk_wordnet()
     raw = (word or "").strip().lower()
     if not raw:
@@ -152,13 +211,29 @@ def lexicon_lookup(word: str, mode: str, banned_list: list, max_count: int = 5) 
             break
         if mode_norm == "synonym":
             _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
-        else:
+        elif mode_norm == "antonym":
             _lexicon_antonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+        elif mode_norm == "hypernym":
+            _lexicon_hypernyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+        elif mode_norm == "hyponym":
+            _lexicon_hyponyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+        else:
+            _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
 
+    final_words = words_out[:cap]
     return {
         "ok": True,
         "placeholder": False,
-        "words": words_out[:cap],
+        "words": final_words,
+        "candidates": [
+            {
+                "word": w,
+                "normalized": w,
+                "similarity": 0.0,
+                "zipf": get_word_zipf_frequency(w),
+            }
+            for w in final_words
+        ],
     }
 
 
@@ -732,11 +807,15 @@ def main():
     url = f"http://127.0.0.1:{port}/"
 
     print(
-        f"Preloading language model (game locale: {GAME_LOCALE}, "
+        f"Preloading language resources (game locale: {GAME_LOCALE}, "
         f"wordfreq: {WORDFREQ_LANG})"
     )
     get_language_resources()
-    print("Model ready.")
+    print("spaCy model ready.")
+    if GAME_LOCALE == "en":
+        print("Loading WordNet (NLTK)...")
+        get_nltk_wordnet()
+        print("WordNet ready.")
     print(f"Serving at {url}")
     print("Press Ctrl+C to stop.")
 

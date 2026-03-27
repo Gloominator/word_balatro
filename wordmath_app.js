@@ -219,6 +219,76 @@ const BROAD_CHOICE_PREVIEW_COUNT = 10;
 const DEFAULT_MIX_PREVIEW_COUNT = 5;
 const LEXICON_INTERNAL_SYNONYM = "__wm_lex_syn__";
 const LEXICON_INTERNAL_ANTONYM = "__wm_lex_ant__";
+const LEXICON_INTERNAL_HYPONYM = "__wm_lex_hypo__";
+const LEXICON_INTERNAL_HYPERNYM = "__wm_lex_hyper__";
+
+function isLexiconTokenKind(value) {
+  return value === "synonym"
+    || value === "antonym"
+    || value === "hyponym"
+    || value === "hypernym";
+}
+
+function getLexiconInternalWord(kind) {
+  if (kind === "synonym") {
+    return LEXICON_INTERNAL_SYNONYM;
+  }
+  if (kind === "antonym") {
+    return LEXICON_INTERNAL_ANTONYM;
+  }
+  if (kind === "hyponym") {
+    return LEXICON_INTERNAL_HYPONYM;
+  }
+  if (kind === "hypernym") {
+    return LEXICON_INTERNAL_HYPERNYM;
+  }
+  return LEXICON_INTERNAL_SYNONYM;
+}
+
+function refundLexiconTokenToDock(kind) {
+  if (kind === "synonym") {
+    state.availableLexiconSynonymTokens += 1;
+  } else if (kind === "antonym") {
+    state.availableLexiconAntonymTokens += 1;
+  } else if (kind === "hyponym") {
+    state.availableLexiconHyponymTokens += 1;
+  } else if (kind === "hypernym") {
+    state.availableLexiconHypernymTokens += 1;
+  }
+}
+
+function dragTypeToLexiconKind(dragType) {
+  if (dragType === "lexicon-synonym") {
+    return "synonym";
+  }
+  if (dragType === "lexicon-antonym") {
+    return "antonym";
+  }
+  if (dragType === "lexicon-hyponym") {
+    return "hyponym";
+  }
+  if (dragType === "lexicon-hypernym") {
+    return "hypernym";
+  }
+  return null;
+}
+
+function lexiconRemovedToDockMessage(kind) {
+  if (kind === "synonym") {
+    return t("lexicon.removedSynonym");
+  }
+  if (kind === "antonym") {
+    return t("lexicon.removedAntonym");
+  }
+  if (kind === "hyponym") {
+    return t("lexicon.removedHyponym");
+  }
+  if (kind === "hypernym") {
+    return t("lexicon.removedHypernym");
+  }
+  return t("lexicon.removedSynonym");
+}
+
 const SHOP_LEXICON_TOKEN_COST = 100;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
@@ -251,9 +321,24 @@ const QUEST_COMPLETION_BONUS_TURNS = 5;
 const QUEST_COMPLETION_COIN_REWARD = 100;
 const QUEST_COMPLETION_REWARD_COUNT = 1;
 /** All types that can appear in weighted quest / preview / encyclopedia bonus rolls (see pickRandomQuestPoolRewardType). */
-const QUEST_REWARD_TOKEN_POOL = Object.freeze(["broad-choice", "minus-mix", "ban-word", 2, 3, 4, 5]);
+const QUEST_REWARD_TOKEN_POOL = Object.freeze([
+  "broad-choice",
+  "minus-mix",
+  "ban-word",
+  2,
+  3,
+  4,
+  5,
+  "lexicon-synonym",
+  "lexicon-antonym",
+  "lexicon-hyponym",
+  "lexicon-hypernym",
+]);
 const QUEST_REWARD_TOKEN_TYPE_SET = new Set(QUEST_REWARD_TOKEN_POOL);
-/** Broad was 1/7; now 1/14. Minus-mix matches broad. Ban + rank tokens share the rest (6/35 each). Weights sum to 70. */
+/**
+ * Weights sum to 70. Broad/minus/fifth unchanged vs older 70-total tables; ban + ranks 2–4 each −1 to add
+ * four lexicon tiles (1 weight each) for super-rare preview / quest-pool drops without changing total roll mass.
+ */
 const QUEST_POOL_REWARD_WEIGHT_TOTAL = 70;
 /** Only rows 1–5 in the hover “Top matches” list can register a super-rare preview roll (Broad Choice rows 6–10 do not). */
 const SUPER_RARE_PREVIEW_ROLL_ROWS = 5;
@@ -264,7 +349,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 16;
+const SNAPSHOT_VERSION = 17;
 
 /** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
 const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
@@ -302,6 +387,8 @@ const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
   "shop-quest-turn",
   "shop-lexicon-synonym",
   "shop-lexicon-antonym",
+  "shop-lexicon-hyponym",
+  "shop-lexicon-hypernym",
 ]);
 
 /** Rank 2–5 + Ban: effective base cost = list price × current run stage (stage 1 = 1×, 2 = 2×, …). */
@@ -313,6 +400,8 @@ const SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE = new Set([
   "shop-ban-word",
   "shop-lexicon-synonym",
   "shop-lexicon-antonym",
+  "shop-lexicon-hyponym",
+  "shop-lexicon-hypernym",
 ]);
 
 /** Broad + Minus: base × (1 + 0.5×(stage−1)) — stage 1 = 1×, 2 = 1.5×, 3 = 2×, …. */
@@ -453,6 +542,32 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-lexicon-hyponym",
+    title: "Hyponym token",
+    cost: SHOP_LEXICON_TOKEN_COST,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableLexiconHyponymTokens += 1;
+      state.totalLexiconHyponymTokensEarned += 1;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-lexicon-hyponym"));
+      return formatShopPurchaseMessage("shop-lexicon-hyponym", [cost]);
+    },
+  },
+  {
+    id: "shop-lexicon-hypernym",
+    title: "Hypernym token",
+    cost: SHOP_LEXICON_TOKEN_COST,
+    description: "",
+    canPurchase: () => true,
+    purchase: () => {
+      state.availableLexiconHypernymTokens += 1;
+      state.totalLexiconHypernymTokensEarned += 1;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-lexicon-hypernym"));
+      return formatShopPurchaseMessage("shop-lexicon-hypernym", [cost]);
+    },
+  },
+  {
     id: "shop-playfield-upgrade-track",
     title: "Field & view",
     cost: SHOP_PLAYFIELD_PAN_ZOOM_COST,
@@ -529,6 +644,8 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-minus-mix",
   "shop-lexicon-synonym",
   "shop-lexicon-antonym",
+  "shop-lexicon-hyponym",
+  "shop-lexicon-hypernym",
 ]);
 
 /** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
@@ -601,6 +718,10 @@ const state = {
   totalLexiconSynonymTokensEarned: 0,
   availableLexiconAntonymTokens: 0,
   totalLexiconAntonymTokensEarned: 0,
+  availableLexiconHyponymTokens: 0,
+  totalLexiconHyponymTokensEarned: 0,
+  availableLexiconHypernymTokens: 0,
+  totalLexiconHypernymTokensEarned: 0,
   progressSecondResultTokensAwarded: 0,
   /** Run stage 1–6; each stage clears a batch of encyclopedia categories. */
   runStage: 1,
@@ -1450,19 +1571,31 @@ function pickRandomQuestPoolRewardType() {
   if (r < 10) {
     return "minus-mix";
   }
-  if (r < 22) {
+  if (r < 21) {
     return "ban-word";
   }
-  if (r < 34) {
+  if (r < 32) {
     return 2;
   }
-  if (r < 46) {
+  if (r < 43) {
     return 3;
   }
-  if (r < 58) {
+  if (r < 54) {
     return 4;
   }
-  return 5;
+  if (r < 66) {
+    return 5;
+  }
+  if (r < 67) {
+    return "lexicon-synonym";
+  }
+  if (r < 68) {
+    return "lexicon-antonym";
+  }
+  if (r < 69) {
+    return "lexicon-hyponym";
+  }
+  return "lexicon-hypernym";
 }
 
 /** Grant a single quest-pool token type (same pool as quest / encyclopedia bonus). */
@@ -1486,6 +1619,34 @@ function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
     state.totalBanWordTokensEarned += 1;
     state.unseenTokenRewards += 1;
     rewardSummary.newBanWordTokens += 1;
+    return;
+  }
+  if (rewardType === "lexicon-synonym") {
+    state.availableLexiconSynonymTokens += 1;
+    state.totalLexiconSynonymTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newLexiconSynonymTokens = getSafeCount(rewardSummary.newLexiconSynonymTokens) + 1;
+    return;
+  }
+  if (rewardType === "lexicon-antonym") {
+    state.availableLexiconAntonymTokens += 1;
+    state.totalLexiconAntonymTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newLexiconAntonymTokens = getSafeCount(rewardSummary.newLexiconAntonymTokens) + 1;
+    return;
+  }
+  if (rewardType === "lexicon-hyponym") {
+    state.availableLexiconHyponymTokens += 1;
+    state.totalLexiconHyponymTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newLexiconHyponymTokens = getSafeCount(rewardSummary.newLexiconHyponymTokens) + 1;
+    return;
+  }
+  if (rewardType === "lexicon-hypernym") {
+    state.availableLexiconHypernymTokens += 1;
+    state.totalLexiconHypernymTokensEarned += 1;
+    state.unseenTokenRewards += 1;
+    rewardSummary.newLexiconHypernymTokens = getSafeCount(rewardSummary.newLexiconHypernymTokens) + 1;
     return;
   }
 
@@ -1578,6 +1739,10 @@ function advanceQuest(canonicalResult, {
     newMinusMixTokens: 0,
     newBanWordTokens: 0,
     newWildcardTokens: 0,
+    newLexiconSynonymTokens: 0,
+    newLexiconAntonymTokens: 0,
+    newLexiconHyponymTokens: 0,
+    newLexiconHypernymTokens: 0,
     newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
     turnsTaken: state.quest.turnsTaken,
     questBaseCoins: 0,
@@ -1619,6 +1784,10 @@ function advanceQuest(canonicalResult, {
     questResult.newMinusMixTokens = rewardSummary.newMinusMixTokens;
     questResult.newBanWordTokens = rewardSummary.newBanWordTokens;
     questResult.newWildcardTokens = rewardSummary.newWildcardTokens;
+    questResult.newLexiconSynonymTokens = getSafeCount(rewardSummary.newLexiconSynonymTokens);
+    questResult.newLexiconAntonymTokens = getSafeCount(rewardSummary.newLexiconAntonymTokens);
+    questResult.newLexiconHyponymTokens = getSafeCount(rewardSummary.newLexiconHyponymTokens);
+    questResult.newLexiconHypernymTokens = getSafeCount(rewardSummary.newLexiconHypernymTokens);
     mergePositionTokenRewardSummary(questResult.newPositionTokenRewards, rewardSummary.newPositionTokenRewards);
     return questResult;
   }
@@ -1668,7 +1837,7 @@ function buildProgressSnapshot() {
       pendingBan: Boolean(tile.pendingBan),
       broadChoiceCharged: Boolean(tile.broadChoiceCharged),
       minusMixTagged: Boolean(tile.minusMixTagged),
-      lexiconTokenKind: tile.lexiconTokenKind === "synonym" || tile.lexiconTokenKind === "antonym"
+      lexiconTokenKind: isLexiconTokenKind(tile.lexiconTokenKind)
         ? tile.lexiconTokenKind
         : undefined,
       x: tile.x,
@@ -1741,6 +1910,10 @@ function buildProgressSnapshot() {
     totalLexiconSynonymTokensEarned: state.totalLexiconSynonymTokensEarned,
     availableLexiconAntonymTokens: state.availableLexiconAntonymTokens,
     totalLexiconAntonymTokensEarned: state.totalLexiconAntonymTokensEarned,
+    availableLexiconHyponymTokens: state.availableLexiconHyponymTokens,
+    totalLexiconHyponymTokensEarned: state.totalLexiconHyponymTokensEarned,
+    availableLexiconHypernymTokens: state.availableLexiconHypernymTokens,
+    totalLexiconHypernymTokensEarned: state.totalLexiconHypernymTokensEarned,
     progressSecondResultTokensAwarded: state.progressSecondResultTokensAwarded,
     runStage: state.runStage,
     runEncyclopediaSlots: [...state.runEncyclopediaSlots],
@@ -1816,14 +1989,10 @@ function normalizeSavedTiles(value) {
   return value
     .filter((tile) => tile && typeof tile.word === "string")
     .map((tile) => {
-      const lexiconTokenKind = tile.lexiconTokenKind === "synonym" || tile.lexiconTokenKind === "antonym"
+      const lexiconTokenKind = isLexiconTokenKind(tile.lexiconTokenKind)
         ? tile.lexiconTokenKind
         : undefined;
-      const word = lexiconTokenKind === "synonym"
-        ? LEXICON_INTERNAL_SYNONYM
-        : lexiconTokenKind === "antonym"
-          ? LEXICON_INTERNAL_ANTONYM
-          : tile.word;
+      const word = lexiconTokenKind ? getLexiconInternalWord(lexiconTokenKind) : tile.word;
       return {
       id: getSafeCount(tile.id, 0),
       word,
@@ -2110,6 +2279,18 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     : 0;
   state.totalLexiconAntonymTokensEarned = snapshotVersion >= 16
     ? getSafeCount(snapshot.totalLexiconAntonymTokensEarned)
+    : 0;
+  state.availableLexiconHyponymTokens = snapshotVersion >= 17
+    ? getSafeCount(snapshot.availableLexiconHyponymTokens)
+    : 0;
+  state.totalLexiconHyponymTokensEarned = snapshotVersion >= 17
+    ? getSafeCount(snapshot.totalLexiconHyponymTokensEarned)
+    : 0;
+  state.availableLexiconHypernymTokens = snapshotVersion >= 17
+    ? getSafeCount(snapshot.availableLexiconHypernymTokens)
+    : 0;
+  state.totalLexiconHypernymTokensEarned = snapshotVersion >= 17
+    ? getSafeCount(snapshot.totalLexiconHypernymTokensEarned)
     : 0;
   state.progressSecondResultTokensAwarded = Math.min(
     getUnlockedSecondResultTokenCount(discovered.size),
@@ -2704,6 +2885,8 @@ function getTotalUsableTokenCount() {
     + state.availableWildcardTokens
     + state.availableLexiconSynonymTokens
     + state.availableLexiconAntonymTokens
+    + state.availableLexiconHyponymTokens
+    + state.availableLexiconHypernymTokens
     + POSITION_TOKEN_RANKS.reduce((total, rank) => total + getAvailablePositionTokenCount(rank), 0);
 }
 
@@ -2714,6 +2897,8 @@ function hasUnlockedAnyTokenType() {
     || state.availableWildcardTokens > 0
     || state.availableLexiconSynonymTokens > 0
     || state.availableLexiconAntonymTokens > 0
+    || state.availableLexiconHyponymTokens > 0
+    || state.availableLexiconHypernymTokens > 0
     || POSITION_TOKEN_RANKS.some((rank) => getAvailablePositionTokenCount(rank) > 0)
     || state.totalBroadChoiceTokensEarned > 0
     || state.totalBanWordTokensEarned > 0
@@ -2721,6 +2906,8 @@ function hasUnlockedAnyTokenType() {
     || state.totalWildcardTokensEarned > 0
     || state.totalLexiconSynonymTokensEarned > 0
     || state.totalLexiconAntonymTokensEarned > 0
+    || state.totalLexiconHyponymTokensEarned > 0
+    || state.totalLexiconHypernymTokensEarned > 0
     || POSITION_TOKEN_RANKS.some((rank) => getTotalEarnedPositionTokenCount(rank) > 0);
 }
 
@@ -2972,6 +3159,14 @@ function getQuestPoolRewardPreviewEmoji(rewardType) {
   if (rewardType === "broad-choice" || rewardType === "ban-word" || rewardType === "minus-mix") {
     return getTokenDockEmoji(rewardType);
   }
+  if (
+    rewardType === "lexicon-synonym"
+    || rewardType === "lexicon-antonym"
+    || rewardType === "lexicon-hyponym"
+    || rewardType === "lexicon-hypernym"
+  ) {
+    return getTokenDockEmoji(rewardType);
+  }
   if (QUEST_REWARD_TOKEN_TYPE_SET.has(rewardType) && typeof rewardType === "number") {
     return getTokenDockEmoji(getPositionTokenDragType(rewardType));
   }
@@ -3116,6 +3311,10 @@ function resolvePendingBanMixIfNeeded({
       newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
+      newLexiconSynonymTokens,
+      newLexiconAntonymTokens,
+      newLexiconHyponymTokens,
+      newLexiconHypernymTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -3156,6 +3355,10 @@ function resolvePendingBanMixIfNeeded({
       newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
+      newLexiconSynonymTokens,
+      newLexiconAntonymTokens,
+      newLexiconHyponymTokens,
+      newLexiconHypernymTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -3464,14 +3667,23 @@ function clearDragMixPreview() {
 }
 
 function isLexiconTokenTile(tile) {
-  return tile?.lexiconTokenKind === "synonym" || tile?.lexiconTokenKind === "antonym";
+  return isLexiconTokenKind(tile?.lexiconTokenKind);
 }
 
 function getLexiconTileDisplayLabel(tile) {
   if (!isLexiconTokenTile(tile)) {
     return titleCase(tile.word);
   }
-  return tile.lexiconTokenKind === "synonym" ? t("tile.lexiconSynonym") : t("tile.lexiconAntonym");
+  if (tile.lexiconTokenKind === "synonym") {
+    return t("tile.lexiconSynonym");
+  }
+  if (tile.lexiconTokenKind === "antonym") {
+    return t("tile.lexiconAntonym");
+  }
+  if (tile.lexiconTokenKind === "hyponym") {
+    return t("tile.lexiconHyponym");
+  }
+  return t("tile.lexiconHypernym");
 }
 
 function filterLexiconSuggestions(words) {
@@ -3479,6 +3691,59 @@ function filterLexiconSuggestions(words) {
     word: w,
     normalized: (w || "").toLowerCase(),
   }));
+}
+
+function getLexiconEmptyMixError(mode) {
+  if (mode === "antonym") {
+    return t("lexicon.noAntonyms");
+  }
+  if (mode === "hyponym") {
+    return t("lexicon.noHyponyms");
+  }
+  if (mode === "hypernym") {
+    return t("lexicon.noHypernyms");
+  }
+  return t("lexicon.noSynonyms");
+}
+
+/** Build mix-style candidates from /api/lexicon (WordNet list matches drag preview). */
+function lexiconApiPayloadToMixCandidates(payload) {
+  if (!payload || payload.placeholder) {
+    return [];
+  }
+  const fromApi = payload.candidates;
+  if (Array.isArray(fromApi) && fromApi.length > 0) {
+    return fromApi
+      .map((c) => {
+        const word = typeof c.word === "string" ? c.word.trim().toLowerCase() : "";
+        const normalized = typeof c.normalized === "string" ? c.normalized.trim().toLowerCase() : word;
+        if (!word) {
+          return null;
+        }
+        return {
+          word,
+          normalized: normalized || word,
+          zipf: Number.isFinite(c.zipf) ? c.zipf : null,
+          similarity: Number.isFinite(c.similarity) ? c.similarity : 0,
+        };
+      })
+      .filter(Boolean);
+  }
+  const words = payload.words;
+  if (!Array.isArray(words)) {
+    return [];
+  }
+  return words
+    .filter((w) => typeof w === "string" && w.trim())
+    .map((w) => {
+      const word = w.trim().toLowerCase();
+      return {
+        word,
+        normalized: word,
+        zipf: null,
+        similarity: 0,
+      };
+    });
 }
 
 async function fetchLexiconRelations(word, mode, maxCount) {
@@ -3515,7 +3780,13 @@ function showFloatingLexiconPreview({
   const title = document.createElement("div");
   title.className = "floating-match-preview-title";
   const cap = Math.max(1, getSafeCount(maxLines, DEFAULT_MIX_PREVIEW_COUNT));
-  const modeLabel = mode === "antonym" ? t("lexicon.previewTitleAntonym") : t("lexicon.previewTitleSynonym");
+  const modeLabel = mode === "antonym"
+    ? t("lexicon.previewTitleAntonym")
+    : mode === "hyponym"
+      ? t("lexicon.previewTitleHyponym")
+      : mode === "hypernym"
+        ? t("lexicon.previewTitleHypernym")
+        : t("lexicon.previewTitleSynonym");
   title.textContent = placeholder
     ? t("lexicon.previewPlaceholderTitle")
     : (cap > DEFAULT_MIX_PREVIEW_COUNT ? `${modeLabel} (${cap})` : modeLabel);
@@ -3531,6 +3802,16 @@ function showFloatingLexiconPreview({
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
     line.textContent = t("lexicon.noAntonyms");
+    preview.append(line);
+  } else if (!lines.length && mode === "hyponym") {
+    const line = document.createElement("div");
+    line.className = "floating-match-preview-line";
+    line.textContent = t("lexicon.noHyponyms");
+    preview.append(line);
+  } else if (!lines.length && mode === "hypernym") {
+    const line = document.createElement("div");
+    line.className = "floating-match-preview-line";
+    line.textContent = t("lexicon.noHypernyms");
     preview.append(line);
   } else if (!lines.length) {
     const line = document.createElement("div");
@@ -3767,7 +4048,7 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
   const lexTile = isLexiconTokenTile(sourceTile) ? sourceTile : (isLexiconTokenTile(targetTile) ? targetTile : null);
   const plainTile = lexTile === sourceTile ? targetTile : sourceTile;
   if (lexTile && plainTile && !isLexiconTokenTile(plainTile)) {
-    const mode = lexTile.lexiconTokenKind === "antonym" ? "antonym" : "synonym";
+    const mode = lexTile.lexiconTokenKind;
     const maxLex = plainTile.broadChoiceCharged
       ? BROAD_CHOICE_PREVIEW_COUNT
       : DEFAULT_MIX_PREVIEW_COUNT;
@@ -5308,15 +5589,11 @@ function applyConfirmedStageAdvance(selectedKeys) {
   grantRunPermanentRandomTokensAfterStageCarry(state.runPermanentRandomTokens);
   const carryLower = new Set(carryWords.map((w) => w.toLowerCase()));
   state.tiles.forEach((tile) => {
-    if (!tile.lexiconTokenKind) {
+    if (!isLexiconTokenKind(tile.lexiconTokenKind)) {
       return;
     }
     if (!carryLower.has(tile.word.toLowerCase())) {
-      if (tile.lexiconTokenKind === "synonym") {
-        state.availableLexiconSynonymTokens += 1;
-      } else if (tile.lexiconTokenKind === "antonym") {
-        state.availableLexiconAntonymTokens += 1;
-      }
+      refundLexiconTokenToDock(tile.lexiconTokenKind);
     }
   });
   state.tiles = state.tiles
@@ -5677,6 +5954,10 @@ async function useWildcardToken(position = null) {
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -5694,6 +5975,10 @@ async function useWildcardToken(position = null) {
       newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
+      newLexiconSynonymTokens,
+      newLexiconAntonymTokens,
+      newLexiconHyponymTokens,
+      newLexiconHypernymTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -5722,6 +6007,12 @@ function getTokenDockEmoji(dragType) {
   }
   if (dragType === "lexicon-antonym") {
     return "A";
+  }
+  if (dragType === "lexicon-hyponym") {
+    return "↓";
+  }
+  if (dragType === "lexicon-hypernym") {
+    return "↑";
   }
   const rank = getPositionTokenRankFromDragType(dragType);
   if (rank === 2) {
@@ -5756,6 +6047,8 @@ function buildTokenDockPill({
   const glyphClass = dragType === "broad-choice"
     || dragType === "lexicon-synonym"
     || dragType === "lexicon-antonym"
+    || dragType === "lexicon-hyponym"
+    || dragType === "lexicon-hypernym"
     ? "token-dock-pill-letter"
     : "token-dock-pill-emoji";
   button.innerHTML = `
@@ -5878,6 +6171,30 @@ function renderTokenPanel() {
       dragType: "lexicon-antonym",
       onClick: () => {
         setStatus(t("tokenDock.lexiconAntonymDragHint"), "ok");
+      },
+    }));
+  }
+
+  if (state.availableLexiconHyponymTokens > 0) {
+    els.tokenDock.append(buildTokenDockPill({
+      title: t("tokenDock.lexiconHyponymTitle"),
+      description: t("tokenDock.lexiconHyponymHint"),
+      count: state.availableLexiconHyponymTokens,
+      dragType: "lexicon-hyponym",
+      onClick: () => {
+        setStatus(t("tokenDock.lexiconHyponymDragHint"), "ok");
+      },
+    }));
+  }
+
+  if (state.availableLexiconHypernymTokens > 0) {
+    els.tokenDock.append(buildTokenDockPill({
+      title: t("tokenDock.lexiconHypernymTitle"),
+      description: t("tokenDock.lexiconHypernymHint"),
+      count: state.availableLexiconHypernymTokens,
+      dragType: "lexicon-hypernym",
+      onClick: () => {
+        setStatus(t("tokenDock.lexiconHypernymDragHint"), "ok");
       },
     }));
   }
@@ -6297,6 +6614,10 @@ function getMixOutcomeMessage(
     newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
+    newLexiconSynonymTokens = 0,
+    newLexiconAntonymTokens = 0,
+    newLexiconHyponymTokens = 0,
+    newLexiconHypernymTokens = 0,
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
@@ -6358,6 +6679,10 @@ function getMixOutcomeMessage(
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
@@ -6383,6 +6708,10 @@ function getTokenRewardParts({
   newMinusMixTokens = 0,
   newBanWordTokens = 0,
   newWildcardTokens = 0,
+  newLexiconSynonymTokens = 0,
+  newLexiconAntonymTokens = 0,
+  newLexiconHyponymTokens = 0,
+  newLexiconHypernymTokens = 0,
   newPositionTokenRewards = null,
 } = {}) {
   const rewardParts = [];
@@ -6401,6 +6730,22 @@ function getTokenRewardParts({
   if (newWildcardTokens > 0) {
     const tokenSuffix = newWildcardTokens === 1 ? "token" : "tokens";
     rewardParts.push(`${newWildcardTokens} wildcard ${tokenSuffix}`);
+  }
+  if (newLexiconSynonymTokens > 0) {
+    const tokenSuffix = newLexiconSynonymTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newLexiconSynonymTokens} ${t("tile.lexiconSynonym")} ${tokenSuffix}`);
+  }
+  if (newLexiconAntonymTokens > 0) {
+    const tokenSuffix = newLexiconAntonymTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newLexiconAntonymTokens} ${t("tile.lexiconAntonym")} ${tokenSuffix}`);
+  }
+  if (newLexiconHyponymTokens > 0) {
+    const tokenSuffix = newLexiconHyponymTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newLexiconHyponymTokens} ${t("tile.lexiconHyponym")} ${tokenSuffix}`);
+  }
+  if (newLexiconHypernymTokens > 0) {
+    const tokenSuffix = newLexiconHypernymTokens === 1 ? "token" : "tokens";
+    rewardParts.push(`${newLexiconHypernymTokens} ${t("tile.lexiconHypernym")} ${tokenSuffix}`);
   }
   POSITION_TOKEN_RANKS.forEach((rank) => {
     const count = getSafeCount(newPositionTokenRewards?.[rank]);
@@ -6446,6 +6791,10 @@ function getWildcardOutcomeMessage(
     newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
+    newLexiconSynonymTokens = 0,
+    newLexiconAntonymTokens = 0,
+    newLexiconHyponymTokens = 0,
+    newLexiconHypernymTokens = 0,
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
@@ -6498,6 +6847,10 @@ function getWildcardOutcomeMessage(
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
@@ -6528,6 +6881,10 @@ function getSpawnWordOutcomeMessage(
     newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
+    newLexiconSynonymTokens = 0,
+    newLexiconAntonymTokens = 0,
+    newLexiconHyponymTokens = 0,
+    newLexiconHypernymTokens = 0,
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
@@ -6577,6 +6934,10 @@ function getSpawnWordOutcomeMessage(
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
@@ -6607,6 +6968,10 @@ function getShopWordBoosterOutcomeMessage(
     newMinusMixTokens = 0,
     newBanWordTokens = 0,
     newWildcardTokens = 0,
+    newLexiconSynonymTokens = 0,
+    newLexiconAntonymTokens = 0,
+    newLexiconHyponymTokens = 0,
+    newLexiconHypernymTokens = 0,
     newPositionTokenRewards = null,
     newZonesUnlocked = 0,
     completedCategories = [],
@@ -6656,6 +7021,10 @@ function getShopWordBoosterOutcomeMessage(
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
   });
   if (rewardParts.length > 0) {
@@ -6814,7 +7183,7 @@ function makeTile(word, x, y) {
 
 function makeLexiconTokenTile(kind, x, y) {
   const bounds = getPlayfieldBounds();
-  const word = kind === "synonym" ? LEXICON_INTERNAL_SYNONYM : LEXICON_INTERNAL_ANTONYM;
+  const word = getLexiconInternalWord(kind);
   return {
     id: state.nextTileId,
     word,
@@ -6867,20 +7236,36 @@ function spawnLexiconTokenOnField(kind, position = null) {
     setStatus(stageAdvancePlayBlockedMessage(), "error");
     return;
   }
+  if (!isLexiconTokenKind(kind)) {
+    setStatus(t("lexicon.invalidTokenError"), "error");
+    return;
+  }
   const available = kind === "synonym"
     ? state.availableLexiconSynonymTokens
-    : state.availableLexiconAntonymTokens;
+    : kind === "antonym"
+      ? state.availableLexiconAntonymTokens
+      : kind === "hyponym"
+        ? state.availableLexiconHyponymTokens
+        : state.availableLexiconHypernymTokens;
   if (available <= 0) {
-    setStatus(
-      kind === "synonym" ? t("lexicon.noSynonymTokens") : t("lexicon.noAntonymTokens"),
-      "error",
-    );
+    const noTok = kind === "synonym"
+      ? t("lexicon.noSynonymTokens")
+      : kind === "antonym"
+        ? t("lexicon.noAntonymTokens")
+        : kind === "hyponym"
+          ? t("lexicon.noHyponymTokens")
+          : t("lexicon.noHypernymTokens");
+    setStatus(noTok, "error");
     return;
   }
   if (kind === "synonym") {
     state.availableLexiconSynonymTokens -= 1;
-  } else {
+  } else if (kind === "antonym") {
     state.availableLexiconAntonymTokens -= 1;
+  } else if (kind === "hyponym") {
+    state.availableLexiconHyponymTokens -= 1;
+  } else if (kind === "hypernym") {
+    state.availableLexiconHypernymTokens -= 1;
   }
   const spawnPosition = position || getDefaultSpawnPosition();
   const newTile = makeLexiconTokenTile(kind, spawnPosition.x, spawnPosition.y);
@@ -6891,12 +7276,16 @@ function spawnLexiconTokenOnField(kind, position = null) {
   renderSidebar();
   renderTiles();
   queueProgressSave();
-  setStatus(
-    kind === "synonym"
-      ? t("lexicon.spawnedSynonym")
-      : t("lexicon.spawnedAntonym"),
-    "ok",
-  );
+  const spawned = kind === "synonym"
+    ? t("lexicon.spawnedSynonym")
+    : kind === "antonym"
+      ? t("lexicon.spawnedAntonym")
+      : kind === "hyponym"
+        ? t("lexicon.spawnedHyponym")
+        : kind === "hypernym"
+          ? t("lexicon.spawnedHypernym")
+          : t("lexicon.spawnedSynonym");
+  setStatus(spawned, "ok");
 }
 
 function removeTile(tileId) {
@@ -6907,10 +7296,8 @@ function removeTile(tileId) {
   if (tile?.minusMixTagged) {
     state.availableMinusMixTokens += 1;
   }
-  if (tile?.lexiconTokenKind === "synonym") {
-    state.availableLexiconSynonymTokens += 1;
-  } else if (tile?.lexiconTokenKind === "antonym") {
-    state.availableLexiconAntonymTokens += 1;
+  if (isLexiconTokenKind(tile?.lexiconTokenKind)) {
+    refundLexiconTokenToDock(tile.lexiconTokenKind);
   }
   const refundedTagCount = releaseTaggedResultTokens([tileId], { refund: true });
   state.tiles = state.tiles.filter((t) => t.id !== tileId);
@@ -6973,7 +7360,7 @@ function handleTileClick(word, position, tileId = null, clientPoint = null) {
   }
   if (tileId) {
     const clicked = getTileById(tileId);
-    if (clicked?.lexiconTokenKind) {
+    if (isLexiconTokenTile(clicked)) {
       setStatus(t("lexicon.clickHint"), "ok");
       return Promise.resolve();
     }
@@ -7076,6 +7463,10 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -7108,6 +7499,10 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
+      newLexiconSynonymTokens,
+      newLexiconAntonymTokens,
+      newLexiconHyponymTokens,
+      newLexiconHypernymTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -7124,6 +7519,10 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       newMinusMixTokens,
       newBanWordTokens,
       newWildcardTokens,
+      newLexiconSynonymTokens,
+      newLexiconAntonymTokens,
+      newLexiconHyponymTokens,
+      newLexiconHypernymTokens,
       newPositionTokenRewards,
       newZonesUnlocked,
       completedCategories,
@@ -7142,18 +7541,36 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
 async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   const w = wordTile.word;
   const mixLabel = `${getLexiconTileDisplayLabel(lexTile)} + ${titleCase(w)}`;
+  const mode = lexTile.lexiconTokenKind;
+  const useBroadChoice = Boolean(wordTile.broadChoiceCharged);
+  const maxLex = useBroadChoice ? BROAD_CHOICE_PREVIEW_COUNT : DEFAULT_MIX_PREVIEW_COUNT;
 
-  let mix;
+  let payload;
   try {
-    mix = await getAssociation(w, w, "add");
+    payload = await fetchLexiconRelations(w, mode, maxLex);
   } catch (error) {
     if (handleDeadEndMixError(error, [{ word: w, wordKey: getWordKey(w), tileId: wordTile.id }])) {
       return;
     }
     throw error;
   }
+
+  if (payload.placeholder) {
+    throw new Error(t("lexicon.previewPlaceholderBody"));
+  }
+
+  const rawCandidates = lexiconApiPayloadToMixCandidates(payload);
+  if (!rawCandidates.length) {
+    throw new Error(getLexiconEmptyMixError(mode));
+  }
+
+  const mixCandidates = filterRemovedCandidates(rawCandidates);
+  if (!mixCandidates.length) {
+    throw new Error(t("lexicon.mixAllStruck"));
+  }
+
+  const mix = { candidates: mixCandidates };
   const tileIds = [lexTile.id, wordTile.id];
-  const useBroadChoice = Boolean(wordTile.broadChoiceCharged);
   const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useBroadChoice });
   if (!baseSel.candidate) {
     throw new Error(baseSel.error || "No valid result remained for that mix.");
@@ -7212,6 +7629,10 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -7252,6 +7673,10 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -7276,6 +7701,10 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -7399,6 +7828,10 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -7441,6 +7874,10 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -7465,6 +7902,10 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -7497,6 +7938,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let newMinusMixTokensFromCompletion = 0;
   let newBanWordTokens = 0;
   let newWildcardTokens = 0;
+  let newLexiconSynonymTokens = 0;
+  let newLexiconAntonymTokens = 0;
+  let newLexiconHyponymTokens = 0;
+  let newLexiconHypernymTokens = 0;
   const newPositionTokenRewards = createEmptyPositionTokenRewardSummary();
   let completedCategories = [];
   let coinReward = null;
@@ -7556,6 +8001,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
     newBanWordTokens += encTokenDelta.newBanWordTokens;
     newWildcardTokens += encTokenDelta.newWildcardTokens;
+    newLexiconSynonymTokens += getSafeCount(encTokenDelta.newLexiconSynonymTokens);
+    newLexiconAntonymTokens += getSafeCount(encTokenDelta.newLexiconAntonymTokens);
+    newLexiconHyponymTokens += getSafeCount(encTokenDelta.newLexiconHyponymTokens);
+    newLexiconHypernymTokens += getSafeCount(encTokenDelta.newLexiconHypernymTokens);
     mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
     completedCategories = [];
     if (!hiddenEncyclopediaDiscovery) {
@@ -7588,6 +8037,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
     newBanWordTokens += encTokenDelta.newBanWordTokens;
     newWildcardTokens += encTokenDelta.newWildcardTokens;
+    newLexiconSynonymTokens += getSafeCount(encTokenDelta.newLexiconSynonymTokens);
+    newLexiconAntonymTokens += getSafeCount(encTokenDelta.newLexiconAntonymTokens);
+    newLexiconHyponymTokens += getSafeCount(encTokenDelta.newLexiconHyponymTokens);
+    newLexiconHypernymTokens += getSafeCount(encTokenDelta.newLexiconHypernymTokens);
     mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
     coinReward = awardDiscoveryCoins({
       zipf: metadata?.zipf,
@@ -7612,6 +8065,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
       newMinusMixTokensFromCompletion += rareDelta.newMinusMixTokens;
       newBanWordTokens += rareDelta.newBanWordTokens;
       newWildcardTokens += rareDelta.newWildcardTokens;
+      newLexiconSynonymTokens += getSafeCount(rareDelta.newLexiconSynonymTokens);
+      newLexiconAntonymTokens += getSafeCount(rareDelta.newLexiconAntonymTokens);
+      newLexiconHyponymTokens += getSafeCount(rareDelta.newLexiconHyponymTokens);
+      newLexiconHypernymTokens += getSafeCount(rareDelta.newLexiconHypernymTokens);
       mergePositionTokenRewardSummary(newPositionTokenRewards, rareDelta.newPositionTokenRewards);
       state.superRarePreviewByKey.delete(previewKey);
       queueProgressSave();
@@ -7645,6 +8102,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
   newMinusMixTokensFromCompletion += questResult.newMinusMixTokens;
   newBanWordTokens += questResult.newBanWordTokens;
   newWildcardTokens += questResult.newWildcardTokens;
+  newLexiconSynonymTokens += getSafeCount(questResult.newLexiconSynonymTokens);
+  newLexiconAntonymTokens += getSafeCount(questResult.newLexiconAntonymTokens);
+  newLexiconHyponymTokens += getSafeCount(questResult.newLexiconHyponymTokens);
+  newLexiconHypernymTokens += getSafeCount(questResult.newLexiconHypernymTokens);
   mergePositionTokenRewardSummary(newPositionTokenRewards, questResult.newPositionTokenRewards);
 
   const unlockedSecondResultTokenCount = getUnlockedSecondResultTokenCount();
@@ -7667,7 +8128,20 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   const vocabularyOverflow = null;
 
-  if (didDiscoverNewWord || whiteRemixEncyclopedia || coinReward || totalNewBroadChoiceTokens > 0 || totalNewMinusMixTokens > 0 || newBanWordTokens > 0 || newWildcardTokens > 0 || totalNewPositionTokens > 0) {
+  if (
+    didDiscoverNewWord
+    || whiteRemixEncyclopedia
+    || coinReward
+    || totalNewBroadChoiceTokens > 0
+    || totalNewMinusMixTokens > 0
+    || newBanWordTokens > 0
+    || newWildcardTokens > 0
+    || totalNewPositionTokens > 0
+    || newLexiconSynonymTokens > 0
+    || newLexiconAntonymTokens > 0
+    || newLexiconHyponymTokens > 0
+    || newLexiconHypernymTokens > 0
+  ) {
     renderSidebar();
   }
 
@@ -7688,6 +8162,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     newMinusMixTokens: totalNewMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -7840,14 +8318,10 @@ function startTileDrag(event, tileId) {
 
     const garbageBinElement = getGarbageBinAtPoint(endEvent.clientX, endEvent.clientY);
     if (garbageBinElement) {
-      if (tile.lexiconTokenKind) {
+      if (isLexiconTokenKind(tile.lexiconTokenKind)) {
+        const kind = tile.lexiconTokenKind;
         removeTile(tile.id);
-        setStatus(
-          tile.lexiconTokenKind === "synonym"
-            ? t("lexicon.removedSynonym")
-            : t("lexicon.removedAntonym"),
-          "ok",
-        );
+        setStatus(lexiconRemovedToDockMessage(kind), "ok");
         return;
       }
       sendWordToGarbage(tile.word, getWordKey(tile.word), tile.id);
@@ -8030,10 +8504,8 @@ function renderTiles(options = {}) {
 function clearField() {
   const refundedTagCount = releaseTaggedResultTokens(state.tiles.map((tile) => tile.id), { refund: true });
   state.tiles.forEach((tile) => {
-    if (tile.lexiconTokenKind === "synonym") {
-      state.availableLexiconSynonymTokens += 1;
-    } else if (tile.lexiconTokenKind === "antonym") {
-      state.availableLexiconAntonymTokens += 1;
+    if (isLexiconTokenKind(tile.lexiconTokenKind)) {
+      refundLexiconTokenToDock(tile.lexiconTokenKind);
     }
   });
   state.tiles = [];
@@ -8061,6 +8533,10 @@ function renderShopWordBooster() {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -8079,6 +8555,10 @@ function renderShopWordBooster() {
         newMinusMixTokens,
         newBanWordTokens,
         newWildcardTokens,
+        newLexiconSynonymTokens,
+        newLexiconAntonymTokens,
+        newLexiconHyponymTokens,
+        newLexiconHypernymTokens,
         newPositionTokenRewards,
         newZonesUnlocked,
         completedCategories,
@@ -8174,6 +8654,10 @@ async function promptSpawnWord() {
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -8190,6 +8674,10 @@ async function promptSpawnWord() {
     newMinusMixTokens,
     newBanWordTokens,
     newWildcardTokens,
+    newLexiconSynonymTokens,
+    newLexiconAntonymTokens,
+    newLexiconHyponymTokens,
+    newLexiconHypernymTokens,
     newPositionTokenRewards,
     newZonesUnlocked,
     completedCategories,
@@ -8277,6 +8765,10 @@ function resetRun() {
   state.totalLexiconSynonymTokensEarned = 0;
   state.availableLexiconAntonymTokens = 0;
   state.totalLexiconAntonymTokensEarned = 0;
+  state.availableLexiconHyponymTokens = 0;
+  state.totalLexiconHyponymTokensEarned = 0;
+  state.availableLexiconHypernymTokens = 0;
+  state.totalLexiconHypernymTokensEarned = 0;
   state.progressSecondResultTokensAwarded = 0;
   state.runStage = 1;
   state.completedRunCategoryNames = new Set();
@@ -8365,12 +8857,13 @@ function initPlayfieldDropzone() {
       setStatus("Drop a Minus mix token onto a word on the field.", "error");
       return;
     }
-    if (tokenType === "lexicon-synonym" || tokenType === "lexicon-antonym") {
+    const lexKindDrop = dragTypeToLexiconKind(tokenType);
+    if (lexKindDrop) {
       const bounds = getPlayfieldBounds();
       const point = getPlayfieldPointFromClientPoint(event.clientX, event.clientY, bounds);
       const x = clamp(point.x - (TILE_WIDTH / 2), bounds.minX, bounds.maxX);
       const y = clamp(point.y - (TILE_HEIGHT / 2), bounds.minY, bounds.maxY);
-      spawnLexiconTokenOnField(tokenType === "lexicon-synonym" ? "synonym" : "antonym", { x, y });
+      spawnLexiconTokenOnField(lexKindDrop, { x, y });
       return;
     }
     const bounds = getPlayfieldBounds();
