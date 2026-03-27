@@ -18,6 +18,150 @@ import wordfreq
 from wordfreq import zipf_frequency
 
 
+@lru_cache(maxsize=1)
+def get_nltk_wordnet():
+    import nltk  # noqa: PLC0415
+    from nltk.corpus import wordnet as wn  # noqa: PLC0415
+
+    try:
+        wn.synsets("a")
+    except LookupError:
+        nltk.download("wordnet", quiet=True)
+    return wn
+
+
+def _lexicon_push(name: str, exclude: set[str], banned_keys: set[str], seen: set[str], out: list[str]) -> None:
+    nm = name.replace("_", " ").strip().lower()
+    if not nm or nm in seen or nm in exclude:
+        return
+    cand = {nm}
+    cand.update(get_word_family_forms(nm))
+    if cand & banned_keys:
+        return
+    seen.add(nm)
+    out.append(nm)
+
+
+def _lexicon_synonyms_from_synset(
+    syn,
+    exclude: set[str],
+    banned_keys: set[str],
+    seen: set[str],
+    out: list[str],
+    max_total: int,
+) -> None:
+    for lem in syn.lemmas():
+        if len(out) >= max_total:
+            return
+        nm = lem.name().replace("_", " ").strip().lower()
+        if nm in exclude or nm in seen:
+            continue
+        cand = {nm}
+        cand.update(get_word_family_forms(nm))
+        if cand & banned_keys:
+            continue
+        seen.add(nm)
+        out.append(nm)
+
+
+def _lexicon_antonyms_from_synset(
+    syn,
+    exclude: set[str],
+    banned_keys: set[str],
+    seen: set[str],
+    out: list[str],
+    max_total: int,
+) -> None:
+    for lem in syn.lemmas():
+        if len(out) >= max_total:
+            return
+        for ant in lem.antonyms():
+            _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+            if len(out) >= max_total:
+                return
+    for sim in syn.similar_tos()[:4]:
+        if len(out) >= max_total:
+            return
+        for lem in sim.lemmas():
+            if len(out) >= max_total:
+                return
+            for ant in lem.antonyms():
+                _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                if len(out) >= max_total:
+                    return
+    for hyp in syn.hypernyms()[:2]:
+        if len(out) >= max_total:
+            return
+        for lem in hyp.lemmas():
+            if len(out) >= max_total:
+                return
+            for ant in lem.antonyms():
+                _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                if len(out) >= max_total:
+                    return
+        for hypo in hyp.hyponyms()[:12]:
+            if len(out) >= max_total:
+                return
+            for lem in hypo.lemmas():
+                if len(out) >= max_total:
+                    return
+                for ant in lem.antonyms():
+                    _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                    if len(out) >= max_total:
+                        return
+
+
+def lexicon_lookup(word: str, mode: str, banned_list: list, max_count: int = 5) -> dict:
+    """WordNet synonyms or antonyms: walk senses in order until max_count (English only)."""
+    try:
+        cap = max(1, min(int(max_count), 20))
+    except (TypeError, ValueError):
+        cap = 5
+    empty = {"ok": True, "placeholder": False, "words": []}
+    if GAME_LOCALE == "ru":
+        return {"ok": True, "placeholder": True, "words": []}
+    wn = get_nltk_wordnet()
+    raw = (word or "").strip().lower()
+    if not raw:
+        return dict(empty)
+    lemma = normalize_word(raw)
+    synsets = wn.synsets(lemma) or wn.synsets(raw)
+    if not synsets:
+        return dict(empty)
+
+    exclude = {lemma.lower(), raw.lower()}
+    exclude.update(get_word_family_forms(lemma))
+    exclude.update(get_word_family_forms(raw))
+
+    banned_keys: set[str] = set()
+    for item in banned_list or []:
+        if not isinstance(item, str):
+            continue
+        b = item.strip().lower()
+        if not b:
+            continue
+        banned_keys.add(b)
+        banned_keys.update(get_word_family_forms(b))
+
+    seen: set[str] = set()
+    words_out: list[str] = []
+    mode_norm = (mode or "synonym").strip().lower()
+
+    for syn in synsets:
+        if len(words_out) >= cap:
+            break
+        if mode_norm == "synonym":
+            _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+        else:
+            _lexicon_antonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+
+    return {
+        "ok": True,
+        "placeholder": False,
+        "words": words_out[:cap],
+    }
+
+
 def get_app_root() -> Path:
     if getattr(sys, "frozen", False):
         bundle_root = getattr(sys, "_MEIPASS", None)
@@ -403,6 +547,26 @@ def serve_index():
 @app.route("/api/config")
 def api_config():
     return jsonify({"gameLocale": GAME_LOCALE})
+
+
+@app.route("/api/lexicon", methods=["POST"])
+def api_lexicon():
+    payload = request.get_json(silent=True) or {}
+    word = payload.get("word") or ""
+    mode = payload.get("mode") or "synonym"
+    try:
+        max_count = int(payload.get("maxCount", 5))
+    except (TypeError, ValueError):
+        max_count = 5
+    banned = payload.get("banned")
+    if not isinstance(banned, list):
+        banned = []
+    try:
+        body = lexicon_lookup(word, mode, banned, max_count)
+    except Exception as error:  # pragma: no cover
+        traceback.print_exc()
+        return jsonify({"ok": False, "error": str(error)}), 500
+    return jsonify(body)
 
 
 @app.route("/api/mix")
