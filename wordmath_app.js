@@ -5997,6 +5997,41 @@ function getTokenDockEmoji(dragType) {
   return "●";
 }
 
+function getPositionTokenDockDescription(rank) {
+  return rank === 5
+    ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
+    : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
+}
+
+const SHOP_ITEM_ID_TO_POSITION_RANK = Object.freeze({
+  "shop-match-2": 2,
+  "shop-match-3": 3,
+  "shop-match-4": 4,
+  "shop-match-5": 5,
+});
+
+/** Same hint text as token-dock pills; used for Purchase Tokens menu `title` tooltips. */
+function getTokenInventoryHintForShopItemId(itemId) {
+  const rank = SHOP_ITEM_ID_TO_POSITION_RANK[itemId];
+  if (rank) {
+    return getPositionTokenDockDescription(rank);
+  }
+  switch (itemId) {
+    case "shop-ban-word":
+      return "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool (no tile, no discovery).";
+    case "shop-broad-choice":
+      return "Drag onto a field word. Your next mix with that word shows 10 results and lets you pick the outcome.";
+    case "shop-minus-mix":
+      return "Drag onto a field word. If either word in a mix has this tag, the mix is stationary word minus dragged word (vector subtraction). Only one tag is spent per mix; if both words are tagged, the dragged word loses its tag.";
+    case "shop-lexicon-synantonym":
+      return t("tokenDock.lexiconSynantonymHint");
+    case "shop-lexicon-hypohypernym":
+      return t("tokenDock.lexiconHypohypernymHint");
+    default:
+      return "";
+  }
+}
+
 function buildTokenDockPill({
   title,
   description,
@@ -6071,7 +6106,7 @@ function renderTokenPanel() {
   if (state.availableBroadChoiceTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
       title: "Broad Choice",
-      description: "Drag onto a field word. Your next mix with that word shows 10 results and lets you pick the outcome.",
+      description: getTokenInventoryHintForShopItemId("shop-broad-choice"),
       count: state.availableBroadChoiceTokens,
       dragType: "broad-choice",
       onClick: () => {
@@ -6083,7 +6118,7 @@ function renderTokenPanel() {
   if (state.availableBanWordTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
       title: "Ban Word",
-      description: "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool (no tile, no discovery).",
+      description: getTokenInventoryHintForShopItemId("shop-ban-word"),
       count: state.availableBanWordTokens,
       dragType: "ban-word",
       onClick: () => {
@@ -6095,7 +6130,7 @@ function renderTokenPanel() {
   if (state.availableMinusMixTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
       title: "Minus mix",
-      description: "Drag onto a field word. If either word in a mix has this tag, the mix is stationary word minus dragged word (vector subtraction). Only one tag is spent per mix; if both words are tagged, the dragged word loses its tag.",
+      description: getTokenInventoryHintForShopItemId("shop-minus-mix"),
       count: state.availableMinusMixTokens,
       dragType: "minus-mix",
       onClick: () => {
@@ -6119,7 +6154,7 @@ function renderTokenPanel() {
   if (state.availableLexiconSynantonymTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
       title: t("tokenDock.lexiconSynantonymTitle"),
-      description: t("tokenDock.lexiconSynantonymHint"),
+      description: getTokenInventoryHintForShopItemId("shop-lexicon-synantonym"),
       count: state.availableLexiconSynantonymTokens,
       dragType: "lexicon-synantonym",
       onClick: () => {
@@ -6131,7 +6166,7 @@ function renderTokenPanel() {
   if (state.availableLexiconHypohypernymTokens > 0) {
     els.tokenDock.append(buildTokenDockPill({
       title: t("tokenDock.lexiconHypohypernymTitle"),
-      description: t("tokenDock.lexiconHypohypernymHint"),
+      description: getTokenInventoryHintForShopItemId("shop-lexicon-hypohypernym"),
       count: state.availableLexiconHypohypernymTokens,
       dragType: "lexicon-hypohypernym",
       onClick: () => {
@@ -6147,9 +6182,7 @@ function renderTokenPanel() {
     }
 
     const title = getPositionTokenDisplayName(rank);
-    const description = rank === 5
-      ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
-      : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
+    const description = getPositionTokenDockDescription(rank);
 
     els.tokenDock.append(buildTokenDockPill({
       title,
@@ -6332,8 +6365,9 @@ function renderTopBarShop() {
     row.className = "purchase-tokens-menu-item";
     row.setAttribute("role", "option");
     row.disabled = !purchaseState.canBuy;
-    const desc = getShopItemDescription(item);
-    const hint = [desc, purchaseState.reason].filter(Boolean).join(" ");
+    const tooltipBody =
+      getTokenInventoryHintForShopItemId(item.id) || getShopItemDescription(item);
+    const hint = [tooltipBody, purchaseState.reason].filter(Boolean).join(" ");
     row.title = hint;
     const titleSpan = document.createElement("span");
     titleSpan.className = "purchase-tokens-menu-item-title";
