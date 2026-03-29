@@ -32,12 +32,12 @@ const MESSAGES = {
     "tile.lexiconHypernym": "Hypernym",
     "tile.lexiconSynantonym": "Synantonym",
     "tile.lexiconHypohypernym": "Hypo-/hypernym",
-    "lexicon.previewTitleSynonym": "Synonyms (WordNet)",
-    "lexicon.previewTitleAntonym": "Antonyms (WordNet)",
-    "lexicon.previewTitleHyponym": "Hyponyms (WordNet)",
-    "lexicon.previewTitleHypernym": "Hypernyms (WordNet)",
+    "lexicon.previewTitleSynonym": "Synonyms",
+    "lexicon.previewTitleAntonym": "Antonyms",
+    "lexicon.previewTitleHyponym": "Hyponyms",
+    "lexicon.previewTitleHypernym": "Hypernyms",
     "lexicon.previewPlaceholderTitle": "Lexicon (English only)",
-    "lexicon.previewPlaceholderBody": "WordNet lookup is not available in this language build yet.",
+    "lexicon.previewPlaceholderBody": "Lexicon lookup is not available in this language build yet.",
     "lexicon.previewSenseLine": "Sense {n} / {total}",
     "lexicon.noAntonyms": "No antonyms",
     "lexicon.noSynonyms": "No synonyms for this sense.",
@@ -46,9 +46,9 @@ const MESSAGES = {
     "lexicon.invalidTokenError": "Invalid lexicon token.",
     "lexicon.twoLexiconError": "Cannot mix two lexicon tokens together.",
     "lexicon.mixAllStruck":
-      "Every WordNet option for that mix was struck from the result pool (Ban line or garbage).",
+      "Every option for that mix was struck from the result pool (Ban line or garbage).",
     "lexicon.clickHint":
-      "Drag this tile onto a word for a WordNet relation list. Each hover alternates synonyms/antonyms or hyponyms/hypernyms (5 or 10 with Broad Choice). Mix to consume the token.",
+      "Drag this tile onto a word for a relation list. Each hover alternates synonyms/antonyms or hyponyms/hypernyms. Mix to consume the token.",
     "lexicon.noTokensOnLexicon": "Drop other tokens onto normal words, not onto a lexicon tile.",
     "lexicon.noSynonymTokens": "You do not have any synonym tokens in the dock.",
     "lexicon.noAntonymTokens": "You do not have any antonym tokens in the dock.",
@@ -70,27 +70,27 @@ const MESSAGES = {
     "lexicon.removedHypohypernym": "Removed the Hypo-/hypernym tile; token returned to the dock.",
     "tokenDock.lexiconSynonymTitle": "Synonym",
     "tokenDock.lexiconSynonymHint":
-      "Drop on the field to create a Synonym tile. Drag it onto a word for up to five WordNet synonyms (meanings fill in order; ten if that word has Broad Choice). Mixing consumes the tile (self-mix). No definitions.",
+      "Drop on the field to create a Synonym tile. Drag it onto a word for up to five synonyms (meanings fill in order). Mixing consumes the tile (self-mix). No definitions.",
     "tokenDock.lexiconSynonymDragHint": "Drop a Synonym token on an empty spot on the field.",
     "tokenDock.lexiconAntonymTitle": "Antonym",
     "tokenDock.lexiconAntonymHint":
-      "Drop on the field to create an Antonym tile. Drag it onto a word for up to five antonyms (direct + indirect, meanings in order; ten with Broad Choice). Mixing consumes the tile (self-mix). No definitions.",
+      "Drop on the field to create an Antonym tile. Drag it onto a word for up to five antonyms (direct + indirect, meanings in order). Mixing consumes the tile (self-mix). No definitions.",
     "tokenDock.lexiconAntonymDragHint": "Drop an Antonym token on an empty spot on the field.",
     "tokenDock.lexiconHyponymTitle": "Hyponym",
     "tokenDock.lexiconHyponymHint":
-      "Drop on the field to create a Hyponym tile. Drag it onto a word for up to five narrower WordNet terms (types or subtypes; ten with Broad Choice on the other word). Mixing consumes the tile (self-mix). No definitions.",
+      "Drop on the field to create a Hyponym tile. Drag it onto a word for up to five narrower terms (types or subtypes). Mixing consumes the tile (self-mix). No definitions.",
     "tokenDock.lexiconHyponymDragHint": "Drop a Hyponym token on an empty spot on the field.",
     "tokenDock.lexiconHypernymTitle": "Hypernym",
     "tokenDock.lexiconHypernymHint":
-      "Drop on the field to create a Hypernym tile. Drag it onto a word for up to five broader WordNet parents (ten with Broad Choice on the other word). Mixing consumes the tile (self-mix). No definitions.",
+      "Drop on the field to create a Hypernym tile. Drag it onto a word for up to five broader parent terms. Mixing consumes the tile (self-mix). No definitions.",
     "tokenDock.lexiconHypernymDragHint": "Drop a Hypernym token on an empty spot on the field.",
     "tokenDock.lexiconSynantonymTitle": "Synantonym",
     "tokenDock.lexiconSynantonymHint":
-      "Drop on the field to create a Synantonym tile. Drag onto a word: each preview alternates WordNet synonyms and antonyms (meanings in order; ten with Broad Choice on the other word). Mix consumes the tile. No definitions.",
+      "Drop on the field to create a Synantonym tile. Drag onto a word: each preview alternates synonyms and antonyms (meanings in order). Mix consumes the tile. No definitions.",
     "tokenDock.lexiconSynantonymDragHint": "Drop a Synantonym token on an empty spot on the field.",
     "tokenDock.lexiconHypohypernymTitle": "Hypo-/hypernym",
     "tokenDock.lexiconHypohypernymHint":
-      "Drop on the field to create a Hypo-/hypernym tile. Drag onto a word: each preview alternates narrower hyponyms and broader hypernyms (ten with Broad Choice). Mix consumes the tile. No definitions.",
+      "Drop on the field to create a Hypo-/hypernym tile. Drag onto a word: each preview alternates narrower hyponyms and broader hypernyms. Mix consumes the tile. No definitions.",
     "tokenDock.lexiconHypohypernymDragHint": "Drop a Hypo-/hypernym token on an empty spot on the field.",
     "garbage.title": "Garbage Bin",
     "garbage.hint": "Drag words here to hide them forever. They can still be mixed.",
@@ -219,12 +219,12 @@ const MESSAGES = {
     "tile.lexiconHypernym": "Гипероним",
     "tile.lexiconSynantonym": "Синантоним",
     "tile.lexiconHypohypernym": "Гипо-/гипероним",
-    "lexicon.previewTitleSynonym": "Синонимы (WordNet)",
-    "lexicon.previewTitleAntonym": "Антонимы (WordNet)",
-    "lexicon.previewTitleHyponym": "Гипонимы (WordNet)",
-    "lexicon.previewTitleHypernym": "Гиперонимы (WordNet)",
+    "lexicon.previewTitleSynonym": "Синонимы",
+    "lexicon.previewTitleAntonym": "Антонимы",
+    "lexicon.previewTitleHyponym": "Гипонимы",
+    "lexicon.previewTitleHypernym": "Гиперонимы",
     "lexicon.previewPlaceholderTitle": "Лексикон (пока только EN)",
-    "lexicon.previewPlaceholderBody": "В этой языковой сборке WordNet пока недоступен.",
+    "lexicon.previewPlaceholderBody": "В этой языковой сборке лексикон пока недоступен.",
     "lexicon.previewSenseLine": "Значение {n} / {total}",
     "lexicon.noAntonyms": "Нет антонимов",
     "lexicon.noSynonyms": "Нет синонимов для этого значения.",
@@ -233,9 +233,9 @@ const MESSAGES = {
     "lexicon.invalidTokenError": "Недопустимый лексикон-токен.",
     "lexicon.twoLexiconError": "Нельзя смешивать два лексикон-токена.",
     "lexicon.mixAllStruck":
-      "Все варианты WordNet для этого смешивания исключены из пула (запрет или корзина).",
+      "Все варианты для этого смешивания исключены из пула (запрет или корзина).",
     "lexicon.clickHint":
-      "Перетащите на слово — список WordNet. Каждый предпросмотр чередует синонимы/антонимы или гипонимы/гиперонимы (5 или 10 с Широким выбором). Смешивание тратит токен.",
+      "Перетащите на слово — список связей. Каждый предпросмотр чередует синонимы/антонимы или гипонимы/гиперонимы. Смешивание тратит токен.",
     "lexicon.noTokensOnLexicon": "Бросайте другие токены на обычные слова, не на лексикон-плитку.",
     "lexicon.noSynonymTokens": "Нет токенов синонимов.",
     "lexicon.noAntonymTokens": "Нет токенов антонимов.",
@@ -257,27 +257,27 @@ const MESSAGES = {
     "lexicon.removedHypohypernym": "Плитка «Гипо-/гипероним» снята; токен возвращён.",
     "tokenDock.lexiconSynonymTitle": "Синоним",
     "tokenDock.lexiconSynonymHint":
-      "Бросьте на поле — плитка. Наведите на слово: до 5 синонимов WordNet по порядку значений (10, если на слове Широкий выбор). Смешивание — самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. Наведите на слово: до 5 синонимов по порядку значений. Смешивание — самосмешивание. Без определений.",
     "tokenDock.lexiconSynonymDragHint": "Бросьте токен синонима на свободное место поля.",
     "tokenDock.lexiconAntonymTitle": "Антоним",
     "tokenDock.lexiconAntonymHint":
-      "Бросьте на поле — плитка. До 5 антонимов по порядку значений (10 с Широким выбором). Смешивание — самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. До 5 антонимов по порядку значений. Смешивание — самосмешивание. Без определений.",
     "tokenDock.lexiconAntonymDragHint": "Бросьте токен антонима на свободное место поля.",
     "tokenDock.lexiconHyponymTitle": "Гипоним",
     "tokenDock.lexiconHyponymHint":
-      "Бросьте на поле — плитка. До 5 более узких терминов WordNet (10 с Широким выбором на другом слове). Смешивание — самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. До 5 более узких терминов. Смешивание — самосмешивание. Без определений.",
     "tokenDock.lexiconHyponymDragHint": "Бросьте токен гипонима на свободное место поля.",
     "tokenDock.lexiconHypernymTitle": "Гипероним",
     "tokenDock.lexiconHypernymHint":
-      "Бросьте на поле — плитка. До 5 более широких родителей WordNet (10 с Широким выбором на другом слове). Смешивание — самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. До 5 более широких родительских терминов. Смешивание — самосмешивание. Без определений.",
     "tokenDock.lexiconHypernymDragHint": "Бросьте токен гиперонима на свободное место поля.",
     "tokenDock.lexiconSynantonymTitle": "Синантоним",
     "tokenDock.lexiconSynantonymHint":
-      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует синонимы и антонимы WordNet (10 с Широким выбором). Самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует синонимы и антонимы. Самосмешивание. Без определений.",
     "tokenDock.lexiconSynantonymDragHint": "Бросьте токен «синантоним» на свободное место поля.",
     "tokenDock.lexiconHypohypernymTitle": "Гипо-/гипероним",
     "tokenDock.lexiconHypohypernymHint":
-      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует гипонимы и гиперонимы (10 с Широким выбором). Самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует гипонимы и гиперонимы. Самосмешивание. Без определений.",
     "tokenDock.lexiconHypohypernymDragHint": "Бросьте токен «гипо-/гипероним» на свободное место поля.",
     "garbage.title": "Корзина",
     "garbage.hint":
@@ -427,13 +427,13 @@ const SHOP_MESSAGES = {
     "shop-lexicon-synantonym": {
       title: "Synantonym token",
       description:
-        "Field tile: each hover alternates WordNet synonyms and antonyms (5 or 10 with Broad Choice on the other word). Mix consumes the tile.",
+        "Field tile: each hover alternates synonyms and antonyms. Mix consumes the tile.",
       purchaseDone: (cost) => `Bought 1 Synantonym token for ${cost} coins.`,
     },
     "shop-lexicon-hypohypernym": {
       title: "Hypo-/hypernym token",
       description:
-        "Field tile: each hover alternates hyponyms and hypernyms (5 or 10 with Broad Choice on the other word). Mix consumes the tile.",
+        "Field tile: each hover alternates hyponyms and hypernyms. Mix consumes the tile.",
       purchaseDone: (cost) => `Bought 1 Hypo-/hypernym token for ${cost} coins.`,
     },
     "shop-playfield-pan-zoom": {
@@ -531,13 +531,13 @@ const SHOP_MESSAGES = {
     "shop-lexicon-synantonym": {
       title: "Токен «Синантоним»",
       description:
-        "Плитка: каждый предпросмотр чередует синонимы и антонимы (5 или 10 с Широким выбором на другом слове).",
+        "Плитка: каждый предпросмотр чередует синонимы и антонимы.",
       purchaseDone: (cost) => `Куплен 1 токен «Синантоним» за ${cost} монет.`,
     },
     "shop-lexicon-hypohypernym": {
       title: "Токен «Гипо-/гипероним»",
       description:
-        "Плитка: каждый предпросмотр чередует гипонимы и гиперонимы (5 или 10 с Широким выбором на другом слове).",
+        "Плитка: каждый предпросмотр чередует гипонимы и гиперонимы.",
       purchaseDone: (cost) => `Куплен 1 токен «Гипо-/гипероним» за ${cost} монет.`,
     },
     "shop-playfield-pan-zoom": {

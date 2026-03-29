@@ -305,7 +305,8 @@ function lexiconRemovedToDockMessage(kind) {
   return t("lexicon.removedSynantonym");
 }
 
-const SHOP_LEXICON_TOKEN_COST = 100;
+/** Lexicon tokens (synantonym / hypo-hypernym): base 150g; menu sits above Broad/Minus (200) in price order. */
+const SHOP_LEXICON_TOKEN_COST = 150;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 const GARBAGE_BIN_UNLOCK_WORDS = 20;
 const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
@@ -628,6 +629,22 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-minus-mix",
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
+]);
+
+/**
+ * Purchase Tokens menu row order: lowest base price → highest (see each item's `cost` in SHOP_ITEM_DEFINITIONS).
+ * Not recomputed at render time so incremental/stage pricing does not reshuffle the list.
+ */
+const PURCHASE_TOKENS_MENU_ORDER = Object.freeze([
+  "shop-match-2",
+  "shop-match-3",
+  "shop-match-4",
+  "shop-match-5",
+  "shop-ban-word",
+  "shop-lexicon-synantonym",
+  "shop-lexicon-hypohypernym",
+  "shop-broad-choice",
+  "shop-minus-mix",
 ]);
 
 /** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
@@ -6300,7 +6317,14 @@ function renderTopBarShop() {
   }
 
   els.purchaseTokensMenu.innerHTML = "";
-  SHOP_ITEM_DEFINITIONS.filter((item) => SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU.has(item.id)).forEach((item) => {
+  PURCHASE_TOKENS_MENU_ORDER.forEach((itemId) => {
+    if (!SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU.has(itemId)) {
+      return;
+    }
+    const item = SHOP_ITEM_BY_ID.get(itemId);
+    if (!item) {
+      return;
+    }
     const purchaseState = getShopItemPurchaseState(item);
     const itemCost = getShopItemCost(item);
     const row = document.createElement("button");
