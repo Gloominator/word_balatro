@@ -23,6 +23,10 @@ $SoundsDir = Join-Path $ProjectRoot "sounds"
 if (-not (Test-Path $SoundsDir)) {
     throw "Sounds directory not found: $SoundsDir"
 }
+$SoundtrackPath = Join-Path $ProjectRoot "sounds\music\soundtrack.mp3"
+if (-not (Test-Path $SoundtrackPath)) {
+    throw "Background music not found (required for EXE): $SoundtrackPath"
+}
 
 $DeckPath = Join-Path $ProjectRoot "deck.json"
 $DeckRuPath = Join-Path $ProjectRoot "deck.ru.json"
@@ -71,7 +75,7 @@ try {
         "-m", "PyInstaller",
         "--noconfirm",
         "--clean",
-        "--name", "WordMath-RU",
+        "--name", "KingMinusMan-RU",
         "--onedir",
         "--collect-all", "spacy",
         "--collect-all", "wordfreq",
@@ -104,7 +108,7 @@ try {
 
     Write-Host ""
     Write-Host "Build complete."
-    Write-Host "Run: .\dist\WordMath-RU\WordMath-RU.exe"
+    Write-Host "Run: .\dist\KingMinusMan-RU\KingMinusMan-RU.exe"
 } finally {
     if ($DeckBackedUp -and (Test-Path $DeckBackup)) {
         Move-Item $DeckBackup $DeckPath -Force

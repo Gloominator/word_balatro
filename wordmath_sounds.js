@@ -8,19 +8,10 @@ const VOLUME_KEY = "wordmath-sound-volume";
 const DEFAULT_VOLUME_PERCENT = 80;
 const MUSIC_VOLUME_KEY = "wordmath-music-volume";
 const DEFAULT_MUSIC_VOLUME_PERCENT = 50;
-const MUSIC_GAP_MS = 5000;
 /** Upper cap so BGM stays under SFX when both sliders are at 100%. */
 const MUSIC_LINEAR_CAP = 0.4;
 
-const MUSIC_TRACK_FILES = [
-  "deadline_music.mp3",
-  "dim_lights_music.mp3",
-  "late_night_grind_music.mp3",
-  "midnight_ovetime_music.mp3",
-  "silent_workplace_music.mp3",
-];
-
-const MUSIC_URLS = MUSIC_TRACK_FILES.map((f) => new URL(`./sounds/music/${f}`, import.meta.url).href);
+const MUSIC_URL = new URL("./sounds/music/soundtrack.mp3", import.meta.url).href;
 
 const VOL = {
   master: 0.52,
@@ -129,38 +120,13 @@ export function setWordmathMusicVolumePercent(percent) {
   applyWordmathMusicVolumeLive();
 }
 
-function shuffleInPlace(arr) {
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const t = arr[i];
-    arr[i] = arr[j];
-    arr[j] = t;
-  }
-  return arr;
-}
-
-let musicShuffled = [];
-let musicTrackIndex = 0;
 /** @type {HTMLAudioElement | null} */
 let musicAudio = null;
-let musicGapTimer = 0;
 let musicStarted = false;
-
-function clearMusicGapTimer() {
-  if (musicGapTimer) {
-    window.clearTimeout(musicGapTimer);
-    musicGapTimer = 0;
-  }
-}
 
 function computeMusicLinearVolume() {
   const p = getWordmathMusicVolumePercent() / 100;
   return Math.min(1, MUSIC_LINEAR_CAP * p);
-}
-
-function beginMusicCycle() {
-  musicShuffled = shuffleInPlace(MUSIC_URLS.slice());
-  musicTrackIndex = 0;
 }
 
 function destroyCurrentMusicAudio() {
@@ -173,56 +139,27 @@ function destroyCurrentMusicAudio() {
   musicAudio = null;
 }
 
-function scheduleNextMusicTrackAfterGap() {
-  clearMusicGapTimer();
-  musicGapTimer = window.setTimeout(() => {
-    musicGapTimer = 0;
-    playMusicTrackAtCurrentIndex();
-  }, MUSIC_GAP_MS);
-}
-
-function advanceMusicPlaylistAfterTrack() {
-  musicTrackIndex += 1;
-  if (musicTrackIndex >= musicShuffled.length) {
-    beginMusicCycle();
-  }
-  scheduleNextMusicTrackAfterGap();
-}
-
-function playMusicTrackAtCurrentIndex() {
-  clearMusicGapTimer();
-  if (MUSIC_URLS.length === 0 || getWordmathMusicVolumePercent() <= 0) {
+function playSoundtrack() {
+  if (getWordmathMusicVolumePercent() <= 0) {
     return;
   }
-  if (musicShuffled.length === 0) {
-    beginMusicCycle();
-  }
-  const url = musicShuffled[musicTrackIndex];
   destroyCurrentMusicAudio();
-  const audio = new Audio(url);
+  const audio = new Audio(MUSIC_URL);
   musicAudio = audio;
+  audio.loop = true;
   audio.volume = computeMusicLinearVolume();
-  audio.addEventListener("ended", advanceMusicPlaylistAfterTrack, { once: true });
-  audio.addEventListener(
-    "error",
-    () => {
-      advanceMusicPlaylistAfterTrack();
-    },
-    { once: true },
-  );
   audio.play().catch(() => {});
 }
 
 function startWordmathBackgroundMusicAfterGesture() {
-  if (MUSIC_URLS.length === 0 || musicStarted) {
+  if (musicStarted) {
     return;
   }
   musicStarted = true;
   if (getWordmathMusicVolumePercent() <= 0) {
     return;
   }
-  beginMusicCycle();
-  playMusicTrackAtCurrentIndex();
+  playSoundtrack();
 }
 
 /**
@@ -231,7 +168,6 @@ function startWordmathBackgroundMusicAfterGesture() {
 export function applyWordmathMusicVolumeLive() {
   const v = getWordmathMusicVolumePercent();
   if (v <= 0) {
-    clearMusicGapTimer();
     if (musicAudio && !musicAudio.ended) {
       musicAudio.pause();
     }
@@ -240,20 +176,14 @@ export function applyWordmathMusicVolumeLive() {
   if (!musicStarted) {
     return;
   }
-  if (musicAudio && !musicAudio.ended) {
+  if (musicAudio) {
     musicAudio.volume = computeMusicLinearVolume();
     if (musicAudio.paused) {
       musicAudio.play().catch(() => {});
     }
     return;
   }
-  if (musicGapTimer) {
-    return;
-  }
-  if (musicShuffled.length === 0) {
-    beginMusicCycle();
-  }
-  playMusicTrackAtCurrentIndex();
+  playSoundtrack();
 }
 
 export function wordmathSoundsEnabled() {

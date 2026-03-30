@@ -1646,6 +1646,8 @@ input:focus {
 
 .tile {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   width: 152px;
   min-height: 76px;
   --tile-zone-overlay: transparent;
@@ -1660,6 +1662,13 @@ input:focus {
   transform: rotate(var(--tile-tilt, 0deg));
   transform-origin: center center;
   transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.tile-badge-stack {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .tile:hover {
@@ -2536,6 +2545,14 @@ input:focus {
 }
 
 .tile-word {
+  flex: 1 1 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 0;
+  min-width: 0;
   font-size: 1.05rem;
   font-weight: 800;
   line-height: 1.2;
@@ -2545,9 +2562,12 @@ input:focus {
 }
 
 .tile-meta {
-  margin-top: 0.4rem;
+  flex: 0 0 auto;
+  margin-top: 0.35rem;
   color: var(--text-muted);
   font-size: 0.8rem;
+  text-align: center;
+  align-self: stretch;
 }
 
 .tile-meta[hidden] {

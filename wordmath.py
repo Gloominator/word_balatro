@@ -255,15 +255,23 @@ if getattr(sys, "frozen", False):
         os.environ.setdefault("NLTK_DATA", str(_nltk_bundle.resolve()))
 
 
+def _env_pref(primary: str, legacy: str) -> str:
+    """Read env var, preferring the KingMinusMan name with legacy WordMath fallback."""
+    v = os.environ.get(primary, "").strip()
+    if v:
+        return v
+    return os.environ.get(legacy, "").strip()
+
+
 def resolve_game_locale() -> str:
     if getattr(sys, "frozen", False):
         exe_stem = Path(sys.executable).stem.lower()
         if "ru" in exe_stem:
-            os.environ.setdefault("WORDMATH_GAME_LOCALE", "ru")
-    explicit = os.environ.get("WORDMATH_GAME_LOCALE", "").strip().lower()
+            os.environ.setdefault("KINGMINUSMAN_GAME_LOCALE", "ru")
+    explicit = _env_pref("KINGMINUSMAN_GAME_LOCALE", "WORDMATH_GAME_LOCALE").lower()
     if explicit in ("en", "ru"):
         return explicit
-    model = os.environ.get("WORDMATH_SPACY_MODEL", "").strip().lower()
+    model = _env_pref("KINGMINUSMAN_SPACY_MODEL", "WORDMATH_SPACY_MODEL").lower()
     if model.startswith("ru_"):
         return "ru"
     if model.startswith("en_"):
@@ -293,7 +301,7 @@ mimetypes.add_type("text/css", ".css")
 
 @lru_cache(maxsize=1)
 def get_language_resources():
-    configured_model = os.environ.get("WORDMATH_SPACY_MODEL", "").strip()
+    configured_model = _env_pref("KINGMINUSMAN_SPACY_MODEL", "WORDMATH_SPACY_MODEL")
     candidate_models = (configured_model,) if configured_model else DEFAULT_SPACY_MODELS
     last_error = None
 
@@ -308,7 +316,7 @@ def get_language_resources():
         model_list = ", ".join(candidate_models)
         raise RuntimeError(
             f"Could not load a spaCy model. Tried: {model_list}. "
-            f"Install one of {', '.join(DEFAULT_SPACY_MODELS)}, or set WORDMATH_SPACY_MODEL."
+            f"Install one of {', '.join(DEFAULT_SPACY_MODELS)}, or set KINGMINUSMAN_SPACY_MODEL."
         ) from last_error
 
     all_vectors = nlp.vocab.vectors.data
@@ -752,7 +760,7 @@ def find_open_port(start=8100, end=8199):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Launch the browser-based WordMath mixing game.",
+        description="Launch the browser-based KingMinusMan mixing game.",
     )
     parser.add_argument(
         "--port",

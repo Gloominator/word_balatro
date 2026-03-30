@@ -3512,6 +3512,19 @@ function applyAutoBanForNewMixDiscovery(canonicalResult) {
   return !hadAll;
 }
 
+function autoBanMixResultWhenDuplicateShown(canonicalResult, shouldBlockSpawn) {
+  if (shouldBlockSpawn) {
+    applyAutoBanForNewMixDiscovery(canonicalResult);
+  }
+}
+
+function duplicateDiscoveredMixStatusSuffix(canonicalResult) {
+  const word = titleCase(canonicalResult);
+  return getUiLang() === "ru"
+    ? `${word} уже в ваших открытых словах, поэтому оно больше не появится в топ-совпадениях.`
+    : `${word} is already in your discovered words, so it won't appear in top matches again.`;
+}
+
 /** Ban-line mix would strike this result; discover instead if it's a current-stage, revealed encyclopedia word. */
 function shouldBanLineDiscoverEncyclopediaWord(canonicalResult, normalizedKey) {
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalizedKey);
@@ -3733,6 +3746,7 @@ function resolvePendingBanMixIfNeeded({
     }
     recordMatch(leftWord, rightWord, rememberedCanon, "add", selection.candidates, selectedCandidate.word);
     const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
+    autoBanMixResultWhenDuplicateShown(rememberedCanon, shouldBlockSpawn);
     if (shouldBlockSpawn) {
       if (clientPoint) {
         showFloatingWordNotice("❌", "error", clientPoint);
@@ -3769,7 +3783,7 @@ function resolvePendingBanMixIfNeeded({
     if (shouldBlockSpawn) {
       status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
       if (!stageEncoreEncyclopediaReward) {
-        status.message = `${status.message} ${titleCase(rememberedCanon)} is already in your discovered words, so it was not spawned.`;
+        status.message = `${status.message} ${duplicateDiscoveredMixStatusSuffix(rememberedCanon)}`;
       }
     } else {
       status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
@@ -4484,9 +4498,7 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
   const plainTile = lexTile === sourceTile ? targetTile : sourceTile;
   if (lexTile && plainTile && !isLexiconTokenTile(plainTile)) {
     const apiMode = getAlternatingLexiconApiMode(lexTile);
-    const maxLex = plainTile.broadChoiceCharged
-      ? BROAD_CHOICE_PREVIEW_COUNT
-      : DEFAULT_MIX_PREVIEW_COUNT;
+    const maxLex = BROAD_CHOICE_PREVIEW_COUNT;
     try {
       const payload = await fetchLexiconRelations(plainTile.word, apiMode, maxLex);
       if (
@@ -4540,10 +4552,11 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
     const broadSource = sourceTile.broadChoiceCharged
       ? sourceTile
       : (targetTile.broadChoiceCharged ? targetTile : null);
-    const previewCandidates = broadSource
+    const subtractPair = tilePairUsesSubtractMix(sourceTile, targetTile);
+    const previewCandidates = (broadSource || subtractPair)
       ? getMixCandidateWindow(mix.candidates, [sourceTile.id, targetTile.id]).windowCandidates
       : selection.candidates;
-    const maxLines = broadSource
+    const maxLines = (broadSource || subtractPair)
       ? Math.min(BROAD_CHOICE_PREVIEW_COUNT, previewCandidates.length || 1)
       : DEFAULT_MIX_PREVIEW_COUNT;
 
@@ -7985,6 +7998,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
+  autoBanMixResultWhenDuplicateShown(canonicalResult, shouldBlockSpawn);
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", noticePoint);
   } else {
@@ -8013,7 +8027,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       stageEncoreEncyclopediaReward,
     });
     if (!stageEncoreEncyclopediaReward) {
-      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+      status.message = `${status.message} ${duplicateDiscoveredMixStatusSuffix(canonicalResult)}`;
     }
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
@@ -8064,7 +8078,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   const mixLabel = `${getLexiconTileDisplayLabel(lexTile)} + ${titleCase(w)}`;
   const mode = consumeAlternatingLexiconApiModeForMix(lexTile);
   const useBroadChoice = Boolean(wordTile.broadChoiceCharged);
-  const maxLex = useBroadChoice ? BROAD_CHOICE_PREVIEW_COUNT : DEFAULT_MIX_PREVIEW_COUNT;
+  const maxLex = BROAD_CHOICE_PREVIEW_COUNT;
 
   let payload;
   try {
@@ -8092,39 +8106,39 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
 
   const mix = { candidates: mixCandidates };
   const tileIds = [lexTile.id, wordTile.id];
-  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useBroadChoice });
+  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: false });
   if (!baseSel.candidate) {
     throw new Error(baseSel.error || "No valid result remained for that mix.");
   }
   let selection = baseSel;
-  if (useBroadChoice) {
-    const winfo = getMixCandidateWindow(mix.candidates, tileIds);
-    if (winfo.desiredShift > 0 && !winfo.canUseShiftedCandidate) {
-      releaseTaggedResultTokens(tileIds, { refund: true });
-    }
-    const win = winfo.windowCandidates;
-    if (!win.length) {
-      throw new Error("No valid results for Broad Choice.");
-    }
-    let pick = win[0];
-    if (win.length > 1) {
-      clearFloatingCandidatePreview();
-      pick = await openBroadChoiceModal(win);
-    }
-    const pickedIdx = baseSel.candidates.findIndex(
-      (c) => getCandidateResultKey(c) === getCandidateResultKey(pick),
-    );
-    if (pickedIdx < 0) {
-      throw new Error("Broad Choice pick mismatch.");
-    }
-    if (winfo.canUseShiftedCandidate && winfo.desiredShift > 0) {
-      releaseTaggedResultTokens(tileIds);
-    }
-    wordTile.broadChoiceCharged = false;
-    selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
+  const winfo = getMixCandidateWindow(mix.candidates, tileIds);
+  if (winfo.desiredShift > 0 && !winfo.canUseShiftedCandidate) {
+    releaseTaggedResultTokens(tileIds, { refund: true });
   }
+  const win = winfo.windowCandidates;
+  if (!win.length) {
+    throw new Error("No valid results to choose from.");
+  }
+  let pick = win[0];
+  if (win.length > 1) {
+    clearFloatingCandidatePreview();
+    pick = await openBroadChoiceModal(win);
+  }
+  const pickedIdx = baseSel.candidates.findIndex(
+    (c) => getCandidateResultKey(c) === getCandidateResultKey(pick),
+  );
+  if (pickedIdx < 0) {
+    throw new Error("Broad Choice pick mismatch.");
+  }
+  if (winfo.canUseShiftedCandidate && winfo.desiredShift > 0) {
+    releaseTaggedResultTokens(tileIds);
+  }
+  if (useBroadChoice) {
+    wordTile.broadChoiceCharged = false;
+  }
+  selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
   setLastMix(mixLabel, "add", selection.candidates);
-  showFloatingCandidatePreview(selection.candidates, clientPoint);
+  showFloatingCandidatePreview(selection.candidates, clientPoint, { maxLines: BROAD_CHOICE_PREVIEW_COUNT });
   const selectedCandidate = selection.candidate;
   if (resolvePendingBanMixIfNeeded({
     firstTile: lexTile,
@@ -8169,6 +8183,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   markWordAsSelfMatched(w);
   recordMatch(w, w, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
+  autoBanMixResultWhenDuplicateShown(canonicalResult, shouldBlockSpawn);
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
@@ -8206,7 +8221,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
       },
     );
     if (!stageEncoreEncyclopediaReward) {
-      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+      status.message = `${status.message} ${duplicateDiscoveredMixStatusSuffix(canonicalResult)}`;
     }
   } else {
     status = getMixOutcomeMessage(
@@ -8302,13 +8317,14 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     throw error;
   }
   const tileIds = [firstTile.id, secondTile.id];
-  const useBroadChoice = Boolean(firstTile.broadChoiceCharged);
-  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useBroadChoice });
+  const useBroadChoice = Boolean(firstTile.broadChoiceCharged || secondTile.broadChoiceCharged);
+  const useMatchPicker = useBroadChoice || useSubtract;
+  const baseSel = resolveCandidateSelection(mix.candidates, tileIds, { applyTagEffects: !useMatchPicker });
   if (!baseSel.candidate) {
     throw new Error(baseSel.error || "No valid result remained for that mix.");
   }
   let selection = baseSel;
-  if (useBroadChoice) {
+  if (useMatchPicker) {
     const winfo = getMixCandidateWindow(mix.candidates, tileIds);
     if (winfo.desiredShift > 0 && !winfo.canUseShiftedCandidate) {
       releaseTaggedResultTokens(tileIds, { refund: true });
@@ -8331,9 +8347,13 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     if (winfo.canUseShiftedCandidate && winfo.desiredShift > 0) {
       releaseTaggedResultTokens(tileIds);
     }
-    const chargedTile = getTileById(firstTile.id);
-    if (chargedTile) {
-      chargedTile.broadChoiceCharged = false;
+    const tFirst = getTileById(firstTile.id);
+    const tSecond = getTileById(secondTile.id);
+    if (tFirst?.broadChoiceCharged) {
+      tFirst.broadChoiceCharged = false;
+    }
+    if (tSecond?.broadChoiceCharged) {
+      tSecond.broadChoiceCharged = false;
     }
     selection = { ...baseSel, candidate: pick, usedShift: pickedIdx };
   }
@@ -8341,7 +8361,9 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     ? `${titleCase(leftWord)} - ${titleCase(rightWord)}`
     : `${titleCase(firstTile.word)} + ${titleCase(secondTile.word)}`;
   setLastMix(mixLabel, mixOperation, selection.candidates);
-  showFloatingCandidatePreview(selection.candidates, clientPoint);
+  showFloatingCandidatePreview(selection.candidates, clientPoint, {
+    maxLines: useMatchPicker ? BROAD_CHOICE_PREVIEW_COUNT : DEFAULT_MIX_PREVIEW_COUNT,
+  });
   const selectedCandidate = selection.candidate;
   if (resolvePendingBanMixIfNeeded({
     firstTile,
@@ -8389,6 +8411,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   recordMatch(leftWord, rightWord, canonicalResult, mixOperation, selection.candidates, selectedCandidate.word);
   spendMinusMixTagsAfterPairMix(firstTile, secondTile);
   const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
+  autoBanMixResultWhenDuplicateShown(canonicalResult, shouldBlockSpawn);
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
@@ -8425,7 +8448,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
       },
     );
     if (!stageEncoreEncyclopediaReward) {
-      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+      status.message = `${status.message} ${duplicateDiscoveredMixStatusSuffix(canonicalResult)}`;
     }
   } else {
     status = getMixOutcomeMessage(
@@ -9044,13 +9067,17 @@ function renderTiles(options = {}) {
       minusMixLineElement.textContent = t("tile.minusMixBadge");
       minusMixLineElement.hidden = !tile.minusMixTagged;
 
+      const badgeStack = document.createElement("div");
+      badgeStack.className = "tile-badge-stack";
+      badgeStack.append(tagElement, banLineElement, broadLineElement, minusMixLineElement);
+
       const metaElement = document.createElement("div");
       metaElement.className = "tile-meta";
       const tintLabel = tint?.categoryName || "";
       metaElement.textContent = tintLabel;
       metaElement.hidden = !tintLabel;
 
-      tileElement.append(tagElement, banLineElement, broadLineElement, minusMixLineElement, wordElement, metaElement);
+      tileElement.append(badgeStack, wordElement, metaElement);
       applyTornPaperClipToTile(tileElement, tile.id);
       applyPaperStyleColorVariance(tileElement, tile.id, { tagged: getTileTagRank(tile) >= 2 });
       els.playfieldSurface.append(tileElement);
@@ -9877,7 +9904,7 @@ async function bootstrap() {
   try {
     await fetchGameConfig();
   } catch (error) {
-    console.warn("WordMath: /api/config failed; using English gameplay data.", error);
+    console.warn("KingMinusMan: /api/config failed; using English gameplay data.", error);
     applyGameLocale("en");
   }
   const uiLang = resolveUiLang(gameLocale);

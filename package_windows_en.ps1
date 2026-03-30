@@ -9,8 +9,8 @@ $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ReleaseDir = Join-Path $ProjectRoot "release"
-$DistDir = Join-Path $ProjectRoot "dist\WordMath"
-$ReleaseAppDir = Join-Path $ReleaseDir "WordMath-windows"
+$DistDir = Join-Path $ProjectRoot "dist\KingMinusMan"
+$ReleaseAppDir = Join-Path $ReleaseDir "KingMinusMan"
 
 Push-Location $ProjectRoot
 try {
@@ -26,7 +26,7 @@ try {
 
         & ".\build_windows_en.ps1" @BuildArgs
     } else {
-        Write-Host "Reusing existing build from .\dist\WordMath"
+        Write-Host "Reusing existing build from .\dist\KingMinusMan"
     }
 
     if (Test-Path $ReleaseDir) {
@@ -40,7 +40,7 @@ try {
     Write-Host ""
     Write-Host "Package staging complete (English)."
     Write-Host "Share folder: $ReleaseAppDir"
-    Write-Host "Users can run WordMath.exe from that folder without installing Python or spaCy."
+    Write-Host "Users can run KingMinusMan.exe from that folder without installing Python or spaCy."
 } finally {
     Pop-Location
 }
