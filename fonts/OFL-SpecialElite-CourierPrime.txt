@@ -1,0 +1,6 @@
+Special Elite and Courier Prime are bundled as WOFF2 subsets (latin + latin-ext)
+from https://fonts.google.com — licensed under the SIL Open Font License 1.1
+(https://openfontlicense.org).
+
+Special Elite: Copyright Astigmatic (AOETI). Courier Prime: Copyright Quote-Unquote Apps.
+Full license texts ship with the upstream font packages on Google Fonts.
