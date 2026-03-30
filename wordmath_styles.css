@@ -801,7 +801,8 @@ input:focus {
 }
 
 .token-dock-flashing .token-dock-inner {
-  animation: token-tab-flash 1.1s ease-in-out infinite;
+  animation: token-tab-flash 0.5s ease-in-out 4;
+  animation-fill-mode: forwards;
 }
 
 /* --- Panel ------------------------------------------------------------- */

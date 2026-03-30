@@ -1,5 +1,8 @@
 const UI_STORAGE_KEY = "wordmath-ui-lang";
 
+/** When true, settings hide the language switch and the UI stays English. Russian copy remains in `MESSAGES.ru` for later. */
+const UI_LANG_LOCKED_TO_EN = true;
+
 const MESSAGES = {
   en: {
     "doc.title": "King Minus Man",
@@ -138,8 +141,8 @@ const MESSAGES = {
     "modal.settingsLanguageEn": "English",
     "modal.settingsLanguageRu": "Russian",
     "modal.settingsTilePaperLabel": "Field word cards (look)",
-    "modal.settingsTilePaperHint": "Saved in the browser. Affects words on the mixing field only.",
     "modal.settingsSoundVolumeLabel": "Sound volume",
+    "modal.settingsMusicVolumeLabel": "Music volume",
     "settings.tilePaperVanilla": "Vanilla",
     "settings.tilePaperSticky": "Sticky scrap",
     "settings.tilePaperIndex": "Ruled index",
@@ -322,9 +325,8 @@ const MESSAGES = {
     "modal.settingsLanguageEn": "English",
     "modal.settingsLanguageRu": "Русский",
     "modal.settingsTilePaperLabel": "Карточки на поле (оформление)",
-    "modal.settingsTilePaperHint":
-      "Сохраняется в браузере. Влияет только на слова на поле смешивания.",
     "modal.settingsSoundVolumeLabel": "Громкость звука",
+    "modal.settingsMusicVolumeLabel": "Громкость музыки",
     "settings.tilePaperVanilla": "Vanilla (без бумаги)",
     "settings.tilePaperSticky": "Стикер",
     "settings.tilePaperIndex": "Карточка с линейкой",
@@ -707,6 +709,9 @@ export function setUiLang(lang) {
 
 /** If user never chose, follow server game locale. */
 export function resolveUiLang(gameLocale) {
+  if (UI_LANG_LOCKED_TO_EN) {
+    return "en";
+  }
   const saved = window.localStorage.getItem(UI_STORAGE_KEY);
   if (saved === "en" || saved === "ru") {
     return saved;

@@ -269,13 +269,6 @@
           </div>
           <button type="button" class="ghost-button" data-action="close-settings" data-i18n="modal.close">Close</button>
         </div>
-        <div class="settings-language-block" style="margin-bottom:1rem;">
-          <p class="muted" data-i18n="modal.settingsLanguageLabel">Interface language</p>
-          <div class="settings-language-radios" style="display:flex;gap:1rem;flex-wrap:wrap;margin:0.35rem 0;">
-            <label><input type="radio" name="wordmath-ui-lang" value="en"> <span data-i18n="modal.settingsLanguageEn">English</span></label>
-            <label><input type="radio" name="wordmath-ui-lang" value="ru"> <span data-i18n="modal.settingsLanguageRu">Russian</span></label>
-          </div>
-        </div>
         <div class="settings-tile-paper-block">
           <p class="muted" data-i18n="modal.settingsTilePaperLabel">Field word cards</p>
           <div class="settings-tile-paper-radios">
@@ -286,7 +279,6 @@
             <label><input type="radio" name="wordmath-tile-paper" value="kraft"> <span data-i18n="settings.tilePaperKraft">Kraft scrap</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="vanilla"> <span data-i18n="settings.tilePaperVanilla">Vanilla</span></label>
           </div>
-          <p class="muted settings-copy" data-i18n="modal.settingsTilePaperHint">Saved in the browser. Affects words on the mixing field only.</p>
         </div>
         <div class="settings-sound-block" style="margin-bottom:1rem;">
           <label class="settings-slider-label" for="wordmath-sound-volume" style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;margin:0;">
@@ -295,6 +287,14 @@
             <span aria-hidden="true">%</span>
           </label>
           <input id="wordmath-sound-volume" type="range" min="0" max="100" step="1" value="80" data-settings-sound-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
+        </div>
+        <div class="settings-music-block" style="margin-bottom:1rem;">
+          <label class="settings-slider-label" for="wordmath-music-volume" style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;margin:0;">
+            <span data-i18n="modal.settingsMusicVolumeLabel">Music volume</span>
+            <span class="settings-music-volume-value" data-settings-music-volume-value aria-live="polite">50</span>
+            <span aria-hidden="true">%</span>
+          </label>
+          <input id="wordmath-music-volume" type="range" min="0" max="100" step="1" value="50" data-settings-music-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
         </div>
         <div class="settings-actions">
           <button type="button" data-action="spawn-word" data-i18n="settings.spawnWord">Spawn Word</button>

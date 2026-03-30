@@ -250,6 +250,9 @@ APP_ROOT = get_app_root()
 
 if getattr(sys, "frozen", False):
     wordfreq.DATA_PATH = APP_ROOT / "wordfreq" / "data"
+    _nltk_bundle = APP_ROOT / "nltk_data"
+    if _nltk_bundle.is_dir():
+        os.environ.setdefault("NLTK_DATA", str(_nltk_bundle.resolve()))
 
 
 def resolve_game_locale() -> str:

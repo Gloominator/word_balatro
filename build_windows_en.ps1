@@ -19,11 +19,18 @@ if (-not (Test-Path $FontsDir)) {
     throw "Fonts directory not found: $FontsDir"
 }
 
+$SoundsDir = Join-Path $ProjectRoot "sounds"
+if (-not (Test-Path $SoundsDir)) {
+    throw "Sounds directory not found: $SoundsDir"
+}
+
 $StaticFiles = @(
     "wordmath.html",
     "wordmath_app.js",
     "wordmath_locales.js",
     "wordmath_i18n.js",
+    "wordmath_tutorial.js",
+    "wordmath_sounds.js",
     "wordmath_styles.css",
     "deck.json",
     "category_pool.json",
@@ -44,6 +51,13 @@ try {
     Write-Host "Ensuring spaCy model '$SpaCyModel' is installed..."
     & $Python -m spacy download $SpaCyModel
 
+    Write-Host "Ensuring NLTK WordNet corpus (bundled for offline EXE)..."
+    $NltkPy = 'import nltk; from pathlib import Path; nltk.download(''wordnet'', quiet=True); p = next((Path(r).resolve() for r in nltk.data.path if (Path(r) / ''corpora'' / ''wordnet.zip'').is_file()), None); assert p; print(p)'
+    $NltkDataRoot = (& $Python -c $NltkPy).Trim()
+    if (-not (Test-Path $NltkDataRoot)) {
+        throw "Could not locate NLTK data root after wordnet download: $NltkDataRoot"
+    }
+
     $PyInstallerArgs = @(
         "-m", "PyInstaller",
         "--noconfirm",
@@ -52,6 +66,7 @@ try {
         "--onedir",
         "--collect-all", "spacy",
         "--collect-all", "wordfreq",
+        "--collect-all", "nltk",
         "--collect-all", $SpaCyModel
     )
 
@@ -66,6 +81,8 @@ try {
     }
 
     $PyInstallerArgs += @("--add-data", "fonts;fonts")
+    $PyInstallerArgs += @("--add-data", "sounds;sounds")
+    $PyInstallerArgs += @("--add-data", "${NltkDataRoot};nltk_data")
 
     if (-not (Test-Path $WordfreqDataSource)) {
         throw "Could not locate wordfreq data directory: $WordfreqDataSource"

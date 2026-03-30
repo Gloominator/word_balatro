@@ -27,6 +27,7 @@ import {
   tryConsumeTutorialEscape,
 } from "./wordmath_tutorial.js";
 import {
+  getWordmathMusicVolumePercent,
   getWordmathSoundVolumePercent,
   initWordmathSounds,
   playPaperRipSound,
@@ -36,6 +37,7 @@ import {
   playTokenPickupSound,
   playTileGrabSound,
   playTileReleaseSounds,
+  setWordmathMusicVolumePercent,
   setWordmathSoundVolumePercent,
 } from "./wordmath_sounds.js";
 
@@ -55,6 +57,9 @@ let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
 
 /** How many encyclopedia categories are in play for one run (80 words at 5 per category). */
 const RUN_ENCYCLOPEDIA_CATEGORY_COUNT = 16;
+
+/** Token dock highlight duration after earning tokens (ms). */
+const TOKEN_DOCK_FLASH_MS = 2000;
 
 const TILE_PAPER_STORAGE_KEY = "wordmath-tile-paper";
 const TILE_PAPER_IDS = ["vanilla", "sticky", "index", "receipt", "clip", "kraft"];
@@ -978,6 +983,9 @@ const state = {
   stageAdvanceFlow: null,
   activeSidebarTab: "words",
   unseenTokenRewards: 0,
+  tokenDockFlashNonce: 0,
+  tokenDockFlashAppliedNonce: 0,
+  tokenDockFlashUntil: 0,
   playfieldZoom: 1,
   playfieldCamera: {
     x: 0,
@@ -1103,10 +1111,11 @@ const els = {
   purchaseTokensMenu: document.querySelector("[data-purchase-tokens-menu]"),
   wordBoosterTopButton: document.querySelector("[data-action='buy-word-booster']"),
   wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
-  uiLangRadios: document.querySelectorAll("input[name='wordmath-ui-lang']"),
   tilePaperRadios: document.querySelectorAll("input[name='wordmath-tile-paper']"),
   soundVolumeSlider: document.querySelector("[data-settings-sound-volume]"),
   soundVolumeValue: document.querySelector("[data-settings-sound-volume-value]"),
+  musicVolumeSlider: document.querySelector("[data-settings-music-volume]"),
+  musicVolumeValue: document.querySelector("[data-settings-music-volume-value]"),
 };
 
 let pendingProgressSave = null;
@@ -1598,13 +1607,13 @@ function awardRandomDiscoveryToken() {
   const rewardType = dropPool[Math.floor(Math.random() * dropPool.length)];
   if (rewardType === "wildcard") {
     addWildcardTokens(1);
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     newWildcardTokens = 1;
     return { newWildcardTokens, newPositionTokenRewards };
   }
 
   addPositionTokens(rewardType, 1);
-  state.unseenTokenRewards += 1;
+  bumpUnseenTokenRewards(1);
   newPositionTokenRewards[rewardType] += 1;
   return { newWildcardTokens, newPositionTokenRewards };
 }
@@ -1922,41 +1931,41 @@ function grantQuestPoolTokenOfType(rewardType, rewardSummary) {
   if (rewardType === "broad-choice") {
     state.availableBroadChoiceTokens += 1;
     state.totalBroadChoiceTokensEarned += 1;
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     rewardSummary.newBroadChoiceTokens += 1;
     return;
   }
   if (rewardType === "minus-mix") {
     state.availableMinusMixTokens += 1;
     state.totalMinusMixTokensEarned += 1;
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     rewardSummary.newMinusMixTokens += 1;
     return;
   }
   if (rewardType === "ban-word") {
     state.availableBanWordTokens += 1;
     state.totalBanWordTokensEarned += 1;
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     rewardSummary.newBanWordTokens += 1;
     return;
   }
   if (rewardType === "lexicon-synantonym") {
     state.availableLexiconSynantonymTokens += 1;
     state.totalLexiconSynantonymTokensEarned += 1;
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     rewardSummary.newLexiconSynantonymTokens = getSafeCount(rewardSummary.newLexiconSynantonymTokens) + 1;
     return;
   }
   if (rewardType === "lexicon-hypohypernym") {
     state.availableLexiconHypohypernymTokens += 1;
     state.totalLexiconHypohypernymTokensEarned += 1;
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     rewardSummary.newLexiconHypohypernymTokens = getSafeCount(rewardSummary.newLexiconHypohypernymTokens) + 1;
     return;
   }
 
   addPositionTokens(rewardType, 1);
-  state.unseenTokenRewards += 1;
+  bumpUnseenTokenRewards(1);
   rewardSummary.newPositionTokenRewards[rewardType] += 1;
 }
 
@@ -2670,6 +2679,14 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     state.activeSidebarTab = "words";
   }
   state.unseenTokenRewards = getSafeCount(snapshot.unseenTokenRewards);
+  if (state.unseenTokenRewards > 0 && getTotalUsableTokenCount() > 0) {
+    state.tokenDockFlashUntil = Date.now() + TOKEN_DOCK_FLASH_MS;
+    state.tokenDockFlashNonce += 1;
+  } else {
+    state.tokenDockFlashUntil = 0;
+    state.tokenDockFlashNonce = 0;
+    state.tokenDockFlashAppliedNonce = 0;
+  }
   state.playfieldZoom = getNormalizedPlayfieldZoom(snapshot.playfieldZoom);
   state.playfieldCamera = clampPlayfieldCamera({
     x: Number.isFinite(snapshot.playfieldCamera?.x) ? snapshot.playfieldCamera.x : getDefaultPlayfieldCamera(state.playfieldZoom).x,
@@ -3302,8 +3319,22 @@ function spendMinusMixTagsAfterPairMix(draggedTile, targetTile) {
   }
 }
 
+function bumpUnseenTokenRewards(delta = 1) {
+  const n = Math.max(0, Math.floor(Number(delta)) || 0);
+  if (n <= 0) {
+    return;
+  }
+  state.unseenTokenRewards += n;
+  state.tokenDockFlashUntil = Date.now() + TOKEN_DOCK_FLASH_MS;
+  state.tokenDockFlashNonce += 1;
+}
+
 function shouldFlashTokenDock() {
-  return state.unseenTokenRewards > 0 && getTotalUsableTokenCount() > 0;
+  return (
+    state.unseenTokenRewards > 0
+    && getTotalUsableTokenCount() > 0
+    && Date.now() < state.tokenDockFlashUntil
+  );
 }
 
 function markTokenRewardsSeen() {
@@ -3311,6 +3342,9 @@ function markTokenRewardsSeen() {
     return;
   }
   state.unseenTokenRewards = 0;
+  state.tokenDockFlashUntil = 0;
+  state.tokenDockFlashNonce = 0;
+  state.tokenDockFlashAppliedNonce = 0;
   queueProgressSave();
   els.tokenDockOuter?.classList.remove("token-dock-flashing");
 }
@@ -6151,7 +6185,7 @@ function handleDeadEndMixError(error, sources = []) {
   const { refundedTagCount } = retireDeadEndWord(displayWord, explicitWordKey, tileIds);
   const rewardedToken = rollGarbageRewardToken();
 
-  state.unseenTokenRewards += 1;
+  bumpUnseenTokenRewards(1);
 
   renderSidebar();
   renderTiles();
@@ -6211,7 +6245,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
     state.garbageWordsSinceReward = 0;
     state.garbageRewardLevel += 1;
     const rewardedToken = rollGarbageRewardToken();
-    state.unseenTokenRewards += 1;
+    bumpUnseenTokenRewards(1);
     statusMessage = `${statusMessage} The recycler paid out a ${rewardedToken} token.`;
     statusState = "reward";
   }
@@ -7029,7 +7063,24 @@ function renderSidebar() {
   renderTopBarShop();
   renderWordList();
   renderTokenPanel();
-  els.tokenDockOuter?.classList.toggle("token-dock-flashing", shouldFlashTokenDock());
+  const outer = els.tokenDockOuter;
+  const dockFlash = shouldFlashTokenDock();
+  if (outer) {
+    if (dockFlash) {
+      if (state.tokenDockFlashNonce !== state.tokenDockFlashAppliedNonce) {
+        outer.classList.remove("token-dock-flashing");
+        const inner = outer.querySelector(".token-dock-inner");
+        void inner?.offsetWidth;
+        outer.classList.add("token-dock-flashing");
+        state.tokenDockFlashAppliedNonce = state.tokenDockFlashNonce;
+      } else {
+        outer.classList.add("token-dock-flashing");
+      }
+    } else {
+      outer.classList.remove("token-dock-flashing");
+      state.tokenDockFlashAppliedNonce = 0;
+    }
+  }
   els.openUpgradesTabButton.classList.toggle(
     "sidebar-tab--stage-clear-hint",
     isStageAdvanceBlockingPlay(),
@@ -8483,7 +8534,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     state.progressBroadChoiceTokensAwarded = unlockedBroadChoiceTokenCount;
     state.availableBroadChoiceTokens += newBroadChoiceTokens;
     state.totalBroadChoiceTokensEarned += newBroadChoiceTokens;
-    state.unseenTokenRewards += newBroadChoiceTokens;
+    bumpUnseenTokenRewards(newBroadChoiceTokens);
   }
 
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
@@ -8618,7 +8669,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   if (guaranteedSecondResultTokens > 0) {
     state.progressSecondResultTokensAwarded = unlockedSecondResultTokenCount;
     addPositionTokens(2, guaranteedSecondResultTokens);
-    state.unseenTokenRewards += guaranteedSecondResultTokens;
+    bumpUnseenTokenRewards(guaranteedSecondResultTokens);
     newPositionTokenRewards[2] += guaranteedSecondResultTokens;
   }
 
@@ -9139,10 +9190,6 @@ function closeSettings() {
 }
 
 function renderSettings() {
-  const lang = getUiLang();
-  els.uiLangRadios.forEach((radio) => {
-    radio.checked = radio.value === lang;
-  });
   const paper = getTilePaperStyle();
   els.tilePaperRadios.forEach((radio) => {
     radio.checked = radio.value === paper;
@@ -9153,6 +9200,13 @@ function renderSettings() {
   }
   if (els.soundVolumeValue) {
     els.soundVolumeValue.textContent = String(soundVol);
+  }
+  const musicVol = getWordmathMusicVolumePercent();
+  if (els.musicVolumeSlider) {
+    els.musicVolumeSlider.value = String(musicVol);
+  }
+  if (els.musicVolumeValue) {
+    els.musicVolumeValue.textContent = String(musicVol);
   }
 }
 
@@ -9333,6 +9387,9 @@ function resetRun() {
   state.garbageRewardLevel = 0;
   state.activeSidebarTab = "words";
   state.unseenTokenRewards = 0;
+  state.tokenDockFlashUntil = 0;
+  state.tokenDockFlashNonce = 0;
+  state.tokenDockFlashAppliedNonce = 0;
   state.playfieldZoom = 1;
   state.playfieldCamera = getDefaultPlayfieldCamera(1);
   state.quest.number = 1;
@@ -9653,21 +9710,6 @@ function initEvents() {
   els.questBuyTurnButton?.addEventListener("click", () => {
     purchaseShopItem("shop-quest-turn");
   });
-  els.uiLangRadios.forEach((radio) => {
-    radio.addEventListener("change", () => {
-      if (!radio.checked) {
-        return;
-      }
-      setUiLang(radio.value);
-      applyDocumentI18n(radio.value);
-      updatePlayfieldCamera();
-      renderSidebar();
-      setStatus(
-        radio.value === "ru" ? "Язык интерфейса: русский." : "Interface language: English.",
-        "ok",
-      );
-    });
-  });
   els.tilePaperRadios.forEach((radio) => {
     radio.addEventListener("change", () => {
       if (!radio.checked) {
@@ -9689,6 +9731,14 @@ function initEvents() {
     setWordmathSoundVolumePercent(v);
     if (els.soundVolumeValue) {
       els.soundVolumeValue.textContent = String(v);
+    }
+  });
+  els.musicVolumeSlider?.addEventListener("input", () => {
+    const raw = Number(els.musicVolumeSlider.value);
+    const v = Math.min(100, Math.max(0, Math.round(Number.isFinite(raw) ? raw : 0)));
+    setWordmathMusicVolumePercent(v);
+    if (els.musicVolumeValue) {
+      els.musicVolumeValue.textContent = String(v);
     }
   });
   els.saveFileInput.addEventListener("change", async (event) => {

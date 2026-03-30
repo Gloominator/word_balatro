@@ -19,6 +19,11 @@ if (-not (Test-Path $FontsDir)) {
     throw "Fonts directory not found: $FontsDir"
 }
 
+$SoundsDir = Join-Path $ProjectRoot "sounds"
+if (-not (Test-Path $SoundsDir)) {
+    throw "Sounds directory not found: $SoundsDir"
+}
+
 $DeckPath = Join-Path $ProjectRoot "deck.json"
 $DeckRuPath = Join-Path $ProjectRoot "deck.ru.json"
 $DeckBackup = Join-Path $ProjectRoot "deck.json.bak_build"
@@ -32,6 +37,8 @@ $StaticFiles = @(
     "wordmath_app.js",
     "wordmath_locales.js",
     "wordmath_i18n.js",
+    "wordmath_tutorial.js",
+    "wordmath_sounds.js",
     "wordmath_styles.css",
     "deck.json",
     "category_pool.json",
@@ -82,6 +89,7 @@ try {
     }
 
     $PyInstallerArgs += @("--add-data", "fonts;fonts")
+    $PyInstallerArgs += @("--add-data", "sounds;sounds")
 
     if (-not (Test-Path $WordfreqDataSource)) {
         throw "Could not locate wordfreq data directory: $WordfreqDataSource"

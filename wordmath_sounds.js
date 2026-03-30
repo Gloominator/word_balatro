@@ -6,6 +6,21 @@
 const ENABLED_KEY = "wordmath-sound-enabled";
 const VOLUME_KEY = "wordmath-sound-volume";
 const DEFAULT_VOLUME_PERCENT = 80;
+const MUSIC_VOLUME_KEY = "wordmath-music-volume";
+const DEFAULT_MUSIC_VOLUME_PERCENT = 50;
+const MUSIC_GAP_MS = 5000;
+/** Upper cap so BGM stays under SFX when both sliders are at 100%. */
+const MUSIC_LINEAR_CAP = 0.4;
+
+const MUSIC_TRACK_FILES = [
+  "deadline_music.mp3",
+  "dim_lights_music.mp3",
+  "late_night_grind_music.mp3",
+  "midnight_ovetime_music.mp3",
+  "silent_workplace_music.mp3",
+];
+
+const MUSIC_URLS = MUSIC_TRACK_FILES.map((f) => new URL(`./sounds/music/${f}`, import.meta.url).href);
 
 const VOL = {
   master: 0.52,
@@ -16,7 +31,7 @@ const VOL = {
 };
 
 const PAPER_CRUMP_SEGMENT_SEC = 0.5;
-const PAPER_CRUMP_URL = new URL("./sounds/paper/crumpingpaper.mp3", import.meta.url).href;
+const PAPER_CRUMP_URL = new URL("./sounds/paper/CRUMPINGPAPER.mp3", import.meta.url).href;
 const PAPER_RIP_URL = new URL("./sounds/paper/PAPERRIP.mp3", import.meta.url).href;
 const PAPER_SLIDE_URL = new URL("./sounds/paper/PAPERSLIDE.mp3", import.meta.url).href;
 
@@ -28,7 +43,7 @@ const FILES = {
   uiClick: "ui_click.wav",
   tokenPickup: "token_pickupnew.mp3",
   encyclopediaEntry: "encyclopedia_entry.wav",
-  questComplete: "quest_complete.wav",
+  questComplete: "FANFARE.mp3",
   stageComplete: "stage_complete.wav",
 };
 
@@ -76,6 +91,169 @@ export function setWordmathSoundVolumePercent(percent) {
   } catch {
     /* ignore */
   }
+}
+
+function clampMusicVolumePercent(raw) {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) {
+    return DEFAULT_MUSIC_VOLUME_PERCENT;
+  }
+  return Math.min(100, Math.max(0, n));
+}
+
+/**
+ * @returns {number} 0–100
+ */
+export function getWordmathMusicVolumePercent() {
+  try {
+    const stored = window.localStorage.getItem(MUSIC_VOLUME_KEY);
+    if (stored != null && stored !== "") {
+      return clampMusicVolumePercent(stored);
+    }
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_MUSIC_VOLUME_PERCENT;
+}
+
+/**
+ * @param {number} percent 0–100
+ */
+export function setWordmathMusicVolumePercent(percent) {
+  const v = clampMusicVolumePercent(percent);
+  try {
+    window.localStorage.setItem(MUSIC_VOLUME_KEY, String(v));
+  } catch {
+    /* ignore */
+  }
+  applyWordmathMusicVolumeLive();
+}
+
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const t = arr[i];
+    arr[i] = arr[j];
+    arr[j] = t;
+  }
+  return arr;
+}
+
+let musicShuffled = [];
+let musicTrackIndex = 0;
+/** @type {HTMLAudioElement | null} */
+let musicAudio = null;
+let musicGapTimer = 0;
+let musicStarted = false;
+
+function clearMusicGapTimer() {
+  if (musicGapTimer) {
+    window.clearTimeout(musicGapTimer);
+    musicGapTimer = 0;
+  }
+}
+
+function computeMusicLinearVolume() {
+  const p = getWordmathMusicVolumePercent() / 100;
+  return Math.min(1, MUSIC_LINEAR_CAP * p);
+}
+
+function beginMusicCycle() {
+  musicShuffled = shuffleInPlace(MUSIC_URLS.slice());
+  musicTrackIndex = 0;
+}
+
+function destroyCurrentMusicAudio() {
+  if (!musicAudio) {
+    return;
+  }
+  musicAudio.pause();
+  musicAudio.removeAttribute("src");
+  musicAudio.load();
+  musicAudio = null;
+}
+
+function scheduleNextMusicTrackAfterGap() {
+  clearMusicGapTimer();
+  musicGapTimer = window.setTimeout(() => {
+    musicGapTimer = 0;
+    playMusicTrackAtCurrentIndex();
+  }, MUSIC_GAP_MS);
+}
+
+function advanceMusicPlaylistAfterTrack() {
+  musicTrackIndex += 1;
+  if (musicTrackIndex >= musicShuffled.length) {
+    beginMusicCycle();
+  }
+  scheduleNextMusicTrackAfterGap();
+}
+
+function playMusicTrackAtCurrentIndex() {
+  clearMusicGapTimer();
+  if (MUSIC_URLS.length === 0 || getWordmathMusicVolumePercent() <= 0) {
+    return;
+  }
+  if (musicShuffled.length === 0) {
+    beginMusicCycle();
+  }
+  const url = musicShuffled[musicTrackIndex];
+  destroyCurrentMusicAudio();
+  const audio = new Audio(url);
+  musicAudio = audio;
+  audio.volume = computeMusicLinearVolume();
+  audio.addEventListener("ended", advanceMusicPlaylistAfterTrack, { once: true });
+  audio.addEventListener(
+    "error",
+    () => {
+      advanceMusicPlaylistAfterTrack();
+    },
+    { once: true },
+  );
+  audio.play().catch(() => {});
+}
+
+function startWordmathBackgroundMusicAfterGesture() {
+  if (MUSIC_URLS.length === 0 || musicStarted) {
+    return;
+  }
+  musicStarted = true;
+  if (getWordmathMusicVolumePercent() <= 0) {
+    return;
+  }
+  beginMusicCycle();
+  playMusicTrackAtCurrentIndex();
+}
+
+/**
+ * Call after music volume changes (slider or storage) to pause/resume/update gain.
+ */
+export function applyWordmathMusicVolumeLive() {
+  const v = getWordmathMusicVolumePercent();
+  if (v <= 0) {
+    clearMusicGapTimer();
+    if (musicAudio && !musicAudio.ended) {
+      musicAudio.pause();
+    }
+    return;
+  }
+  if (!musicStarted) {
+    return;
+  }
+  if (musicAudio && !musicAudio.ended) {
+    musicAudio.volume = computeMusicLinearVolume();
+    if (musicAudio.paused) {
+      musicAudio.play().catch(() => {});
+    }
+    return;
+  }
+  if (musicGapTimer) {
+    return;
+  }
+  if (musicShuffled.length === 0) {
+    beginMusicCycle();
+  }
+  playMusicTrackAtCurrentIndex();
 }
 
 export function wordmathSoundsEnabled() {
@@ -302,6 +480,7 @@ function shouldPlayUiClick(target) {
 }
 
 export function initWordmathSounds() {
+  document.addEventListener("pointerdown", startWordmathBackgroundMusicAfterGesture, { capture: true, once: true });
   document.addEventListener(
     "click",
     (event) => {
