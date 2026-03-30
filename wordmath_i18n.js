@@ -87,11 +87,11 @@ const MESSAGES = {
     "tokenDock.lexiconHypernymDragHint": "Drop a Hypernym token on an empty spot on the field.",
     "tokenDock.lexiconSynantonymTitle": "Synantonym",
     "tokenDock.lexiconSynantonymHint":
-      "Drop on the field to create a Synantonym tile. Drag onto a word: each preview alternates synonyms and antonyms (meanings in order). Mix consumes the tile. No definitions.",
+      "Drop on the field to create a Synantonym tile. Drag onto a word: each preview alternates synonyms and antonyms. Mix consumes the tile.",
     "tokenDock.lexiconSynantonymDragHint": "Drop a Synantonym token on an empty spot on the field.",
     "tokenDock.lexiconHypohypernymTitle": "Hypo-/hypernym",
     "tokenDock.lexiconHypohypernymHint":
-      "Drop on the field to create a Hypo-/hypernym tile. Drag onto a word: each preview alternates narrower hyponyms and broader hypernyms. Mix consumes the tile. No definitions.",
+      "Drop on the field to create a Hypo-/hypernym tile. Drag onto a word: each preview alternates narrower hyponyms and broader hypernyms. Mix consumes the tile.",
     "tokenDock.lexiconHypohypernymDragHint": "Drop a Hypo-/hypernym token on an empty spot on the field.",
     "garbage.title": "Recycler",
     "garbage.hint": "Drag words to remove them. Gain tokens as reward",
@@ -134,31 +134,21 @@ const MESSAGES = {
     "modal.genealogyTierGreat": "Great-grandparents",
     "modal.genealogyTierGreatGreat": "Great-great-grandparents",
     "modal.settingsTitle": "Settings",
-    "modal.settingsSubtitle": "Gameplay and debug tools for this run.",
     "modal.settingsLanguageLabel": "Interface language",
     "modal.settingsLanguageEn": "English",
     "modal.settingsLanguageRu": "Russian",
-    "modal.settingsLocaleHint":
-      "Word data matches the server (English or Russian build). Change interface language anytime.",
     "modal.settingsTilePaperLabel": "Field word cards (look)",
     "modal.settingsTilePaperHint": "Saved in the browser. Affects words on the mixing field only.",
     "modal.settingsSoundVolumeLabel": "Sound volume",
-    "modal.settingsSoundHint":
-      "0 mutes all game sounds. Saved in the browser.",
     "settings.tilePaperVanilla": "Vanilla",
     "settings.tilePaperSticky": "Sticky scrap",
     "settings.tilePaperIndex": "Ruled index",
     "settings.tilePaperReceipt": "Receipt tear-off",
     "settings.tilePaperClip": "Magazine clip",
     "settings.tilePaperKraft": "Kraft scrap",
-    "settings.spawnExistingTitle": "Spawn existing words",
-    "settings.spawnExistingHint":
-      "When off, matching will not spawn words that are already in Available Words.",
     "settings.spawnWord": "Spawn Word",
     "settings.exportSave": "Debug Export Save JSON",
     "settings.importSave": "Load Saved Game JSON",
-    "settings.exportNote":
-      "The exported file includes the full game snapshot, including discovered words, so they can be extracted later.",
     "booster.title": "Word Booster",
     "booster.subtitle":
       "Pick 1 of these 10 rolled words to discover it and add it to Available Words.",
@@ -282,11 +272,11 @@ const MESSAGES = {
     "tokenDock.lexiconHypernymDragHint": "Бросьте токен гиперонима на свободное место поля.",
     "tokenDock.lexiconSynantonymTitle": "Синантоним",
     "tokenDock.lexiconSynantonymHint":
-      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует синонимы и антонимы. Самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует синонимы и антонимы. Самосмешивание.",
     "tokenDock.lexiconSynantonymDragHint": "Бросьте токен «синантоним» на свободное место поля.",
     "tokenDock.lexiconHypohypernymTitle": "Гипо-/гипероним",
     "tokenDock.lexiconHypohypernymHint":
-      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует гипонимы и гиперонимы. Самосмешивание. Без определений.",
+      "Бросьте на поле — плитка. На слове каждый предпросмотр чередует гипонимы и гиперонимы. Самосмешивание.",
     "tokenDock.lexiconHypohypernymDragHint": "Бросьте токен «гипо-/гипероним» на свободное место поля.",
     "garbage.title": "Переработчик",
     "garbage.hint": "Перетащите слова, чтобы убрать их. Награда — токены",
@@ -328,32 +318,22 @@ const MESSAGES = {
     "modal.genealogyTierGreat": "Прародители",
     "modal.genealogyTierGreatGreat": "Прапрародители",
     "modal.settingsTitle": "Настройки",
-    "modal.settingsSubtitle": "Игровые и отладочные опции.",
     "modal.settingsLanguageLabel": "Язык интерфейса",
     "modal.settingsLanguageEn": "English",
     "modal.settingsLanguageRu": "Русский",
-    "modal.settingsLocaleHint":
-      "Слова и смешивание соответствуют серверу (английская или русская сборка). Язык интерфейса можно сменить в любой момент.",
     "modal.settingsTilePaperLabel": "Карточки на поле (оформление)",
     "modal.settingsTilePaperHint":
       "Сохраняется в браузере. Влияет только на слова на поле смешивания.",
     "modal.settingsSoundVolumeLabel": "Громкость звука",
-    "modal.settingsSoundHint":
-      "0 отключает все звуки игры. Сохраняется в браузере.",
     "settings.tilePaperVanilla": "Vanilla (без бумаги)",
     "settings.tilePaperSticky": "Стикер",
     "settings.tilePaperIndex": "Карточка с линейкой",
     "settings.tilePaperReceipt": "Чек (перфорация)",
     "settings.tilePaperClip": "Вырезка из журнала",
     "settings.tilePaperKraft": "Крафт-бумага",
-    "settings.spawnExistingTitle": "Создавать уже открытые слова",
-    "settings.spawnExistingHint":
-      "Если выключено, при смешивании не появятся слова из списка доступных.",
     "settings.spawnWord": "Создать слово",
     "settings.exportSave": "Экспорт сохранения (JSON)",
     "settings.importSave": "Загрузить сохранение (JSON)",
-    "settings.exportNote":
-      "Экспортируемый файл содержит полный снимок игры, включая открытые слова.",
     "booster.title": "Бустер слов",
     "booster.subtitle":
       "Выберите 1 из 10 выпавших слов, чтобы открыть его и добавить в доступные.",

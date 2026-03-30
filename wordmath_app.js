@@ -901,7 +901,6 @@ const state = {
   starters: [],
   discovered: new Map(),
   selfMatchedWords: new Set(),
-  spawnExistingWords: false,
   tiles: [],
   search: "",
   lastMix: {
@@ -1090,7 +1089,6 @@ const els = {
   importSaveButton: document.querySelector("[data-action='import-save']"),
   settingsModal: document.querySelector("[data-settings-modal]"),
   saveFileInput: document.querySelector("[data-save-file-input]"),
-  spawnExistingWordsToggle: document.querySelector("[data-setting='spawn-existing-words']"),
   questStrip: document.querySelector("[data-quest-strip-root]"),
   questLossModal: document.querySelector("[data-quest-loss-modal]"),
   questLossWord: document.querySelector("[data-quest-loss-word]"),
@@ -2130,7 +2128,6 @@ function buildProgressSnapshot() {
       { left: par.left, right: par.right },
     ]),
     selfMatchedWords: [...state.selfMatchedWords],
-    spawnExistingWords: state.spawnExistingWords,
     tiles: state.tiles.map((tile) => ({
       id: tile.id,
       word: tile.word,
@@ -2511,7 +2508,6 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.discovered = discovered;
   state.wordParents = normalizeSavedWordParents(snapshot.wordParents);
   state.selfMatchedWords = new Set(getStringList(snapshot.selfMatchedWords));
-  state.spawnExistingWords = Boolean(snapshot.spawnExistingWords);
   state.tiles = tiles;
   state.search = "";
   state.lastMix = {
@@ -3701,19 +3697,19 @@ function resolvePendingBanMixIfNeeded({
       markWordAsSelfMatched(leftWord);
     }
     recordMatch(leftWord, rightWord, rememberedCanon, "add", selection.candidates, selectedCandidate.word);
-    const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+    const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
     if (shouldBlockSpawn) {
       if (clientPoint) {
         showFloatingWordNotice("❌", "error", clientPoint);
       }
     } else if (isSelfMatch) {
       spawnWordOnField(rememberedCanon, selfMatchSpawnPosition);
-      if (!state.spawnExistingWords && clientPoint) {
+      if (clientPoint) {
         showFloatingWordNotice("💡", "success", clientPoint);
       }
     } else {
       spawnResultTile(rememberedCanon, firstTile, secondTile);
-      if (!state.spawnExistingWords && clientPoint) {
+      if (clientPoint) {
         showFloatingWordNotice("💡", "success", clientPoint);
       }
     }
@@ -3742,7 +3738,7 @@ function resolvePendingBanMixIfNeeded({
       }
     } else {
       status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
-      if (!state.spawnExistingWords && status.stateName === "ok") {
+      if (status.stateName === "ok") {
         status.stateName = "success";
       }
     }
@@ -6386,7 +6382,7 @@ async function useWildcardToken(position = null) {
     vocabularyOverflow,
   } = rememberResult(randomWord.word, randomWord.normalized, { zipf: randomWord.zipf });
   spawnWordOnField(canonicalResult, position);
-  const wildcardBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  const wildcardBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
   const status = getWildcardOutcomeMessage(
     canonicalResult,
     isInEncyclopedia,
@@ -6463,8 +6459,8 @@ function getTokenDockEmoji(dragType) {
 
 function getPositionTokenDockDescription(rank) {
   return rank === 5
-    ? "Drag onto a field word to tag it. One tag jumps to the 5th result; two tagged words jump to the 6th."
-    : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result; two tagged words can push to the ${getOrdinalLabel(rank + 1)}.`;
+    ? "Drag onto a field word to tag it. One tag jumps to the 5th result."
+    : `Drag onto a field word to tag it. One tag jumps to the ${getOrdinalLabel(rank)} result.`;
 }
 
 const SHOP_ITEM_ID_TO_POSITION_RANK = Object.freeze({
@@ -6482,7 +6478,7 @@ function getTokenInventoryHintForShopItemId(itemId) {
   }
   switch (itemId) {
     case "shop-ban-word":
-      return "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool (no tile, no discovery).";
+      return "Drag onto a field word to charge a Ban line. Your next mix using that word strikes the result from the pool.";
     case "shop-broad-choice":
       return "Drag onto a field word. Your next mix with that word shows 10 results and lets you pick the outcome.";
     case "shop-minus-mix":
@@ -7933,14 +7929,12 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   });
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", noticePoint);
   } else {
     spawnWordOnField(canonicalResult, position);
-    if (!state.spawnExistingWords) {
-      showFloatingWordNotice("💡", "success", noticePoint);
-    }
+    showFloatingWordNotice("💡", "success", noticePoint);
   }
   let status;
   if (shouldBlockSpawn) {
@@ -7986,7 +7980,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       hiddenEncyclopediaDiscovery,
       stageEncoreEncyclopediaReward,
     });
-    if (!state.spawnExistingWords && status.stateName === "ok") {
+    if (status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -8119,14 +8113,12 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   });
   markWordAsSelfMatched(w);
   recordMatch(w, w, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
     spawnResultTile(canonicalResult, lexTile, wordTile);
-    if (!state.spawnExistingWords) {
-      showFloatingWordNotice("💡", "success", clientPoint);
-    }
+    showFloatingWordNotice("💡", "success", clientPoint);
   }
   removeLexiconTileConsumed(lexTile.id);
   let status;
@@ -8189,7 +8181,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
         stageEncoreEncyclopediaReward,
       },
     );
-    if (!state.spawnExistingWords && status.stateName === "ok") {
+    if (status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -8341,14 +8333,12 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   }
   recordMatch(leftWord, rightWord, canonicalResult, mixOperation, selection.candidates, selectedCandidate.word);
   spendMinusMixTagsAfterPairMix(firstTile, secondTile);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
     showFloatingWordNotice("❌", "error", clientPoint);
   } else {
     spawnResultTile(canonicalResult, firstTile, secondTile);
-    if (!state.spawnExistingWords) {
-      showFloatingWordNotice("💡", "success", clientPoint);
-    }
+    showFloatingWordNotice("💡", "success", clientPoint);
   }
   let status;
   if (shouldBlockSpawn) {
@@ -8410,7 +8400,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         stageEncoreEncyclopediaReward,
       },
     );
-    if (!state.spawnExistingWords && status.stateName === "ok") {
+    if (status.stateName === "ok") {
       status.stateName = "success";
     }
   }
@@ -9081,7 +9071,7 @@ function renderShopWordBooster() {
         questResult,
         hiddenEncyclopediaDiscovery,
       });
-      const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+      const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
       applyOutcomeStatus(status, {
         vocabularyOverflow,
         questResult,
@@ -9145,7 +9135,6 @@ function closeSettings() {
 }
 
 function renderSettings() {
-  els.spawnExistingWordsToggle.checked = state.spawnExistingWords;
   const lang = getUiLang();
   els.uiLangRadios.forEach((radio) => {
     radio.checked = radio.value === lang;
@@ -9227,7 +9216,7 @@ async function promptSpawnWord() {
     questResult,
     hiddenEncyclopediaDiscovery,
   });
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
   applyOutcomeStatus(status, {
     vocabularyOverflow,
     questResult,
@@ -9276,7 +9265,6 @@ function resetRun() {
   state.starters = sampleStarters();
   state.discovered = new Map(state.starters.map((word) => [word, word]));
   state.selfMatchedWords = new Set();
-  state.spawnExistingWords = false;
   state.tiles = [];
   state.search = "";
   state.removedResultWords = new Set();
@@ -9659,16 +9647,6 @@ function initEvents() {
   els.questGoAgainButton.addEventListener("click", resetRun);
   els.questBuyTurnButton?.addEventListener("click", () => {
     purchaseShopItem("shop-quest-turn");
-  });
-  els.spawnExistingWordsToggle.addEventListener("change", () => {
-    state.spawnExistingWords = els.spawnExistingWordsToggle.checked;
-    queueProgressSave();
-    setStatus(
-      state.spawnExistingWords
-        ? "Spawn existing words is on."
-        : "Spawn existing words is off. Matches will skip words already in Available Words.",
-      "ok",
-    );
   });
   els.uiLangRadios.forEach((radio) => {
     radio.addEventListener("change", () => {

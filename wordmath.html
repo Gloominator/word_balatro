@@ -266,7 +266,6 @@
         <div class="modal-head">
           <div>
             <h2 id="settings-title" data-i18n="modal.settingsTitle">Settings</h2>
-            <p class="muted" data-i18n="modal.settingsSubtitle">Gameplay and debug tools for this run.</p>
           </div>
           <button type="button" class="ghost-button" data-action="close-settings" data-i18n="modal.close">Close</button>
         </div>
@@ -276,7 +275,6 @@
             <label><input type="radio" name="wordmath-ui-lang" value="en"> <span data-i18n="modal.settingsLanguageEn">English</span></label>
             <label><input type="radio" name="wordmath-ui-lang" value="ru"> <span data-i18n="modal.settingsLanguageRu">Russian</span></label>
           </div>
-          <p class="muted settings-copy" data-i18n="modal.settingsLocaleHint">Word data matches the server (English or Russian build). Change interface language anytime.</p>
         </div>
         <div class="settings-tile-paper-block">
           <p class="muted" data-i18n="modal.settingsTilePaperLabel">Field word cards</p>
@@ -297,21 +295,12 @@
             <span aria-hidden="true">%</span>
           </label>
           <input id="wordmath-sound-volume" type="range" min="0" max="100" step="1" value="80" data-settings-sound-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
-          <p class="muted settings-copy" data-i18n="modal.settingsSoundHint">0 mutes all game sounds. Saved in the browser.</p>
         </div>
-        <label class="settings-toggle" for="spawn-existing-words">
-          <input id="spawn-existing-words" type="checkbox" data-setting="spawn-existing-words">
-          <span>
-            <strong data-i18n="settings.spawnExistingTitle">Spawn existing words</strong>
-            <span class="muted settings-toggle-copy" data-i18n="settings.spawnExistingHint">When off, matching will not spawn words that are already in Available Words.</span>
-          </span>
-        </label>
         <div class="settings-actions">
           <button type="button" data-action="spawn-word" data-i18n="settings.spawnWord">Spawn Word</button>
           <button type="button" data-action="export-save" data-i18n="settings.exportSave">Debug Export Save JSON</button>
           <button type="button" class="ghost-button" data-action="import-save" data-i18n="settings.importSave">Load Saved Game JSON</button>
         </div>
-        <p class="muted settings-copy" data-i18n="settings.exportNote">The exported file includes the full game snapshot, including discovered words, so they can be extracted later.</p>
         <input type="file" accept="application/json,.json" data-save-file-input hidden>
       </section>
     </div>
