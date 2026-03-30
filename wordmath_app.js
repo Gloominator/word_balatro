@@ -1920,7 +1920,7 @@ function buildProgressSnapshot() {
     nextZIndex: state.nextZIndex,
     superRarePreviewByKey: [...state.superRarePreviewByKey.entries()].map(([key, value]) => [
       key,
-      value === null ? { miss: true } : { rewardType: value.rewardType },
+      value === null || value === undefined ? { miss: true } : { rewardType: value.rewardType },
     ]),
   };
 }
@@ -7877,12 +7877,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let questResult = null;
   let hiddenEncyclopediaDiscovery = false;
   let skipQuestTurnForPreviewTokenBonus = false;
-  const whiteRemixEncyclopedia = Boolean(
-    metadata.fromMix
-    && wasDiscovered
-    && isInEncyclopedia
-    && encyclopediaEntry,
-  );
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -7951,32 +7945,10 @@ function rememberResult(result, normalized = result, metadata = {}) {
     }
   }
 
-  if (whiteRemixEncyclopedia) {
-    const encTokenDelta = {
-      newBroadChoiceTokens: 0,
-      newMinusMixTokens: 0,
-      newBanWordTokens: 0,
-      newWildcardTokens: 0,
-      newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
-    };
-    grantOneRandomQuestPoolToken(encTokenDelta);
-    newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
-    newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
-    newBanWordTokens += encTokenDelta.newBanWordTokens;
-    newWildcardTokens += encTokenDelta.newWildcardTokens;
-    newLexiconSynantonymTokens += getSafeCount(encTokenDelta.newLexiconSynantonymTokens);
-    newLexiconHypohypernymTokens += getSafeCount(encTokenDelta.newLexiconHypohypernymTokens);
-    mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
-    coinReward = awardDiscoveryCoins({
-      zipf: metadata?.zipf,
-      isInEncyclopedia: true,
-    });
-  }
-
   if (didDiscoverNewWord) {
     const previewKey = getCandidateResultKey({ word: result, normalized });
     const pendingRare = state.superRarePreviewByKey.get(previewKey);
-    const normalizedRareReward = normalizeQuestPoolRewardTypeLoaded(pendingRare.rewardType);
+    const normalizedRareReward = normalizeQuestPoolRewardTypeLoaded(pendingRare?.rewardType);
     if (pendingRare?.rewardType && QUEST_REWARD_TOKEN_TYPE_SET.has(normalizedRareReward)) {
       skipQuestTurnForPreviewTokenBonus = true;
       const rareDelta = {
@@ -8020,7 +7992,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
     countQuestDiscoveryTurn: allowQuestTurnTick,
-    spendQuestTurnWithoutNewWord: allowQuestTurnTick && whiteRemixEncyclopedia,
+    spendQuestTurnWithoutNewWord: false,
   });
   newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
   newMinusMixTokensFromCompletion += questResult.newMinusMixTokens;
@@ -8052,7 +8024,6 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   if (
     didDiscoverNewWord
-    || whiteRemixEncyclopedia
     || coinReward
     || totalNewBroadChoiceTokens > 0
     || totalNewMinusMixTokens > 0
