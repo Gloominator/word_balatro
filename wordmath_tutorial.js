@@ -95,7 +95,7 @@ let helpBackdrop = null;
 let helpCard = null;
 let focusRestoreEl = null;
 
-let tutorialState = { dismissed: [], ghostHandShown: false };
+let tutorialState = { dismissed: [] };
 let stageQueue = [];
 let activeStage = null;
 let replayMode = false;
@@ -113,18 +113,15 @@ function loadTutorialState() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return { dismissed: [], ghostHandShown: false };
+      return { dismissed: [] };
     }
     const p = JSON.parse(raw);
     const dismissed = Array.isArray(p.dismissed)
       ? [...new Set(p.dismissed.map(Number).filter((n) => n >= 1 && n <= 5))].sort((a, b) => a - b)
       : [];
-    return {
-      dismissed,
-      ghostHandShown: Boolean(p.ghostHandShown),
-    };
+    return { dismissed };
   } catch {
-    return { dismissed: [], ghostHandShown: false };
+    return { dismissed: [] };
   }
 }
 
@@ -134,7 +131,6 @@ function saveTutorialState() {
       STORAGE_KEY,
       JSON.stringify({
         dismissed: tutorialState.dismissed,
-        ghostHandShown: tutorialState.ghostHandShown,
       }),
     );
   } catch {
@@ -392,13 +388,10 @@ export function syncTutorialBlocker() {
   updateBlockerGeometry();
 }
 
-function showGhostHandIfNeeded() {
-  if (tutorialState.ghostHandShown || !ghostHandEl || !api?.els?.tokenDockOuter || !api?.els?.playfield) {
+function updateGhostHandLayoutVars() {
+  if (!ghostHandEl || !api?.els?.tokenDockOuter || !api?.els?.playfield) {
     return;
   }
-  tutorialState.ghostHandShown = true;
-  saveTutorialState();
-  ghostHandEl.hidden = false;
   const dock = api.els.tokenDockOuter;
   const pf = api.els.playfield;
   const dr = dock.getBoundingClientRect();
@@ -411,11 +404,46 @@ function showGhostHandIfNeeded() {
   ghostHandEl.style.top = `${sy}px`;
   ghostHandEl.style.setProperty("--gh-ex", `${ex - sx}px`);
   ghostHandEl.style.setProperty("--gh-ey", `${ey - sy}px`);
-  ghostHandEl.classList.add("wordmath-tutorial-ghost-hand--anim");
-  window.setTimeout(() => {
+}
+
+function stopGhostHandLoop() {
+  if (ghostHandLayoutRaf !== null) {
+    window.cancelAnimationFrame(ghostHandLayoutRaf);
+    ghostHandLayoutRaf = null;
+  }
+  if (ghostHandEl) {
     ghostHandEl.hidden = true;
     ghostHandEl.classList.remove("wordmath-tutorial-ghost-hand--anim");
-  }, 4200);
+    ghostHandEl.classList.remove("wordmath-tutorial-ghost-hand--anim-loop");
+  }
+}
+
+function startGhostHandLayoutRaf() {
+  if (ghostHandLayoutRaf !== null) {
+    window.cancelAnimationFrame(ghostHandLayoutRaf);
+    ghostHandLayoutRaf = null;
+  }
+  const tick = () => {
+    if (!ghostHandEl || ghostHandEl.hidden || activeStage !== 3) {
+      ghostHandLayoutRaf = null;
+      return;
+    }
+    updateGhostHandLayoutVars();
+    ghostHandLayoutRaf = window.requestAnimationFrame(tick);
+  };
+  ghostHandLayoutRaf = window.requestAnimationFrame(tick);
+}
+
+/** Stage 3: looping drag hint until the player dismisses the tutorial modal. */
+function startStage3GhostHand() {
+  if (!ghostHandEl || !api?.els?.tokenDockOuter || !api?.els?.playfield) {
+    return;
+  }
+  updateGhostHandLayoutVars();
+  ghostHandEl.hidden = false;
+  ghostHandEl.classList.remove("wordmath-tutorial-ghost-hand--anim");
+  ghostHandEl.classList.add("wordmath-tutorial-ghost-hand--anim-loop");
+  startGhostHandLayoutRaf();
 }
 
 function hideBoosterArrow() {
@@ -432,11 +460,13 @@ function hideEncArrow() {
 
 let stopBoosterRaf = null;
 let stopEncRaf = null;
+let ghostHandLayoutRaf = null;
 
 function teardownActiveVisuals() {
   hideBoosterArrow();
   hideEncArrow();
   stopAllTutorialRafs();
+  stopGhostHandLoop();
   stage1HighlightTileIds = [];
   stage1AwaitingMixAfterWelcome = false;
   if (api?.refreshTileRender) {
@@ -571,8 +601,8 @@ function showSpotlightStage(stage, { replay = false } = {}) {
     stopEncRaf = startEncArrowLoop();
   }
 
-  if (stage === 3 && !replay) {
-    showGhostHandIfNeeded();
+  if (stage === 3) {
+    startStage3GhostHand();
   }
 }
 
