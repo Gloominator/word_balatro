@@ -3,6 +3,7 @@
  */
 
 const STORAGE_KEY = "wordmath-tutorial-v1";
+const TUTORIAL_STORAGE_VERSION = 2;
 
 const STAGE_COPY = {
   en: {
@@ -20,23 +21,31 @@ const STAGE_COPY = {
     },
     2: {
       title: "Mind your INK",
-      body: "Every mix spends INK. Think about the direction you want to go. Out of ideas? Hit Word Booster for fresh words.",
-      tip: "Your first Word Booster roll each stage is always free!",
+      body:
+        "Every mix spends INK. When you get to 0 INK you lose. Think about what you mix!",
+      tip:
+        "Think about what category your target word is in and choose only words that are semantically getting you closer to it.",
       cta: "Got it",
     },
     3: {
+      title: "STUCK?",
+      body: "Out of ideas? Hit Word Booster for fresh words.",
+      tip: "Your first Word Booster each stage is always free!",
+      cta: "Got it",
+    },
+    4: {
       title: "Tokens change the recipe",
       body: "Normally, mixing two words gives you the first result in the top matches table. Tokens let you change which matches you see and which rank (2nd, 3rd, …) you get. Try dragging a token onto a word on the field!",
       tip: 'Tokens can be bought in "Purchase Tokens".',
       cta: "Will do",
     },
-    4: {
+    5: {
       title: "Wow! Good job!",
       body: "Each stage, you'll work through categories in the encyclopedia - 16 categories with 5 words each. Mixing words from the encyclopedia grants bonus tokens!",
       tip: "Peek at the Encyclopedia button in the top bar when you need a reminder.",
       cta: "Nice",
     },
-    5: {
+    6: {
       title: "Bonus city",
       body: 'Woah! You hit a bonus pick! Those hand out tokens for free and skip the INK cost. Free real estate!',
       tip: "Hunt for the sparkly chips in the top matches list.",
@@ -58,23 +67,31 @@ const STAGE_COPY = {
     },
     2: {
       title: "Следите за чернилами",
-      body: "Каждое смешивание тратит чернила. Думайте, куда идёте. Нет слов — нажмите Word Booster.",
-      tip: "Первый Word Booster в этапе всегда бесплатный!",
+      body:
+        "Каждое смешивание тратит чернила. Когда чернила закончатся — проигрыш. Думайте, что смешивать!",
+      tip:
+        "Подумайте, к какой категории относится целевое слово, и выбирайте только те слова, которые семантически приближают вас к нему.",
       cta: "Понял",
     },
     3: {
+      title: "Застряли?",
+      body: "Нет идей? Нажмите Word Booster — появятся новые слова.",
+      tip: "Первый Word Booster на этапе всегда бесплатный!",
+      cta: "Понял",
+    },
+    4: {
       title: "Жетоны меняют результат",
       body: "Обычно при смешивании двух слов берётся первое из топ-совпадений. Жетоны меняют, какие совпадения видны и какой по счёту результат получите. Перетащите жетон на слово на поле!",
       tip: 'Купить жетоны можно в «Purchase Tokens».',
       cta: "Ок",
     },
-    4: {
+    5: {
       title: "Ура, отлично!",
       body: "На каждом этапе нужно закрывать категории энциклопедии — 16 категорий по 5 слов. Смешивание слов из энциклопедии даёт бонусные жетоны!",
       tip: "Кнопка Encyclopedia наверху — заглядывайте, когда нужно освежить картину.",
       cta: "Класс",
     },
-    5: {
+    6: {
       title: "Бонус!",
       body: "Ух ты, бонусный вариант! Жетоны бесплатно, чернила не тратятся. Подарок!",
       tip: "Ищите блестящие метки в топ-совпадениях.",
@@ -95,7 +112,7 @@ let helpBackdrop = null;
 let helpCard = null;
 let focusRestoreEl = null;
 
-let tutorialState = { dismissed: [] };
+let tutorialState = { dismissed: [], version: TUTORIAL_STORAGE_VERSION };
 let stageQueue = [];
 let activeStage = null;
 let replayMode = false;
@@ -113,15 +130,34 @@ function loadTutorialState() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      return { dismissed: [] };
+      return { dismissed: [], version: TUTORIAL_STORAGE_VERSION };
     }
     const p = JSON.parse(raw);
-    const dismissed = Array.isArray(p.dismissed)
-      ? [...new Set(p.dismissed.map(Number).filter((n) => n >= 1 && n <= 5))].sort((a, b) => a - b)
+    let dismissed = Array.isArray(p.dismissed)
+      ? [...new Set(p.dismissed.map(Number).filter((n) => n >= 1 && n <= 6))].sort((a, b) => a - b)
       : [];
-    return { dismissed };
+    let version = typeof p.version === "number" ? p.version : 1;
+    let needsPersist = false;
+    if (version < TUTORIAL_STORAGE_VERSION) {
+      /* Step 2 used to cover ink + Word Booster; count old completion as both. */
+      if (dismissed.includes(2) && !dismissed.includes(3)) {
+        dismissed.push(3);
+        dismissed.sort((a, b) => a - b);
+      }
+      version = TUTORIAL_STORAGE_VERSION;
+      needsPersist = true;
+    }
+    const state = { dismissed, version };
+    if (needsPersist) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch {
+        /* ignore */
+      }
+    }
+    return state;
   } catch {
-    return { dismissed: [] };
+    return { dismissed: [], version: TUTORIAL_STORAGE_VERSION };
   }
 }
 
@@ -131,6 +167,7 @@ function saveTutorialState() {
       STORAGE_KEY,
       JSON.stringify({
         dismissed: tutorialState.dismissed,
+        version: tutorialState.version ?? TUTORIAL_STORAGE_VERSION,
       }),
     );
   } catch {
@@ -158,8 +195,15 @@ function maxReplayStage() {
   return Math.max(...tutorialState.dismissed);
 }
 
+function maybeEnqueueWordBoosterHintStage() {
+  const n = api?.getAvailableWordCount?.() ?? 0;
+  if (n >= 6 && isDismissed(2) && !isDismissed(3)) {
+    enqueueStages([3]);
+  }
+}
+
 function enqueueStages(stages) {
-  const add = stages.filter((s) => s >= 1 && s <= 5 && !isDismissed(s));
+  const add = stages.filter((s) => s >= 1 && s <= 6 && !isDismissed(s));
   for (const s of add) {
     if (!stageQueue.includes(s)) {
       stageQueue.push(s);
@@ -365,11 +409,18 @@ function bindTutorialResizeOnce() {
   }, { passive: true });
 }
 
+function resolveTutorialSpotlightTarget() {
+  if (activeStage === 2 && api?.els?.questInkPanel) {
+    return api.els.questInkPanel;
+  }
+  return api?.tutorialDefaultBlockEl ?? null;
+}
+
 function updateBlockerGeometry() {
   if (!spotlightInteractBlocker || !layerRoot || layerRoot.hasAttribute("hidden")) {
     return;
   }
-  const target = api?.getTutorialBlockTarget?.();
+  const target = resolveTutorialSpotlightTarget();
   if (!target || !(target instanceof Element)) {
     spotlightInteractBlocker.style.top = "0px";
     spotlightInteractBlocker.style.left = "0px";
@@ -389,15 +440,37 @@ export function syncTutorialBlocker() {
 }
 
 function updateGhostHandLayoutVars() {
-  if (!ghostHandEl || !api?.els?.tokenDockOuter || !api?.els?.playfield) {
+  if (!ghostHandEl || !api?.els?.playfield) {
     return;
   }
-  const dock = api.els.tokenDockOuter;
   const pf = api.els.playfield;
-  const dr = dock.getBoundingClientRect();
   const pr = pf.getBoundingClientRect();
-  const sx = dr.left + dr.width / 2;
-  const sy = dr.bottom;
+  const tokenDock = api.els.tokenDock;
+  const firstPill = tokenDock?.querySelector(".token-dock-pill");
+
+  let sx;
+  let sy;
+  if (firstPill) {
+    const tr = firstPill.getBoundingClientRect();
+    sx = tr.left + tr.width / 2;
+    sy = tr.top + tr.height / 2;
+  } else if (tokenDock) {
+    const dr = tokenDock.getBoundingClientRect();
+    if (!dr.width) {
+      return;
+    }
+    sx = dr.left + Math.min(28, dr.width / 2);
+    sy = dr.top + dr.height / 2;
+  } else {
+    const dock = api.els.tokenDockOuter;
+    if (!dock) {
+      return;
+    }
+    const dr = dock.getBoundingClientRect();
+    sx = dr.left + dr.width / 2;
+    sy = dr.bottom;
+  }
+
   const ex = pr.left + pr.width / 2;
   const ey = pr.top + Math.min(160, pr.height / 3);
   ghostHandEl.style.left = `${sx}px`;
@@ -424,7 +497,7 @@ function startGhostHandLayoutRaf() {
     ghostHandLayoutRaf = null;
   }
   const tick = () => {
-    if (!ghostHandEl || ghostHandEl.hidden || activeStage !== 3) {
+    if (!ghostHandEl || ghostHandEl.hidden || activeStage !== 4) {
       ghostHandLayoutRaf = null;
       return;
     }
@@ -434,9 +507,12 @@ function startGhostHandLayoutRaf() {
   ghostHandLayoutRaf = window.requestAnimationFrame(tick);
 }
 
-/** Stage 3: looping drag hint until the player dismisses the tutorial modal. */
-function startStage3GhostHand() {
-  if (!ghostHandEl || !api?.els?.tokenDockOuter || !api?.els?.playfield) {
+/** Stage 4 (tokens): looping drag hint until the player dismisses the tutorial modal. */
+function startStage4GhostHand() {
+  if (!ghostHandEl || !api?.els?.playfield) {
+    return;
+  }
+  if (!api?.els?.tokenDock && !api?.els?.tokenDockOuter) {
     return;
   }
   updateGhostHandLayoutVars();
@@ -495,6 +571,17 @@ function dismissActiveStage() {
     stage1AwaitingMixAfterWelcome = true;
     api?.refreshTileRender?.();
   } else if (s === 2) {
+    hideBoosterArrow();
+    if (stopBoosterRaf) {
+      stopBoosterRaf();
+      stopBoosterRaf = null;
+    }
+    hideEncArrow();
+    if (stopEncRaf) {
+      stopEncRaf();
+      stopEncRaf = null;
+    }
+  } else if (s === 3) {
     hideEncArrow();
     if (stopEncRaf) {
       stopEncRaf();
@@ -532,7 +619,12 @@ function dismissActiveStage() {
   }
   focusRestoreEl = null;
 
-  window.queueMicrotask(() => flushStageQueue());
+  window.queueMicrotask(() => {
+    flushStageQueue();
+    if (!wasReplay) {
+      maybeEnqueueWordBoosterHintStage();
+    }
+  });
 }
 
 function renderSpotlightContent(stage, { replay }) {
@@ -588,7 +680,7 @@ function showSpotlightStage(stage, { replay = false } = {}) {
     api.refreshTileRender?.();
   }
 
-  if (stage === 2) {
+  if (stage === 3) {
     const used = api.getWordBoosterStageUses?.() ?? 0;
     if (used <= 0 && api.els?.wordBoosterTopButton) {
       boosterArrowEl.hidden = false;
@@ -596,23 +688,31 @@ function showSpotlightStage(stage, { replay = false } = {}) {
     }
   }
 
-  if (stage === 4) {
+  if (stage === 5) {
     encArrowEl.hidden = false;
     stopEncRaf = startEncArrowLoop();
   }
 
-  if (stage === 3) {
-    startStage3GhostHand();
+  if (stage === 4) {
+    startStage4GhostHand();
   }
+
+  window.queueMicrotask(() => updateBlockerGeometry());
 }
 
 export function initTutorial(deps) {
   api = deps;
   tutorialState = loadTutorialState();
+  if (tutorialState.version == null) {
+    tutorialState.version = TUTORIAL_STORAGE_VERSION;
+  }
 }
 
 export function notifyGameInit() {
   tutorialState = loadTutorialState();
+  if (tutorialState.version == null) {
+    tutorialState.version = TUTORIAL_STORAGE_VERSION;
+  }
   stageQueue = [];
   activeStage = null;
   stage1AwaitingMixAfterWelcome = false;
@@ -621,6 +721,7 @@ export function notifyGameInit() {
     if (api?.getMatchHistoryLength?.() > 0 && !isDismissed(2)) {
       enqueueStages([2]);
     }
+    maybeEnqueueWordBoosterHintStage();
     return;
   }
 
@@ -629,6 +730,7 @@ export function notifyGameInit() {
     if (!isDismissed(2)) {
       enqueueStages([2]);
     }
+    maybeEnqueueWordBoosterHintStage();
     return;
   }
 
@@ -647,19 +749,21 @@ export function notifyRememberResult(ctx) {
     discoveryKey,
   } = ctx;
 
-  if (questResult?.completedQuest && !isDismissed(4)) {
+  if (questResult?.completedQuest && !isDismissed(5)) {
     const later = [];
-    if (previewInkBonusFromRareRoll && !isDismissed(5)) {
-      later.push(5);
+    if (previewInkBonusFromRareRoll && !isDismissed(6)) {
+      later.push(6);
     }
-    enqueueStages([4, ...later]);
-  } else if (previewInkBonusFromRareRoll && !isDismissed(5)) {
+    enqueueStages([5, ...later]);
+  } else if (previewInkBonusFromRareRoll && !isDismissed(6)) {
     const t = questTargetBeforeAdvance ? String(questTargetBeforeAdvance).toLowerCase() : "";
     const d = discoveryKey ? String(discoveryKey).toLowerCase() : "";
     if (!t || d !== t) {
-      enqueueStages([5]);
+      enqueueStages([6]);
     }
   }
+
+  maybeEnqueueWordBoosterHintStage();
 
   if (didDiscoverNewWord && fromMix) {
     const wasAwaitingFirstFieldMix = stage1AwaitingMixAfterWelcome;
@@ -676,13 +780,13 @@ export function notifyRememberResult(ctx) {
 
 export function notifyTokenPanelRendered() {
   const n = api?.getTotalUsableTokens?.() ?? 0;
-  if (n <= 0 || isDismissed(3)) {
+  if (n <= 0 || isDismissed(4)) {
     return;
   }
-  if (activeStage === 3 || stageQueue.includes(3)) {
+  if (activeStage === 4 || stageQueue.includes(4)) {
     return;
   }
-  enqueueStages([3]);
+  enqueueStages([4]);
 }
 
 export function notifyWordBoosterOpened() {
@@ -690,6 +794,23 @@ export function notifyWordBoosterOpened() {
   if (stopBoosterRaf) {
     stopBoosterRaf();
     stopBoosterRaf = null;
+  }
+}
+
+/** When the Word Booster picker is actually shown: STUCK? step (3) is optional — skip if they found it themselves. */
+export function notifyWordBoosterModalOpened() {
+  hideBoosterArrow();
+  if (stopBoosterRaf) {
+    stopBoosterRaf();
+    stopBoosterRaf = null;
+  }
+  if (isDismissed(3) || activeStage === 3) {
+    return;
+  }
+  markDismissed(3);
+  const q = stageQueue.indexOf(3);
+  if (q >= 0) {
+    stageQueue.splice(q, 1);
   }
 }
 

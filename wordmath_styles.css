@@ -1943,6 +1943,88 @@ input:focus {
   animation: token-tab-flash 1.1s ease-in-out infinite;
 }
 
+/* Stage clear: nudge players toward Shop (warm shelf-marker / lamplight pulse) */
+.sidebar-tab--stage-clear-hint {
+  animation: library-shop-tab-hint 2.75s ease-in-out infinite;
+}
+
+.sidebar-tab--stage-clear-hint[aria-selected="true"] {
+  animation-name: library-shop-tab-hint-selected;
+}
+
+@keyframes library-shop-tab-hint {
+  0%, 100% {
+    box-shadow: none;
+    background: transparent;
+    color: var(--primary-soft);
+  }
+  18% {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.45),
+      0 0 16px rgba(212, 175, 55, 0.22),
+      inset 0 0 12px rgba(212, 175, 55, 0.08);
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.14), rgba(212, 175, 55, 0.05));
+    color: var(--primary);
+  }
+  33% {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.25),
+      0 0 10px rgba(212, 175, 55, 0.12);
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), transparent);
+  }
+  48% {
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.55),
+      0 0 22px rgba(212, 175, 55, 0.28),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    background: linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(254, 253, 248, 0.4));
+    color: var(--primary);
+  }
+  72%, 92% {
+    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.2);
+    background: rgba(212, 175, 55, 0.06);
+  }
+}
+
+@keyframes library-shop-tab-hint-selected {
+  0%, 100% {
+    box-shadow: var(--shadow);
+  }
+  22% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 2px rgba(255, 217, 139, 0.55),
+      0 0 20px rgba(212, 175, 55, 0.35);
+    filter: brightness(1.06);
+  }
+  40% {
+    box-shadow: var(--shadow);
+    filter: brightness(1);
+  }
+  58% {
+    box-shadow:
+      var(--shadow),
+      0 0 0 1px rgba(255, 217, 139, 0.45),
+      0 0 14px rgba(212, 175, 55, 0.25);
+    filter: brightness(1.04);
+  }
+  85% {
+    box-shadow: var(--shadow);
+    filter: brightness(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-tab--stage-clear-hint {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent-soft) !important;
+  }
+
+  .sidebar-tab--stage-clear-hint[aria-selected="true"] {
+    filter: none;
+  }
+}
+
 .sidebar-tab .section-count {
   min-width: 1.6rem;
   font-size: 0.75rem;

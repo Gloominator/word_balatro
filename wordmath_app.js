@@ -19,6 +19,7 @@ import {
   notifyGameInit,
   notifyRememberResult,
   notifyTokenPanelRendered,
+  notifyWordBoosterModalOpened,
   notifyWordBoosterOpened,
   openTutorialHelpMenu,
   refreshTutorialTileHighlights,
@@ -844,6 +845,7 @@ const els = {
   stageAdvanceBannerNext: document.querySelector("[data-stage-advance-banner-next]"),
   stageAdvanceBannerTokens: document.querySelector("[data-stage-advance-banner-tokens]"),
   questCountdown: document.querySelector("[data-quest-countdown]"),
+  questInkPanel: document.querySelector("[data-quest-ink-panel]"),
   questBuyTurnButton: document.querySelector("[data-action='buy-quest-turn']"),
   availableCount: document.querySelector("[data-available-count]"),
   wordSearch: document.querySelector("[data-word-search]"),
@@ -6777,6 +6779,10 @@ function renderSidebar() {
   renderWordList();
   renderTokenPanel();
   els.tokenDockOuter?.classList.toggle("token-dock-flashing", shouldFlashTokenDock());
+  els.openUpgradesTabButton.classList.toggle(
+    "sidebar-tab--stage-clear-hint",
+    isStageAdvanceBlockingPlay(),
+  );
   renderUpgradePanel();
   renderGarbageBin();
   renderEncyclopedia();
@@ -8778,6 +8784,7 @@ function openShopWordBooster() {
   state.shopWordBooster.isOpen = true;
   renderShopWordBooster();
   els.shopWordBoosterModal.hidden = false;
+  notifyWordBoosterModalOpened();
 }
 
 function closeShopWordBooster() {
@@ -9427,11 +9434,14 @@ function init() {
       wordBoosterTopButton: els.wordBoosterTopButton,
       openEncyclopediaButton: els.openEncyclopediaButton,
       tokenDockOuter: els.tokenDockOuter,
+      tokenDock: els.tokenDock,
       playfield: els.playfield,
+      questInkPanel: els.questInkPanel,
     },
-    getTutorialBlockTarget: () => els.tutorialFieldBlock,
+    tutorialDefaultBlockEl: els.tutorialFieldBlock,
     getUiLang,
     getMatchHistoryLength: () => state.matchHistory.length,
+    getAvailableWordCount: () => getAvailableWordEntries().length,
     getWordBoosterStageUses: () => state.wordBoosterPurchasesThisStage,
     getTotalUsableTokens: getTotalUsableTokenCount,
     getStarterFieldTiles: () => {
