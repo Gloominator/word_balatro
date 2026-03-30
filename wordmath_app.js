@@ -886,6 +886,7 @@ const els = {
   closeGenealogyButton: document.querySelector("[data-action='close-genealogy']"),
   wordPanelContextMenu: document.querySelector("[data-word-panel-context-menu]"),
   wordPanelViewGenealogyButton: document.querySelector("[data-action='word-panel-view-genealogy']"),
+  wordPanelSendRecyclerButton: document.querySelector("[data-action='word-panel-send-recycler']"),
   closeHistoryButton: document.querySelector("[data-action='close-history']"),
   toggleHistorySortButton: document.querySelector("[data-action='toggle-history-sort']"),
   openEncyclopediaButton: document.querySelector("[data-action='open-encyclopedia']"),
@@ -4617,6 +4618,9 @@ function showWordPanelContextMenu(clientX, clientY, wordKey) {
     return;
   }
   els.wordPanelContextMenu.dataset.wordKey = wordKey;
+  if (els.wordPanelSendRecyclerButton) {
+    els.wordPanelSendRecyclerButton.hidden = !state.runRecyclingMachineUnlocked;
+  }
   els.wordPanelContextMenu.hidden = false;
   const pad = 8;
   window.requestAnimationFrame(() => {
@@ -9204,6 +9208,21 @@ function initEvents() {
       if (typeof key === "string" && key) {
         openGenealogyModal(key);
       }
+    });
+  }
+  if (els.wordPanelSendRecyclerButton) {
+    els.wordPanelSendRecyclerButton.addEventListener("click", () => {
+      const key = els.wordPanelContextMenu?.dataset?.wordKey;
+      if (typeof key !== "string" || !key) {
+        return;
+      }
+      const entry = getAvailableWordEntries().find((e) => e.key === key);
+      if (!entry) {
+        hideWordPanelContextMenu();
+        return;
+      }
+      hideWordPanelContextMenu();
+      sendWordToGarbage(entry.word, key);
     });
   }
   document.addEventListener("click", (event) => {

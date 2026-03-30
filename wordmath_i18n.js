@@ -124,6 +124,7 @@ const MESSAGES = {
       "Pick which match to produce. Press Esc to take the first option listed.",
     "sidebar.matchHistoryButton": "History",
     "sidebar.genealogyContext": "View genealogy",
+    "sidebar.sendToRecycler": "Send to Recycler",
     "modal.genealogyTitle": "Genealogy",
     "modal.genealogyShort": "Tree",
     "modal.genealogySubtitleHasTree":
@@ -310,6 +311,7 @@ const MESSAGES = {
       "Выберите исход смешивания. Esc — первый вариант из списка.",
     "sidebar.matchHistoryButton": "История",
     "sidebar.genealogyContext": "Родословная",
+    "sidebar.sendToRecycler": "В переработчик",
     "modal.genealogyTitle": "Родословная",
     "modal.genealogyShort": "Дерево",
     "modal.genealogySubtitleHasTree":
