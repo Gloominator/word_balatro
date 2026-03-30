@@ -730,7 +730,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     title: "Minus Mix Token",
     cost: 200,
     description: "",
-    canPurchase: () => true,
+    // Not sold; quests/drops only.
+    canPurchase: () => false,
     purchase: () => {
       state.availableMinusMixTokens += 1;
       state.totalMinusMixTokensEarned += 1;
@@ -864,7 +865,6 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-match-5",
   "shop-ban-word",
   "shop-broad-choice",
-  "shop-minus-mix",
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
 ]);
@@ -882,7 +882,6 @@ const PURCHASE_TOKENS_MENU_ORDER = Object.freeze([
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
   "shop-broad-choice",
-  "shop-minus-mix",
 ]);
 
 /** Cap upgrades stay in the sidebar Shop tab (quest turn is on the quest banner). */
@@ -6880,12 +6879,16 @@ function renderTopBarShop() {
     }
     els.wordBoosterTopButton.disabled = boosterBlocked || !boosterState.canBuy;
     const pending = hasPendingShopWordBooster();
+    const freeWordQuota = getFreeWordBoostersPerStageCount();
+    const purchasesThisStage = getSafeCount(state.wordBoosterPurchasesThisStage, 0);
+    const freeWordBoostersRemaining = Math.max(0, freeWordQuota - purchasesThisStage);
     els.wordBoosterTopButton.title = boosterBlocked
       ? t("stageAdvance.blockedBooster")
       : getWordBoosterTopTitle(
         pending,
         boosterState.reason,
         boosterCost,
+        freeWordBoostersRemaining,
       );
   }
 }

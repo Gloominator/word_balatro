@@ -692,7 +692,7 @@ export function formatShopBuyLine(itemCost) {
   return `Buy for ${c} coins`;
 }
 
-export function getWordBoosterTopTitle(pending, reason, boosterCost) {
+export function getWordBoosterTopTitle(pending, reason, boosterCost, freeRemaining) {
   if (pending) {
     return activeUiLang === "ru"
       ? "Откройте невыбранный бустер слов."
@@ -703,6 +703,12 @@ export function getWordBoosterTopTitle(pending, reason, boosterCost) {
   }
   const cost = Math.max(0, Math.floor(Number(boosterCost)) || 0);
   if (cost === 0) {
+    const n = Math.max(0, Math.floor(Number(freeRemaining)) || 0);
+    if (n > 0) {
+      return activeUiLang === "ru"
+        ? `Бесплатно: осталось ${n}.`
+        : `Free: ${n} remaining`;
+    }
     return activeUiLang === "ru"
       ? "Бесплатно: бустер слов на этом этапе (бесплатная квота)."
       : "Free: Word Booster this stage (within your free rolls).";
