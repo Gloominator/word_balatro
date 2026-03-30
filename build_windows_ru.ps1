@@ -94,6 +94,7 @@ try {
 
     $PyInstallerArgs += @("--add-data", "fonts;fonts")
     $PyInstallerArgs += @("--add-data", "sounds;sounds")
+    $PyInstallerArgs += @("--add-data", "assets;assets")
 
     if (-not (Test-Path $WordfreqDataSource)) {
         throw "Could not locate wordfreq data directory: $WordfreqDataSource"

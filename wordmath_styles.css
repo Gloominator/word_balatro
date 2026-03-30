@@ -242,10 +242,19 @@
 
   --modal-backdrop: rgba(18, 16, 12, 0.55);
 
-  --playfield-bg: rgba(26, 24, 20, 0.06);
-  --playfield-border: rgba(26, 24, 20, 0.14);
-  --playfield-grid-line: rgba(26, 24, 20, 0.07);
+  --playfield-border: rgba(56, 64, 74, 0.45);
   --playfield-hover-border: var(--primary);
+  /* Matching field: drop texture.png into assets/playfield/ (see comment on .playfield) */
+  --playfield-fallback: #a8b0bb;
+  --playfield-texture-url: url("assets/playfield/texture.png");
+  --playfield-texture-size: cover;
+  --playfield-texture-position: center center;
+  --playfield-texture-repeat: no-repeat;
+  --playfield-tint: linear-gradient(
+    to bottom,
+    rgba(250, 246, 240, 0.26),
+    rgba(250, 246, 240, 0.06)
+  );
 
   --garbage-bg: linear-gradient(180deg, #f0e8d0, #e8dfc0);
   --garbage-border: #c4a060;
@@ -357,10 +366,15 @@
 
   --modal-backdrop: rgba(0, 0, 0, 0.62);
 
-  --playfield-bg: #100e0c;
-  --playfield-border: #3a362f;
-  --playfield-grid-line: rgba(255, 255, 255, 0.035);
+  --playfield-border: rgba(168, 158, 142, 0.28);
   --playfield-hover-border: var(--border-strong);
+  --playfield-fallback: #0e0d0c;
+  /* --playfield-texture-url: url("assets/playfield/texture-dark.png"); */
+  --playfield-tint: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.48),
+    rgba(0, 0, 0, 0.18)
+  );
 
   --garbage-bg: linear-gradient(180deg, #261f16, #1a1712);
   --garbage-border: #6f5c3a;
@@ -1567,6 +1581,13 @@ input:focus {
 }
 
 /* --- Playfield --------------------------------------------------------- */
+/*
+  Texture: save as assets/playfield/texture.png (same folder as wordmath.html).
+  Suggested size — full-bleed photo: ~1600×1000 or 1920×1200 (name it texture.png).
+  Seamless tile: ~512–1024 square, then set on :root:
+    --playfield-texture-size: 360px 360px;
+    --playfield-texture-repeat: repeat;
+*/
 
 .playfield {
   position: relative;
@@ -1574,13 +1595,24 @@ input:focus {
   margin-top: 0.75rem;
   overflow: hidden;
   border-radius: var(--radius-2xl);
-  border: 2px dashed var(--playfield-border);
-  background:
-    linear-gradient(var(--playfield-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--playfield-grid-line) 1px, transparent 1px),
-    var(--playfield-bg);
-  background-size: 40px 40px;
+  border: 1px solid var(--playfield-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 3px 14px rgba(0, 0, 0, 0.1);
+  background-color: var(--playfield-fallback);
+  background-image: var(--playfield-tint), var(--playfield-texture-url);
+  background-size: auto, var(--playfield-texture-size);
+  background-position: center, var(--playfield-texture-position);
+  background-repeat: no-repeat, var(--playfield-texture-repeat);
   cursor: grab;
+}
+
+[data-theme="dark"] .playfield {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -8px 20px rgba(0, 0, 0, 0.42),
+    0 4px 28px rgba(0, 0, 0, 0.45);
 }
 
 .playfield-surface {
@@ -1601,7 +1633,19 @@ input:focus {
 
 .playfield[data-drag-over="true"] {
   border-color: var(--playfield-hover-border);
-  box-shadow: inset 0 0 0 1px rgba(122, 164, 255, 0.25);
+  box-shadow:
+    inset 0 0 0 1px rgba(122, 164, 255, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.05),
+    0 3px 14px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .playfield[data-drag-over="true"] {
+  box-shadow:
+    inset 0 0 0 1px rgba(140, 180, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -8px 20px rgba(0, 0, 0, 0.42),
+    0 4px 28px rgba(0, 0, 0, 0.45);
 }
 
 .playfield-empty {

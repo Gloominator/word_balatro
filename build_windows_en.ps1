@@ -86,6 +86,7 @@ try {
 
     $PyInstallerArgs += @("--add-data", "fonts;fonts")
     $PyInstallerArgs += @("--add-data", "sounds;sounds")
+    $PyInstallerArgs += @("--add-data", "assets;assets")
     $PyInstallerArgs += @("--add-data", "${NltkDataRoot};nltk_data")
 
     if (-not (Test-Path $WordfreqDataSource)) {
