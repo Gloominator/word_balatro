@@ -290,6 +290,15 @@
           </div>
           <p class="muted settings-copy" data-i18n="modal.settingsTilePaperHint">Saved in the browser. Affects words on the mixing field only.</p>
         </div>
+        <div class="settings-sound-block" style="margin-bottom:1rem;">
+          <label class="settings-slider-label" for="wordmath-sound-volume" style="display:flex;align-items:center;gap:0.45rem;flex-wrap:wrap;margin:0;">
+            <span data-i18n="modal.settingsSoundVolumeLabel">Sound volume</span>
+            <span class="settings-sound-volume-value" data-settings-sound-volume-value aria-live="polite">80</span>
+            <span aria-hidden="true">%</span>
+          </label>
+          <input id="wordmath-sound-volume" type="range" min="0" max="100" step="1" value="80" data-settings-sound-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
+          <p class="muted settings-copy" data-i18n="modal.settingsSoundHint">0 mutes all game sounds. Saved in the browser.</p>
+        </div>
         <label class="settings-toggle" for="spawn-existing-words">
           <input id="spawn-existing-words" type="checkbox" data-setting="spawn-existing-words">
           <span>

@@ -26,6 +26,15 @@ import {
   syncTutorialBlocker,
   tryConsumeTutorialEscape,
 } from "./wordmath_tutorial.js";
+import {
+  getWordmathSoundVolumePercent,
+  initWordmathSounds,
+  playRememberOutcomeSound,
+  playStageCompleteSound,
+  playTileGrabSound,
+  playTileReleaseSounds,
+  setWordmathSoundVolumePercent,
+} from "./wordmath_sounds.js";
 
 let gameLocale = "en";
 let STARTER_POOL = LOCALES.en.starterPool.slice();
@@ -1096,6 +1105,8 @@ const els = {
   wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
   uiLangRadios: document.querySelectorAll("input[name='wordmath-ui-lang']"),
   tilePaperRadios: document.querySelectorAll("input[name='wordmath-tile-paper']"),
+  soundVolumeSlider: document.querySelector("[data-settings-sound-volume]"),
+  soundVolumeValue: document.querySelector("[data-settings-sound-volume-value]"),
 };
 
 let pendingProgressSave = null;
@@ -3738,7 +3749,24 @@ function resolvePendingBanMixIfNeeded({
       ? " Линия бана израсходована на это открытие энциклопедии."
       : " Ban line spent to discover this active encyclopedia word.";
     status.message = `${status.message}${banNote}`;
-    applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+    applyOutcomeStatus(status, {
+      vocabularyOverflow,
+      questResult,
+      sound: buildOutcomeSound(true, shouldBlockSpawn, {
+        wasDiscovered,
+        isInEncyclopedia,
+        hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
+        questResult,
+        newBroadChoiceTokens,
+        newMinusMixTokens,
+        newBanWordTokens,
+        newWildcardTokens,
+        newLexiconSynantonymTokens,
+        newLexiconHypohypernymTokens,
+        newPositionTokenRewards,
+      }),
+    });
     return true;
   }
 
@@ -3960,7 +3988,28 @@ function resolveOutcomeStatus(status, { vocabularyOverflow = null, questResult =
   };
 }
 
-function applyOutcomeStatus(status, { vocabularyOverflow = null, questResult = null } = {}) {
+function buildOutcomeSound(fromMix, shouldBlockSpawn, fields) {
+  return {
+    fromMix,
+    shouldBlockSpawn,
+    outcome: {
+      wasDiscovered: fields.wasDiscovered,
+      isInEncyclopedia: fields.isInEncyclopedia,
+      hiddenEncyclopediaDiscovery: fields.hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward: fields.stageEncoreEncyclopediaReward,
+      questResult: fields.questResult,
+      newBroadChoiceTokens: fields.newBroadChoiceTokens,
+      newMinusMixTokens: fields.newMinusMixTokens,
+      newBanWordTokens: fields.newBanWordTokens,
+      newWildcardTokens: fields.newWildcardTokens,
+      newLexiconSynantonymTokens: fields.newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens: fields.newLexiconHypohypernymTokens,
+      newPositionTokenRewards: fields.newPositionTokenRewards,
+    },
+  };
+}
+
+function applyOutcomeStatus(status, { vocabularyOverflow = null, questResult = null, sound = null } = {}) {
   const resolvedStatus = resolveOutcomeStatus(status, {
     vocabularyOverflow,
     questResult,
@@ -3971,6 +4020,9 @@ function applyOutcomeStatus(status, { vocabularyOverflow = null, questResult = n
     triggerQuestStripCelebration();
     showQuestCompletionNotice(questResult, resolvedStatus.overflowMessage);
     showQuestCompletionFireworks();
+  }
+  if (sound) {
+    playRememberOutcomeSound(sound);
   }
 }
 
@@ -6014,6 +6066,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
     ? `Этап ${state.runStage}. Новая цель квеста: ${titleCase(state.quest.targetWord || "")}.`
     : `Stage ${state.runStage}. New quest: ${titleCase(state.quest.targetWord || "")}.`;
   setStatus(msg, "ok");
+  playStageCompleteSound();
 }
 
 function setActiveSidebarTab(tab) {
@@ -6311,6 +6364,7 @@ async function useWildcardToken(position = null) {
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens,
     newMinusMixTokens,
@@ -6325,6 +6379,7 @@ async function useWildcardToken(position = null) {
     vocabularyOverflow,
   } = rememberResult(randomWord.word, randomWord.normalized, { zipf: randomWord.zipf });
   spawnWordOnField(canonicalResult, position);
+  const wildcardBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
   const status = getWildcardOutcomeMessage(
     canonicalResult,
     isInEncyclopedia,
@@ -6344,7 +6399,24 @@ async function useWildcardToken(position = null) {
       hiddenEncyclopediaDiscovery,
     },
   );
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+  applyOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+    sound: buildOutcomeSound(false, wildcardBlockSpawn, {
+      wasDiscovered,
+      isInEncyclopedia,
+      hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
+      questResult,
+      newBroadChoiceTokens,
+      newMinusMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens,
+      newPositionTokenRewards,
+    }),
+  });
 }
 
 function getTokenDockEmoji(dragType) {
@@ -7907,7 +7979,24 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       status.stateName = "success";
     }
   }
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+  applyOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+    sound: buildOutcomeSound(true, shouldBlockSpawn, {
+      wasDiscovered,
+      isInEncyclopedia,
+      hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
+      questResult,
+      newBroadChoiceTokens,
+      newMinusMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens,
+      newPositionTokenRewards,
+    }),
+  });
 }
 
 async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
@@ -8095,7 +8184,24 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   }
   renderTiles();
   queueProgressSave();
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+  applyOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+    sound: buildOutcomeSound(true, shouldBlockSpawn, {
+      wasDiscovered,
+      isInEncyclopedia,
+      hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
+      questResult,
+      newBroadChoiceTokens,
+      newMinusMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens,
+      newPositionTokenRewards,
+    }),
+  });
 }
 
 async function handleMix(firstTile, secondTile, clientPoint = null) {
@@ -8299,7 +8405,24 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   }
   renderTiles();
   queueProgressSave();
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+  applyOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+    sound: buildOutcomeSound(true, shouldBlockSpawn, {
+      wasDiscovered,
+      isInEncyclopedia,
+      hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
+      questResult,
+      newBroadChoiceTokens,
+      newMinusMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens,
+      newPositionTokenRewards,
+    }),
+  });
 }
 
 function rememberResult(result, normalized = result, metadata = {}) {
@@ -8653,6 +8776,7 @@ function startTileDrag(event, tileId) {
       tileElement.classList.add("dragging");
       tileElement.style.zIndex = String(DRAGGING_TILE_Z_INDEX);
       clearDragMixPreview();
+      playTileGrabSound();
     }
 
     const bounds = getPlayfieldBounds();
@@ -8722,6 +8846,7 @@ function startTileDrag(event, tileId) {
       return;
     }
 
+    playTileReleaseSounds();
     maybeNudgeTileTiltAfterPointerDrop(tile);
     requestTilePaperSettle(tile.id);
     renderTiles();
@@ -8911,6 +9036,7 @@ function renderShopWordBooster() {
         isInEncyclopedia,
         wasDiscovered,
         hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
         coinReward,
         newBroadChoiceTokens,
         newMinusMixTokens,
@@ -8944,7 +9070,25 @@ function renderShopWordBooster() {
         questResult,
         hiddenEncyclopediaDiscovery,
       });
-      applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+      const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+      applyOutcomeStatus(status, {
+        vocabularyOverflow,
+        questResult,
+        sound: buildOutcomeSound(false, shouldBlockSpawn, {
+          wasDiscovered,
+          isInEncyclopedia,
+          hiddenEncyclopediaDiscovery,
+          stageEncoreEncyclopediaReward,
+          questResult,
+          newBroadChoiceTokens,
+          newMinusMixTokens,
+          newBanWordTokens,
+          newWildcardTokens,
+          newLexiconSynantonymTokens,
+          newLexiconHypohypernymTokens,
+          newPositionTokenRewards,
+        }),
+      });
     });
     els.shopWordBoosterGrid.append(button);
   });
@@ -8999,6 +9143,13 @@ function renderSettings() {
   els.tilePaperRadios.forEach((radio) => {
     radio.checked = radio.value === paper;
   });
+  const soundVol = getWordmathSoundVolumePercent();
+  if (els.soundVolumeSlider) {
+    els.soundVolumeSlider.value = String(soundVol);
+  }
+  if (els.soundVolumeValue) {
+    els.soundVolumeValue.textContent = String(soundVol);
+  }
 }
 
 function exportSaveSnapshot() {
@@ -9033,6 +9184,7 @@ async function promptSpawnWord() {
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens,
     newMinusMixTokens,
@@ -9064,7 +9216,25 @@ async function promptSpawnWord() {
     questResult,
     hiddenEncyclopediaDiscovery,
   });
-  applyOutcomeStatus(status, { vocabularyOverflow, questResult });
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
+  applyOutcomeStatus(status, {
+    vocabularyOverflow,
+    questResult,
+    sound: buildOutcomeSound(false, shouldBlockSpawn, {
+      wasDiscovered,
+      isInEncyclopedia,
+      hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
+      questResult,
+      newBroadChoiceTokens,
+      newMinusMixTokens,
+      newBanWordTokens,
+      newWildcardTokens,
+      newLexiconSynantonymTokens,
+      newLexiconHypohypernymTokens,
+      newPositionTokenRewards,
+    }),
+  });
 }
 
 async function importSaveSnapshotFromFile(file) {
@@ -9519,6 +9689,14 @@ function initEvents() {
       );
     });
   });
+  els.soundVolumeSlider?.addEventListener("input", () => {
+    const raw = Number(els.soundVolumeSlider.value);
+    const v = Math.min(100, Math.max(0, Math.round(Number.isFinite(raw) ? raw : 0)));
+    setWordmathSoundVolumePercent(v);
+    if (els.soundVolumeValue) {
+      els.soundVolumeValue.textContent = String(v);
+    }
+  });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     await importSaveSnapshotFromFile(file);
@@ -9617,6 +9795,7 @@ function initEvents() {
 }
 
 function init() {
+  initWordmathSounds();
   initTutorial({
     els: {
       playfieldSurface: els.playfieldSurface,
@@ -9647,6 +9826,7 @@ function init() {
   } else {
     notifyGameInit();
   }
+  renderSettings();
 }
 
 async function bootstrap() {
