@@ -11,6 +11,9 @@
       (function() {
         var t = localStorage.getItem('wordmath-theme') || 'light';
         document.documentElement.dataset.theme = t;
+        var paper = localStorage.getItem('wordmath-tile-paper') || 'classic';
+        var allowed = { classic:1, sticky:1, index:1, receipt:1, clip:1, kraft:1 };
+        document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'classic';
       })();
     </script>
 
@@ -272,6 +275,18 @@
             <label><input type="radio" name="wordmath-ui-lang" value="ru"> <span data-i18n="modal.settingsLanguageRu">Russian</span></label>
           </div>
           <p class="muted settings-copy" data-i18n="modal.settingsLocaleHint">Word data matches the server (English or Russian build). Change interface language anytime.</p>
+        </div>
+        <div class="settings-tile-paper-block">
+          <p class="muted" data-i18n="modal.settingsTilePaperLabel">Field word cards</p>
+          <div class="settings-tile-paper-radios">
+            <label><input type="radio" name="wordmath-tile-paper" value="classic"> <span data-i18n="settings.tilePaperClassic">Default</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="sticky"> <span data-i18n="settings.tilePaperSticky">Sticky scrap</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="index"> <span data-i18n="settings.tilePaperIndex">Index card</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="receipt"> <span data-i18n="settings.tilePaperReceipt">Receipt tear-off</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="clip"> <span data-i18n="settings.tilePaperClip">Magazine clip</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="kraft"> <span data-i18n="settings.tilePaperKraft">Kraft scrap</span></label>
+          </div>
+          <p class="muted settings-copy" data-i18n="modal.settingsTilePaperHint">Saved in the browser. Affects words on the mixing field only.</p>
         </div>
         <label class="settings-toggle" for="spawn-existing-words">
           <input id="spawn-existing-words" type="checkbox" data-setting="spawn-existing-words">

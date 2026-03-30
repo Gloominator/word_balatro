@@ -44,6 +44,108 @@ let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
 /** How many encyclopedia categories are in play for one run (80 words at 5 per category). */
 const RUN_ENCYCLOPEDIA_CATEGORY_COUNT = 16;
 
+const TILE_PAPER_STORAGE_KEY = "wordmath-tile-paper";
+const TILE_PAPER_IDS = ["classic", "sticky", "index", "receipt", "clip", "kraft"];
+
+function normalizeTilePaperStyle(raw) {
+  const id = typeof raw === "string" ? raw : "classic";
+  return TILE_PAPER_IDS.includes(id) ? id : "classic";
+}
+
+function getTilePaperStyle() {
+  return normalizeTilePaperStyle(window.localStorage.getItem(TILE_PAPER_STORAGE_KEY));
+}
+
+function applyTilePaperStyle(styleId) {
+  const v = normalizeTilePaperStyle(styleId);
+  window.localStorage.setItem(TILE_PAPER_STORAGE_KEY, v);
+  document.documentElement.dataset.tilePaper = v;
+}
+
+/** Deterministic rough paper edge; stable for the same tile id across re-renders. */
+function buildTornClipPathPolygonPoints(tileId) {
+  let state = Math.imul(Number(tileId) | 0, 0x9e3779b1) ^ 0x6a09e667;
+  state ^= state >>> 16;
+  if (state === 0) {
+    state = 0xd0f05577;
+  }
+  const rnd = () => {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return (state >>> 0) / 0x100000000;
+  };
+
+  const steps = 5 + (rnd() * 4 | 0);
+  const ampEdge = 2.4 + rnd() * 3.2;
+  const ampAlong = ampEdge * 0.42;
+  const jitterMain = () => {
+    let v = (rnd() - 0.5) * 2 * ampEdge;
+    if (rnd() < 0.14) {
+      v *= 1.85;
+    }
+    return v;
+  };
+  const jitterAlong = () => (rnd() - 0.5) * 2 * ampAlong;
+
+  const clampCoord = (v) => Math.min(106, Math.max(-6, v));
+  const fmt = (v) => `${Math.round(clampCoord(v) * 20) / 20}%`;
+
+  const pts = [];
+  for (let i = 0; i <= steps; i += 1) {
+    const x = (i / steps) * 100 + (i > 0 && i < steps ? jitterAlong() * 0.6 : jitterAlong() * 0.25);
+    const y = jitterMain();
+    pts.push(`${fmt(x)} ${fmt(y)}`);
+  }
+  for (let i = 1; i <= steps; i += 1) {
+    const y = (i / steps) * 100 + (i > 0 && i < steps ? jitterAlong() * 0.6 : jitterAlong() * 0.25);
+    const x = 100 + jitterMain();
+    pts.push(`${fmt(x)} ${fmt(y)}`);
+  }
+  for (let i = 1; i <= steps; i += 1) {
+    const x = 100 - (i / steps) * 100 + (i > 0 && i < steps ? jitterAlong() * 0.6 : jitterAlong() * 0.25);
+    const y = 100 + jitterMain();
+    pts.push(`${fmt(x)} ${fmt(y)}`);
+  }
+  for (let i = 1; i <= steps; i += 1) {
+    const y = 100 - (i / steps) * 100 + (i > 0 && i < steps ? jitterAlong() * 0.6 : jitterAlong() * 0.25);
+    const x = jitterMain();
+    pts.push(`${fmt(x)} ${fmt(y)}`);
+  }
+  return pts;
+}
+
+function tornClipPathCss(tileId) {
+  return `polygon(${buildTornClipPathPolygonPoints(tileId).join(", ")})`;
+}
+
+function applyTornPaperClipToTile(tileElement, tileId) {
+  if (getTilePaperStyle() === "classic") {
+    tileElement.style.clipPath = "";
+    tileElement.style.webkitClipPath = "";
+    delete tileElement.dataset.tornPaper;
+    return;
+  }
+  const clip = tornClipPathCss(tileId);
+  tileElement.style.clipPath = clip;
+  tileElement.style.webkitClipPath = clip;
+  tileElement.dataset.tornPaper = "true";
+}
+
+function syncAllFieldTilesTornPaperClip() {
+  if (!els.playfieldSurface) {
+    return;
+  }
+  els.playfieldSurface.querySelectorAll(".tile").forEach((tileEl) => {
+    const rawId = tileEl.dataset.tileId;
+    const id = rawId !== undefined && rawId !== "" ? Number(rawId) : NaN;
+    if (!Number.isFinite(id)) {
+      return;
+    }
+    applyTornPaperClipToTile(tileEl, id);
+  });
+}
+
 function rebuildEncyclopediaIndexes() {
   ENCYCLOPEDIA_WORDS = ENCYCLOPEDIA_CATEGORIES.flatMap((category) =>
     category.words.map((word) => ({
@@ -928,6 +1030,7 @@ const els = {
   wordBoosterTopButton: document.querySelector("[data-action='buy-word-booster']"),
   wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
   uiLangRadios: document.querySelectorAll("input[name='wordmath-ui-lang']"),
+  tilePaperRadios: document.querySelectorAll("input[name='wordmath-tile-paper']"),
 };
 
 let pendingProgressSave = null;
@@ -8702,6 +8805,7 @@ function renderTiles(options = {}) {
       metaElement.hidden = !tintLabel;
 
       tileElement.append(tagElement, banLineElement, broadLineElement, minusMixLineElement, wordElement, metaElement);
+      applyTornPaperClipToTile(tileElement, tile.id);
       els.playfieldSurface.append(tileElement);
     });
 
@@ -8824,6 +8928,10 @@ function renderSettings() {
   const lang = getUiLang();
   els.uiLangRadios.forEach((radio) => {
     radio.checked = radio.value === lang;
+  });
+  const paper = getTilePaperStyle();
+  els.tilePaperRadios.forEach((radio) => {
+    radio.checked = radio.value === paper;
   });
 }
 
@@ -9330,6 +9438,21 @@ function initEvents() {
       );
     });
   });
+  els.tilePaperRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!radio.checked) {
+        return;
+      }
+      applyTilePaperStyle(radio.value);
+      syncAllFieldTilesTornPaperClip();
+      setStatus(
+        getUiLang() === "ru"
+          ? "Оформление карточек на поле обновлено."
+          : "Field word card look updated.",
+        "ok",
+      );
+    });
+  });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     await importSaveSnapshotFromFile(file);
@@ -9470,6 +9593,7 @@ async function bootstrap() {
   const uiLang = resolveUiLang(gameLocale);
   setUiLang(uiLang);
   applyDocumentI18n(uiLang);
+  applyTilePaperStyle(getTilePaperStyle());
   init();
 }
 

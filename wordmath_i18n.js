@@ -140,6 +140,14 @@ const MESSAGES = {
     "modal.settingsLanguageRu": "Russian",
     "modal.settingsLocaleHint":
       "Word data matches the server (English or Russian build). Change interface language anytime.",
+    "modal.settingsTilePaperLabel": "Field word cards (look)",
+    "modal.settingsTilePaperHint": "Saved in the browser. Affects words on the mixing field only.",
+    "settings.tilePaperClassic": "Default",
+    "settings.tilePaperSticky": "Sticky scrap",
+    "settings.tilePaperIndex": "Ruled index",
+    "settings.tilePaperReceipt": "Receipt tear-off",
+    "settings.tilePaperClip": "Magazine clip",
+    "settings.tilePaperKraft": "Kraft scrap",
     "settings.spawnExistingTitle": "Spawn existing words",
     "settings.spawnExistingHint":
       "When off, matching will not spawn words that are already in Available Words.",
@@ -323,6 +331,15 @@ const MESSAGES = {
     "modal.settingsLanguageRu": "Русский",
     "modal.settingsLocaleHint":
       "Слова и смешивание соответствуют серверу (английская или русская сборка). Язык интерфейса можно сменить в любой момент.",
+    "modal.settingsTilePaperLabel": "Карточки на поле (оформление)",
+    "modal.settingsTilePaperHint":
+      "Сохраняется в браузере. Влияет только на слова на поле смешивания.",
+    "settings.tilePaperClassic": "Обычные",
+    "settings.tilePaperSticky": "Стикер",
+    "settings.tilePaperIndex": "Карточка с линейкой",
+    "settings.tilePaperReceipt": "Чек (перфорация)",
+    "settings.tilePaperClip": "Вырезка из журнала",
+    "settings.tilePaperKraft": "Крафт-бумага",
     "settings.spawnExistingTitle": "Создавать уже открытые слова",
     "settings.spawnExistingHint":
       "Если выключено, при смешивании не появятся слова из списка доступных.",
