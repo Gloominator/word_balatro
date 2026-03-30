@@ -65,7 +65,7 @@ export const LOCALES = {
       { name: "Politics", words: ["ballot", "senate", "treaty", "lobbyist", "referendum"] },
       { name: "Astronomy", words: ["comet", "nebula", "quasar", "orbit", "telescope"] },
       { name: "Alcohol", words: ["whiskey", "brewery", "cocktail", "vintage", "hangover"] },
-      { name: "Sports", words: ["stadium", "referee", "overtime", "mascot", "pennant"] },
+      { name: "Sports", words: ["stadium", "referee", "overtime", "mascot", "jersey"] },
       { name: "Gambling", words: ["blackjack", "roulette", "wager", "jackpot", "slots"] },
       { name: "Drugs", words: ["dosage", "narcotic", "opioid", "rehab", "overdose"] },
       { name: "Military", words: ["soldier", "trench", "convoy", "platoon", "ceasefire"] },
