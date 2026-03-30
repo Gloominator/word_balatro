@@ -842,6 +842,7 @@ const els = {
   emptyMessage: document.querySelector("[data-empty-message]"),
   zoomOutButton: document.querySelector("[data-action='zoom-out']"),
   zoomInButton: document.querySelector("[data-action='zoom-in']"),
+  playfieldZoomControls: document.querySelector("[data-playfield-zoom-controls]"),
   playfieldZoomValue: document.querySelector("[data-playfield-zoom-value]"),
   garbagePanel: document.querySelector("[data-garbage-panel]"),
   garbageBin: document.querySelector("[data-garbage-bin]"),
@@ -2820,6 +2821,18 @@ function updatePlayfieldCamera() {
   }
   els.zoomOutButton.disabled = tier < 1 || state.playfieldZoom <= getMinimumUnlockedZoom() + 0.001;
   els.zoomInButton.disabled = tier < 1 || state.playfieldZoom >= maxZ - 0.001;
+
+  const lockedZoomHint = tier < 1 ? t("playfield.zoomLockedHint") : "";
+  [els.playfieldZoomControls, els.zoomOutButton, els.playfieldZoomValue, els.zoomInButton].forEach((el) => {
+    if (!el) {
+      return;
+    }
+    if (lockedZoomHint) {
+      el.title = lockedZoomHint;
+    } else {
+      el.removeAttribute("title");
+    }
+  });
 }
 
 function setPlayfieldZoom(nextZoom, { silent = false } = {}) {
@@ -8977,7 +8990,7 @@ function resetRun() {
     ? `${starterNames.slice(0, -1).join(", ")}, and ${starterNames.at(-1)}`
     : starterNames[0];
   setStatus(
-    `New game started with ${starterSummary}. Those starters are struck from the mix-result pool. Your first quest is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
+    `New game started with ${starterSummary}. Your first quest word is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
     "ok",
   );
 }
@@ -9267,6 +9280,7 @@ function initEvents() {
       }
       setUiLang(radio.value);
       applyDocumentI18n(radio.value);
+      updatePlayfieldCamera();
       renderSidebar();
       setStatus(
         radio.value === "ru" ? "Язык интерфейса: русский." : "Interface language: English.",
