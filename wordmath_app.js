@@ -3493,14 +3493,10 @@ function resolvePendingBanMixIfNeeded({
       markWordAsSelfMatched(leftWord);
     }
     recordMatch(leftWord, rightWord, rememberedCanon, "add", selection.candidates, selectedCandidate.word);
-    const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
+    const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
     if (shouldBlockSpawn) {
       if (clientPoint) {
-        showFloatingWordNotice(
-          stageEncoreEncyclopediaReward ? "💡" : "❌",
-          stageEncoreEncyclopediaReward ? "success" : "error",
-          clientPoint,
-        );
+        showFloatingWordNotice("❌", "error", clientPoint);
       }
     } else if (isSelfMatch) {
       spawnWordOnField(rememberedCanon, selfMatchSpawnPosition);
@@ -7644,13 +7640,9 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   });
   markWordAsSelfMatched(word);
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice(
-      stageEncoreEncyclopediaReward ? "💡" : "❌",
-      stageEncoreEncyclopediaReward ? "success" : "error",
-      noticePoint,
-    );
+    showFloatingWordNotice("❌", "error", noticePoint);
   } else {
     spawnWordOnField(canonicalResult, position);
     if (!state.spawnExistingWords) {
@@ -7817,13 +7809,9 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   });
   markWordAsSelfMatched(w);
   recordMatch(w, w, canonicalResult, "add", selection.candidates, selectedCandidate.word);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice(
-      stageEncoreEncyclopediaReward ? "💡" : "❌",
-      stageEncoreEncyclopediaReward ? "success" : "error",
-      clientPoint,
-    );
+    showFloatingWordNotice("❌", "error", clientPoint);
   } else {
     spawnResultTile(canonicalResult, lexTile, wordTile);
     if (!state.spawnExistingWords) {
@@ -8026,13 +8014,9 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   }
   recordMatch(leftWord, rightWord, canonicalResult, mixOperation, selection.candidates, selectedCandidate.word);
   spendMinusMixTagsAfterPairMix(firstTile, secondTile);
-  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
+  const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered && !stageEncoreEncyclopediaReward;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice(
-      stageEncoreEncyclopediaReward ? "💡" : "❌",
-      stageEncoreEncyclopediaReward ? "success" : "error",
-      clientPoint,
-    );
+    showFloatingWordNotice("❌", "error", clientPoint);
   } else {
     spawnResultTile(canonicalResult, firstTile, secondTile);
     if (!state.spawnExistingWords) {
