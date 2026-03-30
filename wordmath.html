@@ -311,6 +311,13 @@
           </label>
           <input id="wordmath-music-volume" type="range" min="0" max="100" step="1" value="50" data-settings-music-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
         </div>
+        <label class="settings-toggle" style="margin-bottom:1rem;">
+          <input type="checkbox" data-settings-quest-similarity-top-matches>
+          <span>
+            <strong data-i18n="settings.questSimilarityTopMatches">Quest similarity in top matches</strong>
+            <span class="settings-toggle-copy muted" data-i18n="settings.questSimilarityTopMatchesHint">Show a 0.0–1.0 cosine score next to each top match vs the current quest word (experimental).</span>
+          </span>
+        </label>
         <div class="settings-actions">
           <button type="button" data-action="spawn-word" data-i18n="settings.spawnWord">Spawn Word</button>
           <button type="button" data-action="export-save" data-i18n="settings.exportSave">Debug Export Save JSON</button>

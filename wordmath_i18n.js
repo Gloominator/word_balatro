@@ -155,6 +155,9 @@ const MESSAGES = {
     "settings.playfieldTextureOption3": "Option 3",
     "settings.playfieldTextureOption4": "Option 4",
     "settings.spawnWord": "Spawn Word",
+    "settings.questSimilarityTopMatches": "Quest similarity in top matches",
+    "settings.questSimilarityTopMatchesHint":
+      "Show a cosine similarity score (one decimal, typically −1.0–1.0) next to each top match vs the current quest word. Experimental.",
     "settings.exportSave": "Debug Export Save JSON",
     "settings.importSave": "Load Saved Game JSON",
     "booster.title": "Word Booster",
@@ -344,6 +347,9 @@ const MESSAGES = {
     "settings.playfieldTextureOption3": "Вариант 3",
     "settings.playfieldTextureOption4": "Вариант 4",
     "settings.spawnWord": "Создать слово",
+    "settings.questSimilarityTopMatches": "Схожесть с квестом в топ-совпадениях",
+    "settings.questSimilarityTopMatchesHint":
+      "Показывать косинусную близость (один знак после запятой, обычно от −1,0 до 1,0) у каждого топ-совпадения к текущему слову квеста. Эксперимент.",
     "settings.exportSave": "Экспорт сохранения (JSON)",
     "settings.importSave": "Загрузить сохранение (JSON)",
     "booster.title": "Бустер слов",

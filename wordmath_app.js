@@ -125,6 +125,43 @@ function applyPlayfieldTexture(textureId) {
   document.documentElement.dataset.playfieldTexture = v;
 }
 
+const QUEST_SIMILARITY_TOP_MATCHES_KEY = "wordmath-quest-similarity-top-matches";
+
+function getQuestSimilarityInTopMatchesPreview() {
+  return window.localStorage.getItem(QUEST_SIMILARITY_TOP_MATCHES_KEY) === "1";
+}
+
+function setQuestSimilarityInTopMatchesPreview(enabled) {
+  if (enabled) {
+    window.localStorage.setItem(QUEST_SIMILARITY_TOP_MATCHES_KEY, "1");
+  } else {
+    window.localStorage.removeItem(QUEST_SIMILARITY_TOP_MATCHES_KEY);
+  }
+}
+
+/** Current quest target for /api/mix when the experimental similarity overlay is enabled. */
+function getMixQuestWordForApi() {
+  if (!getQuestSimilarityInTopMatchesPreview()) {
+    return "";
+  }
+  const target = state.quest?.targetWord;
+  if (!target || state.quest?.isWon) {
+    return "";
+  }
+  return String(target).trim().toLowerCase();
+}
+
+function formatQuestSimilaritySuffix(candidate) {
+  if (!getQuestSimilarityInTopMatchesPreview()) {
+    return "";
+  }
+  const qs = candidate?.questSimilarity;
+  if (!Number.isFinite(qs)) {
+    return "";
+  }
+  return ` (${Number(qs).toFixed(1)})`;
+}
+
 /** Deterministic rough paper edge; stable for the same tile id across re-renders. */
 function buildTornClipPathPolygonPoints(tileId) {
   let state = Math.imul(Number(tileId) | 0, 0x9e3779b1) ^ 0x6a09e667;
@@ -415,7 +452,7 @@ const tileIdsNeedingPaperSettle = new Set();
 const DRAGGING_TILE_Z_INDEX = 6000;
 const DRAG_THRESHOLD = 6;
 const DOUBLE_CLICK_MS = 320;
-const FLOATING_MATCH_PREVIEW_WIDTH = 190;
+const FLOATING_MATCH_PREVIEW_WIDTH = 220;
 const FLOATING_MATCH_PREVIEW_HEIGHT = 152;
 const QUEST_COMPLETION_NOTICE_MS = 3600;
 const QUEST_COMPLETION_FIREWORK_BURSTS = 5;
@@ -1143,6 +1180,7 @@ const els = {
   soundVolumeValue: document.querySelector("[data-settings-sound-volume-value]"),
   musicVolumeSlider: document.querySelector("[data-settings-music-volume]"),
   musicVolumeValue: document.querySelector("[data-settings-music-volume-value]"),
+  questSimilarityTopMatchesToggle: document.querySelector("[data-settings-quest-similarity-top-matches]"),
 };
 
 let pendingProgressSave = null;
@@ -4381,7 +4419,7 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
     const label = titleCase(candidate.word || candidate.normalized || "");
-    line.append(`${index + 1}. ${label}`);
+    line.append(`${index + 1}. ${label}${formatQuestSimilaritySuffix(candidate)}`);
     const encTier = getEncyclopediaPreviewBadgeTier(candidate);
     if (encTier) {
       const encSpan = document.createElement("span");
@@ -4443,7 +4481,7 @@ function openBroadChoiceModal(candidates) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "broad-choice-option";
-      btn.textContent = titleCase(candidate.word || candidate.normalized || "");
+      btn.textContent = `${titleCase(candidate.word || candidate.normalized || "")}${formatQuestSimilaritySuffix(candidate)}`;
       const onClick = () => finish(candidate);
       btn.addEventListener("click", onClick);
       cleanups.push(() => btn.removeEventListener("click", onClick));
@@ -4486,7 +4524,9 @@ function chargeBroadChoiceOnTile(tileId) {
 }
 
 function getAssociationCacheKey(wordA, wordB, operation = "add") {
-  return `${operation}:${getWordKey(wordA)}:${getWordKey(wordB)}`;
+  const quest = getMixQuestWordForApi();
+  const questPart = quest ? `:${getWordKey(quest)}` : "";
+  return `${operation}:${getWordKey(wordA)}:${getWordKey(wordB)}${questPart}`;
 }
 
 async function getAssociationCached(wordA, wordB, operation = "add") {
@@ -4608,6 +4648,10 @@ async function getAssociation(wordA, wordB, operation = "add") {
     wordB,
     operation,
   });
+  const questWord = getMixQuestWordForApi();
+  if (questWord) {
+    query.set("questWord", questWord);
+  }
   const response = await fetch(`./api/mix?${query.toString()}`);
   const payload = await response.json();
 
@@ -9266,6 +9310,9 @@ function renderSettings() {
   if (els.musicVolumeValue) {
     els.musicVolumeValue.textContent = String(musicVol);
   }
+  if (els.questSimilarityTopMatchesToggle) {
+    els.questSimilarityTopMatchesToggle.checked = getQuestSimilarityInTopMatchesPreview();
+  }
 }
 
 function exportSaveSnapshot() {
@@ -9812,6 +9859,10 @@ function initEvents() {
     if (els.musicVolumeValue) {
       els.musicVolumeValue.textContent = String(v);
     }
+  });
+  els.questSimilarityTopMatchesToggle?.addEventListener("change", () => {
+    setQuestSimilarityInTopMatchesPreview(Boolean(els.questSimilarityTopMatchesToggle.checked));
+    associationPreviewCache.clear();
   });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];

@@ -481,7 +481,32 @@ def is_profanity_like(word: str) -> bool:
     return any(form in PROFANITY_BASE_FORMS for form in candidate_forms if form)
 
 
-def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: str = "add"):
+def cosine_similarity_word_vectors(nlp, word_a: str, word_b: str) -> float | None:
+    """Cosine similarity between spaCy lexeme vectors, or None if either word has no vector."""
+    a = (word_a or "").strip().lower()
+    b = (word_b or "").strip().lower()
+    if not a or not b:
+        return None
+    la = nlp.vocab[a]
+    lb = nlp.vocab[b]
+    if not la.has_vector or not lb.has_vector:
+        return None
+    va = np.asarray(la.vector, dtype=np.float64)
+    vb = np.asarray(lb.vector, dtype=np.float64)
+    na = np.linalg.norm(va)
+    nb = np.linalg.norm(vb)
+    if na < 1e-12 or nb < 1e-12:
+        return None
+    return float(np.dot(va, vb) / (na * nb))
+
+
+def get_top_association(
+    word_a: str,
+    word_b: str,
+    top_n: int = 20,
+    operation: str = "add",
+    quest_word: str | None = None,
+):
     nlp, all_vectors, row_to_key, normalized_vectors = get_language_resources()
     words = [word_a.strip().lower(), word_b.strip().lower()]
     if not all(words):
@@ -511,6 +536,7 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
     best_indices = np.argsort(similarities)[::-1]
 
     filter_profanity_results = any(is_profanity_like(word) for word in words)
+    quest_clean = (quest_word or "").strip().lower() or None
     candidates = []
     seen_candidate_forms = set()
 
@@ -533,12 +559,17 @@ def get_top_association(word_a: str, word_b: str, top_n: int = 20, operation: st
         if candidate_form in seen_candidate_forms:
             continue
 
-        candidates.append({
+        entry: dict = {
             "word": candidate,
             "normalized": candidate_form,
             "similarity": float(similarities[idx]),
             "zipf": get_word_zipf_frequency(candidate),
-        })
+        }
+        if quest_clean:
+            qs = cosine_similarity_word_vectors(nlp, quest_clean, candidate)
+            if qs is not None:
+                entry["questSimilarity"] = round(qs, 1)
+        candidates.append(entry)
         seen_candidate_forms.add(candidate_form)
         if len(candidates) >= top_n:
             break
@@ -660,9 +691,16 @@ def mix_words():
     word_a = request.args.get("wordA", "")
     word_b = request.args.get("wordB", "")
     operation = request.args.get("operation", "add")
+    quest_param = request.args.get("questWord", "") or ""
+    quest_word = quest_param.strip().lower() or None
 
     try:
-        top_result, candidates = get_top_association(word_a, word_b, operation=operation)
+        top_result, candidates = get_top_association(
+            word_a,
+            word_b,
+            operation=operation,
+            quest_word=quest_word,
+        )
     except ValueError as error:
         dead_end_word = extract_dead_end_word(str(error))
         return jsonify({
