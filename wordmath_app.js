@@ -14,6 +14,17 @@ import {
   setUiLang,
   t,
 } from "./wordmath_i18n.js";
+import {
+  initTutorial,
+  notifyGameInit,
+  notifyRememberResult,
+  notifyTokenPanelRendered,
+  notifyWordBoosterOpened,
+  openTutorialHelpMenu,
+  refreshTutorialTileHighlights,
+  syncTutorialBlocker,
+  tryConsumeTutorialEscape,
+} from "./wordmath_tutorial.js";
 
 let gameLocale = "en";
 let STARTER_POOL = LOCALES.en.starterPool.slice();
@@ -838,6 +849,7 @@ const els = {
   wordSearch: document.querySelector("[data-word-search]"),
   wordList: document.querySelector("[data-word-list]"),
   playfield: document.querySelector("[data-playfield]"),
+  tutorialFieldBlock: document.querySelector(".main-layout"),
   playfieldSurface: document.querySelector("[data-playfield-surface]"),
   emptyMessage: document.querySelector("[data-empty-message]"),
   zoomOutButton: document.querySelector("[data-action='zoom-out']"),
@@ -6287,6 +6299,7 @@ function buildTokenDockPill({
 
 function renderTokenPanel() {
   if (!els.tokenDock || !els.tokenDockOuter) {
+    notifyTokenPanelRendered();
     return;
   }
 
@@ -6295,6 +6308,7 @@ function renderTokenPanel() {
   els.tokenDockOuter.hidden = !tokensUnlocked;
 
   if (!tokensUnlocked) {
+    notifyTokenPanelRendered();
     return;
   }
 
@@ -6303,6 +6317,7 @@ function renderTokenPanel() {
     empty.className = "token-dock-empty";
     empty.textContent = "No unused tokens right now.";
     els.tokenDock.append(empty);
+    notifyTokenPanelRendered();
     return;
   }
 
@@ -6397,6 +6412,7 @@ function renderTokenPanel() {
       },
     }));
   });
+  notifyTokenPanelRendered();
 }
 
 function getShopItemPurchaseState(item) {
@@ -6488,6 +6504,7 @@ async function purchaseShopItem(itemId) {
 
   const isWordBooster = item.id === "shop-word-booster";
   if (isWordBooster) {
+    notifyWordBoosterOpened();
     const willRollNewBooster = !hasPendingShopWordBooster();
     state.shopWordBooster.isLoading = true;
     renderSidebar();
@@ -8275,6 +8292,8 @@ function rememberResult(result, normalized = result, metadata = {}) {
     && !(didDiscoverNewWord && hiddenEncyclopediaDiscovery)
     && !metadata.fromBanLineEncyclopediaDiscover;
 
+  const questTargetBeforeAdvance = state.quest.targetWord;
+
   questResult = advanceQuest(canonicalResult, {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
@@ -8330,6 +8349,15 @@ function rememberResult(result, normalized = result, metadata = {}) {
     && !state.quest.isWon) {
     beginStageAdvanceFlow();
   }
+
+  notifyRememberResult({
+    didDiscoverNewWord,
+    fromMix: Boolean(metadata.fromMix),
+    previewInkBonusFromRareRoll: skipQuestTurnForPreviewTokenBonus,
+    questResult,
+    questTargetBeforeAdvance,
+    discoveryKey,
+  });
 
   return {
     canonicalResult,
@@ -8677,6 +8705,7 @@ function renderTiles(options = {}) {
   if (!skipWordListRefresh) {
     renderWordList();
   }
+  refreshTutorialTileHighlights();
 }
 
 function clearField() {
@@ -8878,6 +8907,7 @@ async function importSaveSnapshotFromFile(file) {
 
   saveProgress();
   closeSettings();
+  notifyGameInit();
 }
 
 function resetRun() {
@@ -8993,6 +9023,8 @@ function resetRun() {
     `New game started with ${starterSummary}. Your first quest word is ${titleCase(state.quest.targetWord)} and you lose in ${state.quest.remainingDiscoveries} turns if you do not find it.`,
     "ok",
   );
+
+  notifyGameInit();
 }
 
 function initPlayfieldDropzone() {
@@ -9247,6 +9279,9 @@ function initEvents() {
   }, true);
   els.closeHistoryButton.addEventListener("click", closeHistory);
   els.openSettingsButton.addEventListener("click", openSettings);
+  document.querySelector("[data-action='open-tutorial-help']")?.addEventListener("click", () => {
+    openTutorialHelpMenu();
+  });
   els.closeSettingsButton.addEventListener("click", closeSettings);
   els.closeShopWordBoosterButton.addEventListener("click", closeShopWordBooster);
   els.spawnWordButton.addEventListener("click", async () => {
@@ -9339,6 +9374,9 @@ function initEvents() {
   els.playfield.addEventListener("pointerdown", startPlayfieldPan);
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && tryConsumeTutorialEscape()) {
+      return;
+    }
     if (event.key === "Escape" && els.purchaseTokensRoot && els.purchaseTokensRoot.classList.contains("is-open")) {
       closePurchaseTokensMenu();
     }
@@ -9366,6 +9404,7 @@ function initEvents() {
     clampTilesToPlayfieldBounds();
     updatePlayfieldCamera();
     renderTiles({ skipWordListRefresh: true });
+    syncTutorialBlocker();
     queueProgressSave();
   });
   window.addEventListener("beforeunload", () => {
@@ -9382,9 +9421,32 @@ function initEvents() {
 }
 
 function init() {
+  initTutorial({
+    els: {
+      playfieldSurface: els.playfieldSurface,
+      wordBoosterTopButton: els.wordBoosterTopButton,
+      openEncyclopediaButton: els.openEncyclopediaButton,
+      tokenDockOuter: els.tokenDockOuter,
+      playfield: els.playfield,
+    },
+    getTutorialBlockTarget: () => els.tutorialFieldBlock,
+    getUiLang,
+    getMatchHistoryLength: () => state.matchHistory.length,
+    getWordBoosterStageUses: () => state.wordBoosterPurchasesThisStage,
+    getTotalUsableTokens: getTotalUsableTokenCount,
+    getStarterFieldTiles: () => {
+      const wanted = new Set(state.starters.map((w) => w.toLowerCase()));
+      return state.tiles
+        .filter((t) => wanted.has(t.word.toLowerCase()) && !isLexiconTokenTile(t))
+        .slice(0, 2);
+    },
+    refreshTileRender: () => renderTiles(),
+  });
   initEvents();
   if (!loadProgress()) {
     resetRun();
+  } else {
+    notifyGameInit();
   }
 }
 

@@ -2984,3 +2984,220 @@ input:focus {
     width: 100%;
   }
 }
+
+/* --- Tutorial (onboarding) -------------------------------------------- */
+
+.tutorial-help-btn {
+  font-weight: 800;
+  font-size: 1rem;
+  min-width: 2.25rem;
+}
+
+.wordmath-tutorial-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000500;
+  pointer-events: none;
+}
+
+/* Full-screen dim; pointer-events none so top bar (Word Booster) stays clickable. */
+.wordmath-tutorial-spotlight-dim {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  background: var(--modal-backdrop);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Blocks only main play area + sidebar; clicks pass through to top bar via dim layer. */
+.wordmath-tutorial-interact-block {
+  position: fixed;
+  background: transparent;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+.wordmath-tutorial-card {
+  position: fixed;
+  left: 50%;
+  bottom: max(1.25rem, env(safe-area-inset-bottom, 0));
+  transform: translateX(-50%);
+  width: min(28rem, calc(100vw - 2rem));
+  max-height: min(70vh, 32rem);
+  overflow: auto;
+  padding: 1.15rem 1.25rem 1.25rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.wordmath-tutorial-card-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.2rem;
+  font-family: var(--font-headline);
+}
+
+.wordmath-tutorial-card-body {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.wordmath-tutorial-card-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.wordmath-tutorial-primary-btn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--primary);
+  color: var(--on-primary);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wordmath-tutorial-primary-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.wordmath-tutorial-pro-tip {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.wordmath-tutorial-pro-tip-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wordmath-tutorial-pro-tip-panel {
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: var(--radius-md);
+  background: var(--primary-faint);
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.wordmath-tutorial-arrow {
+  position: fixed;
+  z-index: 1000510;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 20px solid var(--primary);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
+  pointer-events: none;
+  animation: tutorial-arrow-bob 0.9s ease-in-out infinite;
+}
+
+/* Tip points up toward Word Booster / top-bar targets (below the button). */
+.wordmath-tutorial-arrow.wordmath-tutorial-arrow--booster {
+  border-top: none;
+  border-bottom: 22px solid var(--primary);
+  animation: tutorial-arrow-bob-up 0.9s ease-in-out infinite;
+}
+
+@keyframes tutorial-arrow-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(6px); }
+}
+
+@keyframes tutorial-arrow-bob-up {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+.wordmath-tutorial-ghost-hand {
+  position: fixed;
+  z-index: 1000510;
+  font-size: 2rem;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
+  opacity: 0;
+}
+
+.wordmath-tutorial-ghost-hand--anim {
+  animation: tutorial-ghost-float 4s ease-in-out forwards;
+}
+
+@keyframes tutorial-ghost-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+    transform: translate(var(--gh-ex), var(--gh-ey)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--gh-ex), var(--gh-ey)) scale(0.95);
+  }
+}
+
+.tile.tutorial-pick-word {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent), 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.wordmath-tutorial-help-backdrop {
+  z-index: 1000600;
+}
+
+.wordmath-tutorial-help-card {
+  max-width: 26rem;
+  width: min(26rem, 94vw);
+}
+
+.wordmath-tutorial-help-body {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.wordmath-tutorial-help-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--surface));
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wordmath-tutorial-help-row:hover {
+  background: var(--primary-faint);
+}
