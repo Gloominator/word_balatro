@@ -13,13 +13,14 @@ const VOL = {
   tile: 0.48,
   game: 0.5,
   token: 0.4,
-  rustle: 0.22,
 };
 
+const PAPER_CRUMP_SEGMENT_SEC = 0.5;
+const PAPER_CRUMP_URL = new URL("./sounds/paper/crumpingpaper.mp3", import.meta.url).href;
+const PAPER_RIP_URL = new URL("./sounds/paper/PAPERRIP.mp3", import.meta.url).href;
+const PAPER_SLIDE_URL = new URL("./sounds/paper/PAPERSLIDE.mp3", import.meta.url).href;
+
 const FILES = {
-  tileGrab: "tile_grab.wav",
-  tileRelease: "tile_release.wav",
-  tileRustle: "tile_rustle.wav",
   uiClick: "ui_click.wav",
   mixSuccess: "mix_success.wav",
   tokenPickup: "token_pickup.wav",
@@ -103,16 +104,88 @@ function playNamed(name, volumeScale = 1) {
   audio.play().catch(() => {});
 }
 
+/**
+ * Plays one random contiguous segment from crumpingpaper.mp3 (length up to PAPER_CRUMP_SEGMENT_SEC).
+ * New Audio() each call so grab/release can overlap.
+ */
+function playRandomPaperCrumpSegment(volumeScale = VOL.tile) {
+  const userMul = getWordmathSoundVolumePercent() / 100;
+  if (userMul <= 0) {
+    return;
+  }
+
+  const audio = new Audio(PAPER_CRUMP_URL);
+  audio.volume = Math.min(1, VOL.master * volumeScale * userMul);
+
+  let stopTimer = 0;
+  const teardown = () => {
+    window.clearTimeout(stopTimer);
+    audio.pause();
+    audio.src = "";
+    audio.load();
+  };
+
+  const onMeta = () => {
+    const dur = audio.duration;
+    if (!Number.isFinite(dur) || dur <= 0) {
+      teardown();
+      return;
+    }
+    const win = Math.min(PAPER_CRUMP_SEGMENT_SEC, dur);
+    const maxStart = Math.max(0, dur - win);
+    const start = maxStart > 0 ? Math.random() * maxStart : 0;
+
+    const startPlayback = () => {
+      audio.play().catch(() => teardown());
+      stopTimer = window.setTimeout(teardown, win * 1000 + 50);
+    };
+
+    const onSeeked = () => {
+      audio.removeEventListener("seeked", onSeeked);
+      startPlayback();
+    };
+    audio.addEventListener("seeked", onSeeked);
+    audio.currentTime = start;
+
+    if (Math.abs(audio.currentTime - start) < 0.02 && audio.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      audio.removeEventListener("seeked", onSeeked);
+      startPlayback();
+    }
+  };
+
+  audio.addEventListener("loadedmetadata", onMeta, { once: true });
+  audio.addEventListener("error", teardown, { once: true });
+  audio.load();
+}
+
 export function playTileGrabSound() {
-  playNamed("tileGrab", VOL.tile);
+  playRandomPaperCrumpSegment(VOL.tile);
 }
 
 export function playTileReleaseSounds() {
-  if (!wordmathSoundsEnabled()) {
+  playRandomPaperCrumpSegment(VOL.tile);
+}
+
+/** Recycler / garbage bin (full clip). */
+export function playPaperRipSound() {
+  const userMul = getWordmathSoundVolumePercent() / 100;
+  if (userMul <= 0) {
     return;
   }
-  playNamed("tileRelease", VOL.tile);
-  window.setTimeout(() => playNamed("tileRustle", VOL.rustle), 40);
+  const audio = new Audio(PAPER_RIP_URL);
+  audio.volume = Math.min(1, VOL.master * VOL.tile * userMul);
+  audio.play().catch(() => {});
+}
+
+/** Mix-hover preview (word over word) — full clip; ok to overlap if user switches targets quickly. */
+export function playPaperSlideSound() {
+  const userMul = getWordmathSoundVolumePercent() / 100;
+  if (userMul <= 0) {
+    return;
+  }
+  const audio = new Audio(PAPER_SLIDE_URL);
+  audio.volume = Math.min(1, VOL.master * VOL.tile * 0.85 * userMul);
+  audio.play().catch(() => {});
 }
 
 export function playUiClickSound() {

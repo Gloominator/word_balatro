@@ -29,6 +29,8 @@ import {
 import {
   getWordmathSoundVolumePercent,
   initWordmathSounds,
+  playPaperRipSound,
+  playPaperSlideSound,
   playRememberOutcomeSound,
   playStageCompleteSound,
   playTileGrabSound,
@@ -4470,6 +4472,7 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
         clientPoint: dragMixPreviewState.clientPoint,
         maxLines: maxLex,
       });
+      playPaperSlideSound();
       reserveAlternatingLexiconModeAfterPreview(lexTile, apiMode);
     } catch (error) {
       if (
@@ -4518,6 +4521,7 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
       persistent: true,
       maxLines,
     });
+    playPaperSlideSound();
   } catch (error) {
     if (
       dragMixPreviewState.pairKey === pairKey
@@ -6240,6 +6244,10 @@ function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
   const result = hideWordFromPanel(word, explicitWordKey, tileId);
   if (!result) {
     return;
+  }
+
+  if (result.ok) {
+    playPaperRipSound();
   }
 
   renderSidebar();
