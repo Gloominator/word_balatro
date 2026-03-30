@@ -376,7 +376,7 @@ const TILE_HEIGHT = 76;
 const TILE_TILT_MIN = -5.5;
 const TILE_TILT_MAX = 5.5;
 /** Pointer-drop: chance to nudge tilt slightly (short "fall"). */
-const TILE_DROP_TILT_NUDGE_CHANCE = 0.3;
+const TILE_DROP_TILT_NUDGE_CHANCE = 0.66;
 /** Max degrees added to current tilt on drop (symmetric small bump). */
 const TILE_DROP_TILT_NUDGE_MAX = 1.35;
 const tileIdsNeedingPaperSettle = new Set();

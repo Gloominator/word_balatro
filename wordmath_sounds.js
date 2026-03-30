@@ -19,10 +19,10 @@ const PAPER_CRUMP_SEGMENT_SEC = 0.5;
 const PAPER_CRUMP_URL = new URL("./sounds/paper/crumpingpaper.mp3", import.meta.url).href;
 const PAPER_RIP_URL = new URL("./sounds/paper/PAPERRIP.mp3", import.meta.url).href;
 const PAPER_SLIDE_URL = new URL("./sounds/paper/PAPERSLIDE.mp3", import.meta.url).href;
+const PAPER_CLICK_URL = new URL("./sounds/paper/CLICK.wav", import.meta.url).href;
 
 const FILES = {
   uiClick: "ui_click.wav",
-  mixSuccess: "mix_success.wav",
   tokenPickup: "token_pickup.wav",
   encyclopediaEntry: "encyclopedia_entry.wav",
   questComplete: "quest_complete.wav",
@@ -214,6 +214,17 @@ function countDockTokensFromOutcome(outcome) {
   return n;
 }
 
+/** New tile from mix when not using quest-complete or encyclopedia-entry primary SFX. */
+function playMixSpawnPaperClickSound() {
+  const userMul = getWordmathSoundVolumePercent() / 100;
+  if (userMul <= 0) {
+    return;
+  }
+  const audio = new Audio(PAPER_CLICK_URL);
+  audio.volume = Math.min(1, VOL.master * VOL.game * userMul);
+  audio.play().catch(() => {});
+}
+
 /**
  * @param {{ fromMix?: boolean, shouldBlockSpawn?: boolean, outcome?: object }} spec
  */
@@ -251,7 +262,7 @@ export function playRememberOutcomeSound(spec) {
   } else if (primary === "encyclopedia") {
     playNamed("encyclopediaEntry", VOL.game);
   } else if (primary === "mix") {
-    playNamed("mixSuccess", VOL.game);
+    playMixSpawnPaperClickSound();
   }
 
   if (tok > 0) {
