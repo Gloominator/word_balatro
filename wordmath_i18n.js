@@ -13,7 +13,7 @@ const MESSAGES = {
     "tokenDock.label": "Tokens",
     "tokenDock.howLink": "How tokens work",
     "tokenDock.tooltip":
-      "Drag onto a word on the field. The 2, 3, 4, and 5 tokens make a mix take the 2nd, 3rd, 4th, or 5th result instead of the 1st. Ban Word removes the first result—so that outcome is not produced. Broad Choice (B) charges a word: while mixing, you see up to ten matches and pick which result to produce. Minus mix (➖) tags a word: if either word has it, the mix is the word under the pointer minus the word you drag (vector subtraction). Only one tag is spent; if both are tagged, the dragged word loses its tag.",
+      "Tokens help manipulate what result you get by mixing words. Drag tokens onto a word on the field. For synantonym and hypo-hypernym tokens, drag the token onto the field, then mix with other words.",
     "playfield.heading": "Mixing Field",
     "playfield.hint":
       "Right-click a word box to remove it. Drag one box onto another to create a new word.",
@@ -95,8 +95,6 @@ const MESSAGES = {
     "garbage.title": "Recycler",
     "garbage.hint": "Drag words to remove them. Gain tokens as reward",
     "garbage.binTitle": "Recycler",
-    "sidebar.archivesTitle": "Library Archives",
-    "sidebar.archivesSubtitle": "Curator's Collection",
     "sidebar.tabDiscovered": "Discovered",
     "sidebar.tabShop": "Shop",
     "sidebar.wordPanelTitle": "Word Panel",
@@ -108,16 +106,13 @@ const MESSAGES = {
     "sidebar.searchPlaceholder": "Search a word",
     "sidebar.availableLabel": "Available words",
     "sidebar.shopHeading": "Shop",
-    "sidebar.shopHint":
-      "Buy tokens above via Purchase Tokens or Word Booster. Field upgrades stay here; add quest ink from the manuscript banner.",
+    "sidebar.shopHint": "Buy upgrades that persist through game stages",
     "sidebar.shopCoinsSuffix": "coins",
     "sidebar.shopLoading": "Loading shop...",
     "modal.encyclopediaTitle": "Encyclopedia",
-    "modal.encyclopediaSubtitle": "Eighty hidden words across sixteen categories.",
     "modal.close": "Close",
     "modal.historyTitle": "Match History",
-    "modal.historySubtitle":
-      "Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.",
+    "modal.historySubtractMix": "Subtract mix",
     "modal.historySort": "Sort by Result",
     "modal.broadChoiceTitle": "Broad Choice",
     "modal.broadChoiceSubtitle":
@@ -128,15 +123,15 @@ const MESSAGES = {
     "modal.genealogyTitle": "Genealogy",
     "modal.genealogyShort": "Tree",
     "modal.genealogySubtitleHasTree":
-      "Up to four generations (30 ancestor slots). Inbreeding score: {n} (extra repeats among those ancestors).",
+      "Inbreeding score: {n} (extra repeats among those ancestors).",
     "modal.genealogySubtitleNoTree":
       "No mix parents on file (starter, shop, import, or older save).",
     "modal.genealogyEmptyBody":
       "This word was not created from a tracked mix, so there is no parent tree.",
-    "modal.genealogyTierParents": "Parents (1 pair)",
-    "modal.genealogyTierGrandparents": "Grandparents (2 pairs)",
-    "modal.genealogyTierGreat": "Great-grandparents (4 pairs)",
-    "modal.genealogyTierGreatGreat": "Great-great-grandparents (8 pairs)",
+    "modal.genealogyTierParents": "Parents",
+    "modal.genealogyTierGrandparents": "Grandparents",
+    "modal.genealogyTierGreat": "Great-grandparents",
+    "modal.genealogyTierGreatGreat": "Great-great-grandparents",
     "modal.settingsTitle": "Settings",
     "modal.settingsSubtitle": "Gameplay and debug tools for this run.",
     "modal.settingsLanguageLabel": "Interface language",
@@ -201,7 +196,7 @@ const MESSAGES = {
     "tokenDock.label": "Токены",
     "tokenDock.howLink": "Как работают токены",
     "tokenDock.tooltip":
-      "Перетащите на слово на поле. Токены 2, 3, 4 и 5 дают 2-й, 3-й, 4-й или 5-й результат вместо 1-го. «Запретить слово» убирает первый результат. «Широкий выбор» (B) заряжает слово: при смешивании видно до 10 вариантов и вы выбираете исход. «Минус-смешение» (➖) помечает слово: если у любого из пары есть метка, смешение — слово под курсором минус перетаскиваемое (векторное вычитание). Тратится одна метка; если оба с меткой, метку теряет перетаскиваемое.",
+      "Токены помогают влиять на результат смешивания. Перетащите токен на слово на поле. Для токенов «синантоним» и «гипо-/гипероним» сначала бросьте токен на поле, затем смешивайте с другими словами.",
     "playfield.heading": "Поле смешивания",
     "playfield.hint":
       "ПКМ по слову — удалить. Перетащите одно слово на другое, чтобы создать новое.",
@@ -283,8 +278,6 @@ const MESSAGES = {
     "garbage.title": "Переработчик",
     "garbage.hint": "Перетащите слова, чтобы убрать их. Награда — токены",
     "garbage.binTitle": "Переработчик",
-    "sidebar.archivesTitle": "Архив библиотеки",
-    "sidebar.archivesSubtitle": "Коллекция куратора",
     "sidebar.tabDiscovered": "Открытые",
     "sidebar.tabShop": "Магазин",
     "sidebar.wordPanelTitle": "Панель слов",
@@ -295,16 +288,13 @@ const MESSAGES = {
     "sidebar.searchPlaceholder": "Поиск слова",
     "sidebar.availableLabel": "Доступные слова",
     "sidebar.shopHeading": "Магазин",
-    "sidebar.shopHint":
-      "Покупайте токены через «Купить токены» или «Бустер слов». Расширения поля — здесь; чернила квеста — на плашке цели.",
+    "sidebar.shopHint": "Покупайте улучшения, которые сохраняются между этапами игры",
     "sidebar.shopCoinsSuffix": "монет",
     "sidebar.shopLoading": "Загрузка магазина...",
     "modal.encyclopediaTitle": "Энциклопедия",
-    "modal.encyclopediaSubtitle": "Восемьдесят скрытых слов в шестнадцати категориях.",
     "modal.close": "Закрыть",
     "modal.historyTitle": "История комбинаций",
-    "modal.historySubtitle":
-      "Только уникальные комбинации. Повтор не добавляет запись. Хранятся последние 100.",
+    "modal.historySubtractMix": "Смешение с вычитанием",
     "modal.historySort": "Сортировка по результату",
     "modal.broadChoiceTitle": "Широкий выбор",
     "modal.broadChoiceSubtitle":
@@ -315,15 +305,15 @@ const MESSAGES = {
     "modal.genealogyTitle": "Родословная",
     "modal.genealogyShort": "Дерево",
     "modal.genealogySubtitleHasTree":
-      "До четырёх поколений (30 слотов предков). Инбридинг: {n} (лишние повторы среди них).",
+      "Инбридинг: {n} (лишние повторы среди них).",
     "modal.genealogySubtitleNoTree":
       "Нет родителей от смешивания (старт, магазин, импорт или старое сохранение).",
     "modal.genealogyEmptyBody":
       "Слово не получено из отслеживаемого микса — дерева родителей нет.",
-    "modal.genealogyTierParents": "Родители (1 пара)",
-    "modal.genealogyTierGrandparents": "Бабушки и дедушки (2 пары)",
-    "modal.genealogyTierGreat": "Прародители (4 пары)",
-    "modal.genealogyTierGreatGreat": "Прапрародители (8 пар)",
+    "modal.genealogyTierParents": "Родители",
+    "modal.genealogyTierGrandparents": "Бабушки и дедушки",
+    "modal.genealogyTierGreat": "Прародители",
+    "modal.genealogyTierGreatGreat": "Прапрародители",
     "modal.settingsTitle": "Настройки",
     "modal.settingsSubtitle": "Игровые и отладочные опции.",
     "modal.settingsLanguageLabel": "Язык интерфейса",

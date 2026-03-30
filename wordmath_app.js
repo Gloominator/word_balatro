@@ -7324,11 +7324,13 @@ function renderHistory() {
       : "";
     main.textContent = `${titleCase(match.left)} ${match.operation === "subtract" ? "-" : "+"} ${titleCase(match.right)} = ${titleCase(match.result)}${nextCandidatesText}`;
 
-    const meta = document.createElement("div");
-    meta.className = "history-item-meta";
-    meta.textContent = match.operation === "subtract" ? "Subtract mix" : "Standard mix";
-
-    col.append(main, meta);
+    col.append(main);
+    if (match.operation === "subtract") {
+      const meta = document.createElement("div");
+      meta.className = "history-item-meta";
+      meta.textContent = t("modal.historySubtractMix");
+      col.append(meta);
+    }
 
     const geneButton = document.createElement("button");
     geneButton.type = "button";

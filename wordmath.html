@@ -145,11 +145,6 @@
         </section>
 
         <aside class="panel sidebar">
-          <div class="sidebar-header">
-            <h2 data-i18n="sidebar.archivesTitle">Library Archives</h2>
-            <p class="muted" data-i18n="sidebar.archivesSubtitle">Curator's Collection</p>
-          </div>
-
           <div class="sidebar-tabs" role="tablist" aria-label="Sidebar panels">
             <button type="button" class="sidebar-tab" data-action="open-word-tab" data-sidebar-tab="words" role="tab" aria-selected="true" data-i18n="sidebar.tabDiscovered">
               Discovered
@@ -210,7 +205,7 @@
             <div class="section-title-row">
               <div>
                 <h3 data-i18n="sidebar.shopHeading">Shop</h3>
-                <p class="muted upgrade-panel-copy" data-i18n="sidebar.shopHint">Buy tokens above via Purchase Tokens or Word Booster. Cap and quest turns stay here.</p>
+                <p class="muted upgrade-panel-copy" data-i18n="sidebar.shopHint">Buy upgrades that persist through game stages</p>
               </div>
               <span class="section-count" data-upgrade-coin-count>0 coins</span>
             </div>
@@ -223,12 +218,9 @@
     </main>
 
     <div class="modal-backdrop" data-encyclopedia-modal hidden>
-      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="encyclopedia-title">
+      <section class="modal-card" role="dialog" aria-modal="true" data-i18n-aria="modal.encyclopediaTitle">
         <div class="modal-head">
-          <div>
-            <h2 id="encyclopedia-title" data-i18n="modal.encyclopediaTitle">Encyclopedia</h2>
-            <p class="muted" data-i18n="modal.encyclopediaSubtitle">Eighty hidden words across sixteen categories.</p>
-          </div>
+          <div class="modal-head-spacer" aria-hidden="true"></div>
           <button type="button" class="ghost-button" data-action="close-encyclopedia" data-i18n="modal.close">Close</button>
         </div>
         <div class="encyclopedia-grid" data-encyclopedia-grid></div>
@@ -240,7 +232,6 @@
         <div class="modal-head">
           <div>
             <h2 id="history-title" data-i18n="modal.historyTitle">Match History</h2>
-            <p class="muted" data-i18n="modal.historySubtitle">Unique mixes only. Repeating the same match does not add another entry, and only the latest 100 are kept.</p>
           </div>
           <div class="topbar-actions">
             <button type="button" class="ghost-button" data-action="toggle-history-sort" data-i18n="modal.historySort">Sort by Result</button>

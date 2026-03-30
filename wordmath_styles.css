@@ -646,6 +646,11 @@ input:focus {
   gap: 0.75rem;
 }
 
+.modal-head-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
 /* --- Quest Strip ( manuscript plate styles below ) -------------------- */
 
 .quest-strip {
@@ -1895,23 +1900,6 @@ input:focus {
   border-left: 1px solid var(--border);
   max-height: calc(100vh - 90px);
   overflow-y: auto;
-}
-
-.sidebar-header {
-  padding: 0.5rem 0;
-  margin-bottom: 0.5rem;
-}
-
-.sidebar-header h2 {
-  font-size: 1.15rem;
-  color: var(--primary);
-}
-
-.sidebar-header p {
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  margin-top: 0.15rem;
 }
 
 .sidebar-tabs {
