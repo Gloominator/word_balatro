@@ -308,8 +308,9 @@ function lexiconRemovedToDockMessage(kind) {
 /** Lexicon tokens (synantonym / hypo-hypernym): base 150g; menu sits above Broad/Minus (200) in price order. */
 const SHOP_LEXICON_TOKEN_COST = 150;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
-const GARBAGE_BIN_UNLOCK_WORDS = 20;
-const GARBAGE_WORDS_PER_TOKEN_BASE = 15;
+/** First recycler token after this many words removed; each payout adds 1 to the threshold. */
+const RECYCLER_WORDS_FIRST_TOKEN = 5;
+const SHOP_RECYCLING_MACHINE_COST = 300;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
@@ -364,7 +365,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 18;
+const SNAPSHOT_VERSION = 20;
 
 /** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
 const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
@@ -603,6 +604,18 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-recycling-machine",
+    title: "Buy recycling machine",
+    cost: SHOP_RECYCLING_MACHINE_COST,
+    description: "",
+    canPurchase: () => !state.runRecyclingMachineUnlocked,
+    purchase: () => {
+      state.runRecyclingMachineUnlocked = true;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-recycling-machine"));
+      return formatShopPurchaseMessage("shop-recycling-machine", [cost]);
+    },
+  },
+  {
     id: "shop-quest-turn",
     title: "Quest Turn +1",
     cost: 100,
@@ -652,6 +665,7 @@ const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-playfield-upgrade-track",
   "shop-run-permanent-random-tokens",
   "shop-run-permanent-more-ink",
+  "shop-recycling-machine",
 ]);
 
 function isSidebarShopUpgradeVisible(item) {
@@ -699,6 +713,8 @@ const state = {
   runPermanentRandomTokens: 0,
   /** 0–5: bonus quest ink on each new stage’s first quest (run-wide). */
   runPermanentMoreInk: 0,
+  /** Run-wide: Recycler unlocked from Shop; persists across stages until New Game. */
+  runRecyclingMachineUnlocked: false,
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableMinusMixTokens: 0,
@@ -722,6 +738,11 @@ const state = {
   runStage: 1,
   /** Category names active for this stage (objectives). */
   stageCategoryNames: [],
+  /**
+   * Stage 2+: quest targets only pull from this category until all 5 encyclopedia words
+   * in it are discovered; then another open stage category is chosen at random.
+   */
+  activeStageQuestCategoryName: null,
   /** Categories fully cleared in earlier stages (encyclopedia + quest context). */
   completedRunCategoryNames: new Set(),
   /** Indices into ENCYCLOPEDIA_CATEGORY_POOL for this run’s active book categories. */
@@ -1383,6 +1404,69 @@ function pickRandomStageCategoryNames(count) {
 
 function initializeStageCategoryNamesForNewRun() {
   state.stageCategoryNames = pickRandomStageCategoryNames(getStageCategoryPickCountForRunStage(1));
+  state.activeStageQuestCategoryName = null;
+  ensureActiveStageQuestCategoryName();
+}
+
+function usesSequentialStageQuestCategories() {
+  return state.runStage >= 2;
+}
+
+function getStageCategoryNamesWithUndiscoveredWords() {
+  const discoveredWords = getDiscoveredEncyclopediaWords();
+  const open = [];
+  state.stageCategoryNames.forEach((name) => {
+    const cat = ENCYCLOPEDIA_CATEGORIES.find((c) => c.name === name);
+    if (!cat) {
+      return;
+    }
+    if (cat.words.some((word) => !discoveredWords.has(word))) {
+      open.push(name);
+    }
+  });
+  return open;
+}
+
+function pickRandomOpenStageCategoryForQuests() {
+  const open = getStageCategoryNamesWithUndiscoveredWords();
+  if (!open.length) {
+    return null;
+  }
+  return open[Math.floor(Math.random() * open.length)];
+}
+
+function ensureActiveStageQuestCategoryName() {
+  if (!usesSequentialStageQuestCategories() || state.stageCategoryNames.length <= 1) {
+    state.activeStageQuestCategoryName = state.stageCategoryNames[0] ?? null;
+    return;
+  }
+  const open = getStageCategoryNamesWithUndiscoveredWords();
+  if (!open.length) {
+    state.activeStageQuestCategoryName = null;
+    return;
+  }
+  const current = state.activeStageQuestCategoryName;
+  if (current && open.includes(current)) {
+    return;
+  }
+  state.activeStageQuestCategoryName = pickRandomOpenStageCategoryForQuests();
+}
+
+function getUndiscoveredQuestTargetWords() {
+  ensureActiveStageQuestCategoryName();
+  if (
+    usesSequentialStageQuestCategories()
+    && state.stageCategoryNames.length > 1
+    && state.activeStageQuestCategoryName
+  ) {
+    const discoveredWords = getDiscoveredEncyclopediaWords();
+    const cat = ENCYCLOPEDIA_CATEGORIES.find((c) => c.name === state.activeStageQuestCategoryName);
+    if (!cat) {
+      return [];
+    }
+    return cat.words.filter((word) => !discoveredWords.has(word));
+  }
+  return getUndiscoveredStageQuestWords();
 }
 
 function getUndiscoveredStageQuestWords() {
@@ -1451,7 +1535,7 @@ function isCurrentStageComplete() {
 }
 
 function sampleQuestWord(previousWord = null) {
-  const undiscoveredWords = getUndiscoveredStageQuestWords();
+  const undiscoveredWords = getUndiscoveredQuestTargetWords();
   if (!undiscoveredWords.length) {
     return null;
   }
@@ -1873,6 +1957,7 @@ function buildProgressSnapshot() {
     wordBoosterPurchasesThisStage: state.wordBoosterPurchasesThisStage,
     runPermanentRandomTokens: state.runPermanentRandomTokens,
     runPermanentMoreInk: state.runPermanentMoreInk,
+    runRecyclingMachineUnlocked: state.runRecyclingMachineUnlocked,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableMinusMixTokens: state.availableMinusMixTokens,
@@ -1895,6 +1980,7 @@ function buildProgressSnapshot() {
     runStage: state.runStage,
     runEncyclopediaSlots: [...state.runEncyclopediaSlots],
     stageCategoryNames: [...state.stageCategoryNames],
+    activeStageQuestCategoryName: state.activeStageQuestCategoryName,
     completedRunCategoryNames: [...state.completedRunCategoryNames],
     stageAdvanceFlow: state.stageAdvanceFlow
       ? {
@@ -2259,6 +2345,15 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.runPermanentMoreInk = snapshotVersion >= 13
     ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentMoreInk)
     : 0;
+  if (snapshotVersion >= 20) {
+    state.runRecyclingMachineUnlocked = Boolean(snapshot.runRecyclingMachineUnlocked);
+  } else {
+    const legacyHadDiscoveredThreshold = discovered.size >= 20;
+    const legacyHadRecyclerUsage = state.hiddenWordPanelWords.size > 0
+      || getSafeCount(snapshot.garbageRewardLevel) > 0
+      || getSafeCount(snapshot.garbageWordsSinceReward) > 0;
+    state.runRecyclingMachineUnlocked = legacyHadDiscoveredThreshold || legacyHadRecyclerUsage;
+  }
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
   state.availableMinusMixTokens = getSafeCount(snapshot.availableMinusMixTokens);
@@ -2300,9 +2395,18 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     return false;
   }
   state.stageCategoryNames = stageNames;
+  if (snapshotVersion >= 19 && typeof snapshot.activeStageQuestCategoryName === "string") {
+    const savedActive = snapshot.activeStageQuestCategoryName;
+    state.activeStageQuestCategoryName = validEncCatNames.has(savedActive) && stageNames.includes(savedActive)
+      ? savedActive
+      : null;
+  } else {
+    state.activeStageQuestCategoryName = null;
+  }
   state.completedRunCategoryNames = new Set(
     getStringList(snapshot.completedRunCategoryNames).filter((n) => validEncCatNames.has(n)),
   );
+  ensureActiveStageQuestCategoryName();
   const rawFlow = snapshot.stageAdvanceFlow;
   if (rawFlow && rawFlow.active && typeof rawFlow.step === "string" && Array.isArray(rawFlow.selectedKeys)) {
     const nextCats = getStringList(rawFlow.nextStageCategoryNames).filter((n) => validEncCatNames.has(n));
@@ -2336,10 +2440,21 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   const savedQuestWon = Boolean(snapshot.quest?.isWon);
   const discoveredEncyclopediaWords = getDiscoveredEncyclopediaWords();
   const stageWordSet = getStageQuestWordSet();
-  const savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
+  let savedQuestTarget = typeof snapshot.quest?.targetWord === "string"
     && stageWordSet.has(snapshot.quest.targetWord)
     ? snapshot.quest.targetWord
     : null;
+  if (
+    savedQuestTarget
+    && usesSequentialStageQuestCategories()
+    && state.stageCategoryNames.length > 1
+    && state.activeStageQuestCategoryName
+  ) {
+    const enc = getEncyclopediaEntry(savedQuestTarget, savedQuestTarget);
+    if (!enc || enc.category !== state.activeStageQuestCategoryName) {
+      savedQuestTarget = null;
+    }
+  }
   if (state.stageAdvanceFlow?.active) {
     state.quest.number = savedQuestNumber;
     state.quest.targetWord = null;
@@ -2839,11 +2954,11 @@ function getUnlockedSecondResultTokenCount(discoveredCount = state.discovered.si
 }
 
 function isGarbageBinUnlocked() {
-  return state.discovered.size >= GARBAGE_BIN_UNLOCK_WORDS;
+  return state.runRecyclingMachineUnlocked;
 }
 
 function getCurrentGarbageTarget() {
-  return GARBAGE_WORDS_PER_TOKEN_BASE + ((state.garbageRewardLevel * (state.garbageRewardLevel + 1)) / 2);
+  return RECYCLER_WORDS_FIRST_TOKEN + state.garbageRewardLevel;
 }
 
 function trackDiscoveredWord(wordKey) {
@@ -5557,6 +5672,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.runStage = Math.min(RUN_STAGE_COUNT, state.runStage + 1);
   const pickCount = getStageCategoryPickCountForRunStage(state.runStage);
   state.stageCategoryNames = consumeNextStageCategoryNamesFromAdvanceFlow(advanceFlow, pickCount);
+  state.activeStageQuestCategoryName = null;
   state.coins = getStartingGoldForRunStage(state.runStage);
   state.totalCoinsEarned = Math.max(state.totalCoinsEarned, state.coins);
   state.shopPurchaseCounts = {};
@@ -5779,7 +5895,7 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
     state.garbageRewardLevel += 1;
     const rewardedToken = rollGarbageRewardToken();
     state.unseenTokenRewards += 1;
-    statusMessage = `${statusMessage} The garbage bin paid out a ${rewardedToken} token.`;
+    statusMessage = `${statusMessage} The recycler paid out a ${rewardedToken} token.`;
     statusState = "reward";
   }
 
@@ -5795,7 +5911,12 @@ function hideWordFromPanel(word, explicitWordKey = null, tileIdsOrTileId = null)
 
 function sendWordToGarbage(word, explicitWordKey = null, tileId = null) {
   if (!isGarbageBinUnlocked()) {
-    setStatus(`The garbage bin unlocks at ${GARBAGE_BIN_UNLOCK_WORDS} discovered words.`, "error");
+    setStatus(
+      getUiLang() === "ru"
+        ? "Купите «Машину переработки» во вкладке «Магазин»."
+        : "Buy the recycling machine in the Shop tab.",
+      "error",
+    );
     return;
   }
 
@@ -6203,6 +6324,12 @@ function getShopItemPurchaseState(item) {
       reason: state.shopWordBooster.isLoading ? "Rolling words..." : "",
     };
   }
+  if (item.id === "shop-recycling-machine" && state.runRecyclingMachineUnlocked) {
+    return {
+      canBuy: false,
+      reason: getUiLang() === "ru" ? "Уже куплено." : "Already purchased.",
+    };
+  }
   const itemCost = getShopItemCost(item);
   if (state.coins < itemCost) {
     return {
@@ -6431,11 +6558,17 @@ function renderUpgradePanel() {
     const isPlayfieldTrack = item.id === "shop-playfield-upgrade-track";
     const playfieldNextId = isPlayfieldTrack ? getPlayfieldShopNextStepId() : null;
     const playfieldAtMax = isPlayfieldTrack && playfieldNextId === null;
-    title.textContent = playfieldAtMax
-      ? localizedShopTitle("shop-playfield-upgrade-track")
-      : isPlayfieldTrack
-        ? localizedShopTitle(playfieldNextId)
-        : localizedShopTitle(item.id);
+    const isRecyclingMachine = item.id === "shop-recycling-machine";
+    const recyclingOwned = isRecyclingMachine && state.runRecyclingMachineUnlocked;
+    let upgradeCardTitle = localizedShopTitle(item.id);
+    if (playfieldAtMax) {
+      upgradeCardTitle = localizedShopTitle("shop-playfield-upgrade-track");
+    } else if (isPlayfieldTrack) {
+      upgradeCardTitle = localizedShopTitle(playfieldNextId);
+    } else if (recyclingOwned) {
+      upgradeCardTitle = localizedShopTitle("shop-recycling-machine-owned");
+    }
+    title.textContent = upgradeCardTitle;
 
     titleWrap.append(title);
     head.append(titleWrap);
@@ -6451,7 +6584,7 @@ function renderUpgradePanel() {
         : 0;
     const permanentAtMax = (isPermanentRandom || isPermanentInk)
       && permanentTier >= RUN_PERMANENT_UPGRADE_MAX_TIER;
-    const atMax = permanentAtMax || playfieldAtMax;
+    const atMax = permanentAtMax || playfieldAtMax || recyclingOwned;
     price.textContent = atMax ? "—" : itemCost.toString();
     head.append(price);
 
@@ -6475,6 +6608,10 @@ function renderUpgradePanel() {
         ? `Уровень ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`
         : `Tier ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`;
       blurb.textContent = [getShopItemDescription(item), tierHint].filter(Boolean).join(" ");
+    } else if (isRecyclingMachine) {
+      blurb.textContent = recyclingOwned
+        ? localizedShopDescription("shop-recycling-machine-owned")
+        : getShopItemDescription(item);
     } else {
       blurb.textContent = getShopItemDescription(item);
     }
@@ -8628,6 +8765,7 @@ function resetRun() {
   state.wordBoosterPurchasesThisStage = 0;
   state.runPermanentRandomTokens = 0;
   state.runPermanentMoreInk = 0;
+  state.runRecyclingMachineUnlocked = false;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableMinusMixTokens = 0;

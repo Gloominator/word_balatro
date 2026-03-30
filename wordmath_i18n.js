@@ -92,9 +92,9 @@ const MESSAGES = {
     "tokenDock.lexiconHypohypernymHint":
       "Drop on the field to create a Hypo-/hypernym tile. Drag onto a word: each preview alternates narrower hyponyms and broader hypernyms. Mix consumes the tile. No definitions.",
     "tokenDock.lexiconHypohypernymDragHint": "Drop a Hypo-/hypernym token on an empty spot on the field.",
-    "garbage.title": "Garbage Bin",
-    "garbage.hint": "Drag words here to hide them forever. They can still be mixed.",
-    "garbage.binTitle": "Garbage Bin",
+    "garbage.title": "Recycler",
+    "garbage.hint": "Drag words to remove them. Gain tokens as reward",
+    "garbage.binTitle": "Recycler",
     "sidebar.archivesTitle": "Library Archives",
     "sidebar.archivesSubtitle": "Curator's Collection",
     "sidebar.tabDiscovered": "Discovered",
@@ -279,10 +279,9 @@ const MESSAGES = {
     "tokenDock.lexiconHypohypernymHint":
       "Бросьте на поле — плитка. На слове каждый предпросмотр чередует гипонимы и гиперонимы. Самосмешивание. Без определений.",
     "tokenDock.lexiconHypohypernymDragHint": "Бросьте токен «гипо-/гипероним» на свободное место поля.",
-    "garbage.title": "Корзина",
-    "garbage.hint":
-      "Перетащите слово сюда, чтобы скрыть его навсегда. Смешивать всё ещё можно.",
-    "garbage.binTitle": "Корзина",
+    "garbage.title": "Переработчик",
+    "garbage.hint": "Перетащите слова, чтобы убрать их. Награда — токены",
+    "garbage.binTitle": "Переработчик",
     "sidebar.archivesTitle": "Архив библиотеки",
     "sidebar.archivesSubtitle": "Коллекция куратора",
     "sidebar.tabDiscovered": "Открытые",
@@ -475,6 +474,18 @@ const SHOP_MESSAGES = {
           tier === 1 ? "" : "s"
         } on the first quest.`,
     },
+    "shop-recycling-machine": {
+      title: "Buy recycling machine",
+      description:
+        "For this entire run: unlock the Recycler under Available words—drag words off the list to remove them and earn random quest-pool tokens (5 words for the first payout, then +1 each time). Resets on New Game.",
+      purchaseDone: (cost) =>
+        `Paid ${cost} coins. The Recycler is now available under Available words.`,
+    },
+    "shop-recycling-machine-owned": {
+      title: "Recycling machine",
+      description: "Installed for this run. Use the Recycler on the Discovered tab.",
+      purchaseDone: () => "",
+    },
     "shop-quest-turn": {
       title: "Quest Turn +1",
       description: "Add 1 turn before you lose the current active quest.",
@@ -575,6 +586,18 @@ const SHOP_MESSAGES = {
         "На весь забег: первый квест нового этапа начинается с +1 ход за уровень (+5 на 5-м). Сбрасывается при «Новая игра».",
       purchaseDone: (cost, tier) =>
         `Потрачено ${cost} монет (уровень ${tier}/5). Первый квест нового этапа: +${tier} к лимиту чернил.`,
+    },
+    "shop-recycling-machine": {
+      title: "Купить машину переработки",
+      description:
+        "На весь забег: открыть «Переработчик» под доступными словами — убирайте слова с панели и получайте случайные токены из пула квеста (первый раз — за 5 слов, потом порог +1). Сброс при «Новая игра».",
+      purchaseDone: (cost) =>
+        `Потрачено ${cost} монет. Переработчик доступен под списком доступных слов.`,
+    },
+    "shop-recycling-machine-owned": {
+      title: "Переработка",
+      description: "Установлено на этот забег. Используйте панель «Открытые».",
+      purchaseDone: () => "",
     },
     "shop-quest-turn": {
       title: "Квест: +1 ход",
