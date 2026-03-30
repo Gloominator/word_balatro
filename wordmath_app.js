@@ -33,6 +33,7 @@ import {
   playPaperSlideSound,
   playRememberOutcomeSound,
   playStageCompleteSound,
+  playTokenPickupSound,
   playTileGrabSound,
   playTileReleaseSounds,
   setWordmathSoundVolumePercent,
@@ -6781,6 +6782,9 @@ async function purchaseShopItem(itemId) {
     renderSidebar();
     queueProgressSave();
     setStatus(message, "reward");
+    if (SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU.has(item.id)) {
+      playTokenPickupSound();
+    }
   } catch (error) {
     setStatus(error.message || "Could not buy that shop item.", "error");
   }
@@ -9444,6 +9448,7 @@ function initPlayfieldDropzone() {
     }
 
     spawnWordOnField(word, { x, y });
+    playTileReleaseSounds();
     setStatus(`${titleCase(word)} was dropped onto the field.`);
   });
 }

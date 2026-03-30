@@ -19,11 +19,14 @@ const PAPER_CRUMP_SEGMENT_SEC = 0.5;
 const PAPER_CRUMP_URL = new URL("./sounds/paper/crumpingpaper.mp3", import.meta.url).href;
 const PAPER_RIP_URL = new URL("./sounds/paper/PAPERRIP.mp3", import.meta.url).href;
 const PAPER_SLIDE_URL = new URL("./sounds/paper/PAPERSLIDE.mp3", import.meta.url).href;
-const PAPER_CLICK_URL = new URL("./sounds/paper/CLICK.wav", import.meta.url).href;
+
+const MIX_PUNCHER_URLS = [1, 2, 3, 4, 5].map(
+  (n) => new URL(`./sounds/puncher${n}.mp3`, import.meta.url).href,
+);
 
 const FILES = {
   uiClick: "ui_click.wav",
-  tokenPickup: "token_pickup.wav",
+  tokenPickup: "token_pickupnew.mp3",
   encyclopediaEntry: "encyclopedia_entry.wav",
   questComplete: "quest_complete.wav",
   stageComplete: "stage_complete.wav",
@@ -102,6 +105,11 @@ function playNamed(name, volumeScale = 1) {
   const audio = new Audio(soundUrl(name));
   audio.volume = Math.min(1, VOL.master * volumeScale * userMul);
   audio.play().catch(() => {});
+}
+
+/** Dock / field token acquired (shop buy or stacked after mix outcome). */
+export function playTokenPickupSound() {
+  playNamed("tokenPickup", VOL.token);
 }
 
 /**
@@ -184,7 +192,8 @@ export function playPaperSlideSound() {
     return;
   }
   const audio = new Audio(PAPER_SLIDE_URL);
-  audio.volume = Math.min(1, VOL.master * VOL.tile * 0.85 * userMul);
+  // ~50% softer than other tile/paper SFX so frequent top-match pops stay in the background.
+  audio.volume = Math.min(1, VOL.master * VOL.tile * 0.85 * 0.5 * userMul);
   audio.play().catch(() => {});
 }
 
@@ -215,12 +224,13 @@ function countDockTokensFromOutcome(outcome) {
 }
 
 /** New tile from mix when not using quest-complete or encyclopedia-entry primary SFX. */
-function playMixSpawnPaperClickSound() {
+function playMixSpawnRandomPuncherSound() {
   const userMul = getWordmathSoundVolumePercent() / 100;
   if (userMul <= 0) {
     return;
   }
-  const audio = new Audio(PAPER_CLICK_URL);
+  const url = MIX_PUNCHER_URLS[Math.floor(Math.random() * MIX_PUNCHER_URLS.length)];
+  const audio = new Audio(url);
   audio.volume = Math.min(1, VOL.master * VOL.game * userMul);
   audio.play().catch(() => {});
 }
@@ -262,12 +272,12 @@ export function playRememberOutcomeSound(spec) {
   } else if (primary === "encyclopedia") {
     playNamed("encyclopediaEntry", VOL.game);
   } else if (primary === "mix") {
-    playMixSpawnPaperClickSound();
+    playMixSpawnRandomPuncherSound();
   }
 
   if (tok > 0) {
     const delay = primary ? 90 : 0;
-    window.setTimeout(() => playNamed("tokenPickup", VOL.token), delay);
+    window.setTimeout(() => playTokenPickupSound(), delay);
   }
 }
 
