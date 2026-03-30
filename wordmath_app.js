@@ -365,7 +365,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 20;
+const SNAPSHOT_VERSION = 22;
 
 /** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
 const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
@@ -381,6 +381,27 @@ function getNextRunPermanentUpgradeShopCost(currentTier) {
     return 0;
   }
   return RUN_PERMANENT_UPGRADE_TIER_COSTS[tier];
+}
+
+/** Extra free Word Booster rolls each stage (on top of the default first free). Two tiers: 300g, 600g. */
+const RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER = 2;
+const RUN_FREE_WORD_BOOSTER_UPGRADE_TIER_COSTS = Object.freeze([300, 600]);
+
+function normalizeRunFreeWordBoosterUpgradeTier(value) {
+  return clamp(getSafeCount(value, 0), 0, RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER);
+}
+
+function getNextRunFreeWordBoosterUpgradeShopCost(currentTier) {
+  const tier = normalizeRunFreeWordBoosterUpgradeTier(currentTier);
+  if (tier >= RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER) {
+    return 0;
+  }
+  return RUN_FREE_WORD_BOOSTER_UPGRADE_TIER_COSTS[tier];
+}
+
+/** How many Word Booster rolls per stage cost 0 coins (including the default first free). */
+function getFreeWordBoostersPerStageCount() {
+  return 1 + normalizeRunFreeWordBoosterUpgradeTier(state.runFreeWordBoosterTier);
 }
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
@@ -604,6 +625,20 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-run-free-word-booster",
+    title: "More free Word Boosters",
+    cost: RUN_FREE_WORD_BOOSTER_UPGRADE_TIER_COSTS[0],
+    description: "",
+    canPurchase: () => normalizeRunFreeWordBoosterUpgradeTier(state.runFreeWordBoosterTier)
+      < RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER,
+    purchase: () => {
+      const item = SHOP_ITEM_BY_ID.get("shop-run-free-word-booster");
+      const cost = getShopItemCost(item);
+      state.runFreeWordBoosterTier = normalizeRunFreeWordBoosterUpgradeTier(state.runFreeWordBoosterTier) + 1;
+      return formatShopPurchaseMessage("shop-run-free-word-booster", [cost, state.runFreeWordBoosterTier]);
+    },
+  },
+  {
     id: "shop-recycling-machine",
     title: "Buy recycling machine",
     cost: SHOP_RECYCLING_MACHINE_COST,
@@ -665,6 +700,7 @@ const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-playfield-upgrade-track",
   "shop-run-permanent-random-tokens",
   "shop-run-permanent-more-ink",
+  "shop-run-free-word-booster",
   "shop-recycling-machine",
 ]);
 
@@ -713,6 +749,8 @@ const state = {
   runPermanentRandomTokens: 0,
   /** 0–5: bonus quest ink on each new stage’s first quest (run-wide). */
   runPermanentMoreInk: 0,
+  /** 0–2: run-wide extra free Word Booster rolls per stage (each tier +1; costs 300g then 600g). */
+  runFreeWordBoosterTier: 0,
   /** Run-wide: Recycler unlocked from Shop; persists across stages until New Game. */
   runRecyclingMachineUnlocked: false,
   availableBanWordTokens: 0,
@@ -777,6 +815,8 @@ const state = {
    * null = rolled miss (no bonus); { rewardType } = pending token from preview (granted on first discovery).
    */
   superRarePreviewByKey: new Map(),
+  /** Encyclopedia lemma keys that already earned this stage's mix bonus (token + ink for already-known words). */
+  encyclopediaStageRewardKeys: new Set(),
 };
 
 const els = {
@@ -1003,12 +1043,16 @@ function getShopItemCost(item) {
   if (item.id === "shop-run-permanent-more-ink") {
     return getNextRunPermanentUpgradeShopCost(state.runPermanentMoreInk);
   }
+  if (item.id === "shop-run-free-word-booster") {
+    return getNextRunFreeWordBoosterUpgradeShopCost(state.runFreeWordBoosterTier);
+  }
   if (item.id === "shop-word-booster") {
     const n = getSafeCount(state.wordBoosterPurchasesThisStage, 0);
-    if (n === 0) {
+    const freeCount = getFreeWordBoostersPerStageCount();
+    if (n < freeCount) {
       return 0;
     }
-    return getIncrementalShopPrice(SHOP_WORD_BOOSTER_COST, n - 1, item.id);
+    return getIncrementalShopPrice(SHOP_WORD_BOOSTER_COST, n - freeCount, item.id);
   }
   if (SHOP_ITEM_IDS_INCREMENTAL_PRICE.has(item.id)) {
     return getIncrementalShopPrice(
@@ -1957,6 +2001,7 @@ function buildProgressSnapshot() {
     wordBoosterPurchasesThisStage: state.wordBoosterPurchasesThisStage,
     runPermanentRandomTokens: state.runPermanentRandomTokens,
     runPermanentMoreInk: state.runPermanentMoreInk,
+    runFreeWordBoosterTier: state.runFreeWordBoosterTier,
     runRecyclingMachineUnlocked: state.runRecyclingMachineUnlocked,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
@@ -2008,6 +2053,7 @@ function buildProgressSnapshot() {
       key,
       value === null || value === undefined ? { miss: true } : { rewardType: value.rewardType },
     ]),
+    encyclopediaStageRewardKeys: [...state.encyclopediaStageRewardKeys],
   };
 }
 
@@ -2345,6 +2391,9 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.runPermanentMoreInk = snapshotVersion >= 13
     ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentMoreInk)
     : 0;
+  state.runFreeWordBoosterTier = snapshotVersion >= 21
+    ? normalizeRunFreeWordBoosterUpgradeTier(snapshot.runFreeWordBoosterTier)
+    : 0;
   if (snapshotVersion >= 20) {
     state.runRecyclingMachineUnlocked = Boolean(snapshot.runRecyclingMachineUnlocked);
   } else {
@@ -2492,6 +2541,9 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   state.superRarePreviewByKey = snapshotVersion >= 11
     ? normalizeSavedSuperRarePreviewByKey(snapshot.superRarePreviewByKey)
     : new Map();
+  state.encyclopediaStageRewardKeys = snapshotVersion >= 22
+    ? new Set(getStringList(snapshot.encyclopediaStageRewardKeys))
+    : new Set();
   els.wordSearch.value = "";
 
   clampTilesToPlayfieldBounds();
@@ -3235,7 +3287,7 @@ function shouldBanLineDiscoverEncyclopediaWord(canonicalResult, normalizedKey) {
   }
   const discoveryKey = encyclopediaEntry.word ?? normalizedKey;
   const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalizedKey);
-  if (existing) {
+  if (existing && state.encyclopediaStageRewardKeys.has(discoveryKey)) {
     return false;
   }
   if (state.starters.includes(canonicalResult)) {
@@ -3257,7 +3309,14 @@ function isMixPreviewCandidateNewDiscovery(candidate) {
   const encyclopediaEntry = getEncyclopediaEntry(canonicalResult, normalized);
   const discoveryKey = encyclopediaEntry?.word ?? normalized;
   const existing = state.discovered.get(discoveryKey) ?? state.discovered.get(normalized);
-  return !existing;
+  if (!existing) {
+    return true;
+  }
+  if (!encyclopediaEntry) {
+    return false;
+  }
+  return isEncyclopediaCategoryRevealed(encyclopediaEntry.category)
+    && !state.encyclopediaStageRewardKeys.has(discoveryKey);
 }
 
 function getQuestPoolRewardPreviewEmoji(rewardType) {
@@ -3345,7 +3404,8 @@ function getSuperRarePreviewBonusEmojiSuffix(candidate) {
 /**
  * Top-matches encyclopedia E marker:
  * yellow = hidden category (book still ???); white = stage word not target or already in book;
- * black = current quest target (revealed, not yet discovered).
+ * black = current quest target (revealed, not yet discovered). Already-known (white) can earn
+ * once-per-stage token + ink via mix (see encyclopediaStageRewardKeys).
  */
 function getEncyclopediaPreviewBadgeTier(candidate) {
   const rawWord = candidate?.word || candidate?.normalized || "";
@@ -3407,6 +3467,7 @@ function resolvePendingBanMixIfNeeded({
       isInEncyclopedia,
       wasDiscovered,
       hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
       coinReward,
       newBroadChoiceTokens,
       newMinusMixTokens,
@@ -3435,7 +3496,11 @@ function resolvePendingBanMixIfNeeded({
     const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
     if (shouldBlockSpawn) {
       if (clientPoint) {
-        showFloatingWordNotice("❌", "error", clientPoint);
+        showFloatingWordNotice(
+          stageEncoreEncyclopediaReward ? "💡" : "❌",
+          stageEncoreEncyclopediaReward ? "success" : "error",
+          clientPoint,
+        );
       }
     } else if (isSelfMatch) {
       spawnWordOnField(rememberedCanon, selfMatchSpawnPosition);
@@ -3463,11 +3528,14 @@ function resolvePendingBanMixIfNeeded({
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
       hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
     };
     let status;
     if (shouldBlockSpawn) {
       status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
-      status.message = `${status.message} ${titleCase(rememberedCanon)} is already in your discovered words, so it was not spawned.`;
+      if (!stageEncoreEncyclopediaReward) {
+        status.message = `${status.message} ${titleCase(rememberedCanon)} is already in your discovered words, so it was not spawned.`;
+      }
     } else {
       status = getMixOutcomeMessage(leftWord, rightWord, rememberedCanon, "add", isInEncyclopedia, wasDiscovered, messageOpts);
       if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -4006,7 +4074,7 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
         ? "Hidden encyclopedia (??? until category is in play). Coin + token on discovery; does not spend quest ink."
         : encTier === "black"
           ? "Quest-target encyclopedia word. Coin + token on discovery; spends quest ink."
-          : "Stage encyclopedia (not the quest target) or already in book. Coin + token; discovery or remix spends quest ink (Ban line discover does not).";
+          : "Revealed encyclopedia word. New: coin + quest-pool token + ink. Already in book: token + ink once per stage (no extra coin). Ban discover: no ink.";
       encSpan.setAttribute("title", hint);
       line.append(encSpan);
     }
@@ -5714,6 +5782,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.wordParents = new Map();
   state.matchHistory = [];
   state.matchHistoryKeys = new Set();
+  state.encyclopediaStageRewardKeys = new Set();
   state.lastMix = {
     label: "No mix yet.",
     operation: "None",
@@ -6362,6 +6431,12 @@ function getShopItemPurchaseState(item) {
         reason: getUiLang() === "ru" ? "Максимальный уровень." : "Fully upgraded.",
       };
     }
+    if (item.id === "shop-run-free-word-booster") {
+      return {
+        canBuy: false,
+        reason: getUiLang() === "ru" ? "Максимальный уровень." : "Fully upgraded.",
+      };
+    }
     if (item.id === "shop-playfield-upgrade-track") {
       return {
         canBuy: false,
@@ -6577,14 +6652,22 @@ function renderUpgradePanel() {
     price.className = "upgrade-cost";
     const isPermanentRandom = item.id === "shop-run-permanent-random-tokens";
     const isPermanentInk = item.id === "shop-run-permanent-more-ink";
+    const isFreeBoosterRun = item.id === "shop-run-free-word-booster";
     const permanentTier = isPermanentRandom
       ? normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
       : isPermanentInk
         ? normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk)
-        : 0;
+        : isFreeBoosterRun
+          ? normalizeRunFreeWordBoosterUpgradeTier(state.runFreeWordBoosterTier)
+          : 0;
+    const permanentTierMax = isFreeBoosterRun
+      ? RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER
+      : RUN_PERMANENT_UPGRADE_MAX_TIER;
     const permanentAtMax = (isPermanentRandom || isPermanentInk)
       && permanentTier >= RUN_PERMANENT_UPGRADE_MAX_TIER;
-    const atMax = permanentAtMax || playfieldAtMax || recyclingOwned;
+    const freeBoosterAtMax = isFreeBoosterRun
+      && permanentTier >= RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER;
+    const atMax = permanentAtMax || freeBoosterAtMax || playfieldAtMax || recyclingOwned;
     price.textContent = atMax ? "—" : itemCost.toString();
     head.append(price);
 
@@ -6603,10 +6686,10 @@ function renderUpgradePanel() {
         ? localizedShopDescription("shop-playfield-upgrade-track")
         : localizedShopDescription(playfieldNextId);
       blurb.textContent = [desc, stepHint].filter(Boolean).join(" ");
-    } else if (isPermanentRandom || isPermanentInk) {
+    } else if (isPermanentRandom || isPermanentInk || isFreeBoosterRun) {
       const tierHint = getUiLang() === "ru"
-        ? `Уровень ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`
-        : `Tier ${permanentTier}/${RUN_PERMANENT_UPGRADE_MAX_TIER}.`;
+        ? `Уровень ${permanentTier}/${permanentTierMax}.`
+        : `Tier ${permanentTier}/${permanentTierMax}.`;
       blurb.textContent = [getShopItemDescription(item), tierHint].filter(Boolean).join(" ");
     } else if (isRecyclingMachine) {
       blurb.textContent = recyclingOwned
@@ -6740,6 +6823,7 @@ function getMixOutcomeMessage(
     usedShift = 0,
     refundedTagCount = 0,
     hiddenEncyclopediaDiscovery = false,
+    stageEncoreEncyclopediaReward = false,
   } = {},
 ) {
   const operator = operation === "subtract" ? "-" : "+";
@@ -6755,8 +6839,13 @@ function getMixOutcomeMessage(
       stateName = "success";
     }
   } else if (isInEncyclopedia) {
-    message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}.`;
-    stateName = "ok";
+    if (stageEncoreEncyclopediaReward) {
+      message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}—already in your book, but this stage's encyclopedia mix bonus was applied (quest pool token; quest ink spent).`;
+      stateName = "reward";
+    } else {
+      message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}.`;
+      stateName = "ok";
+    }
   } else {
     message = `${titleCase(leftWord)} ${operator} ${titleCase(rightWord)} created ${titleCase(canonicalResult)}. `;
     stateName = "ok";
@@ -7532,6 +7621,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens,
     newMinusMixTokens,
@@ -7556,7 +7646,11 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
   recordMatch(word, word, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice("❌", "error", noticePoint);
+    showFloatingWordNotice(
+      stageEncoreEncyclopediaReward ? "💡" : "❌",
+      stageEncoreEncyclopediaReward ? "success" : "error",
+      noticePoint,
+    );
   } else {
     spawnWordOnField(canonicalResult, position);
     if (!state.spawnExistingWords) {
@@ -7582,8 +7676,11 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
       hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
     });
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    if (!stageEncoreEncyclopediaReward) {
+      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    }
   } else {
     status = getMixOutcomeMessage(word, word, canonicalResult, "add", isInEncyclopedia, wasDiscovered, {
       coinReward,
@@ -7602,6 +7699,7 @@ async function runSelfMatch(word, position = null, tileId = null, clientPoint = 
       usedShift: selection.usedShift,
       refundedTagCount: selection.refundedTagCount,
       hiddenEncyclopediaDiscovery,
+      stageEncoreEncyclopediaReward,
     });
     if (!state.spawnExistingWords && status.stateName === "ok") {
       status.stateName = "success";
@@ -7696,6 +7794,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens,
     newMinusMixTokens,
@@ -7720,7 +7819,11 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
   recordMatch(w, w, canonicalResult, "add", selection.candidates, selectedCandidate.word);
   const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice("❌", "error", clientPoint);
+    showFloatingWordNotice(
+      stageEncoreEncyclopediaReward ? "💡" : "❌",
+      stageEncoreEncyclopediaReward ? "success" : "error",
+      clientPoint,
+    );
   } else {
     spawnResultTile(canonicalResult, lexTile, wordTile);
     if (!state.spawnExistingWords) {
@@ -7754,9 +7857,12 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
         hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
       },
     );
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    if (!stageEncoreEncyclopediaReward) {
+      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    }
   } else {
     status = getMixOutcomeMessage(
       w,
@@ -7782,6 +7888,7 @@ async function handleLexiconWordMix(lexTile, wordTile, clientPoint = null) {
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
         hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -7893,6 +8000,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens,
     newMinusMixTokens,
@@ -7920,7 +8028,11 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
   spendMinusMixTagsAfterPairMix(firstTile, secondTile);
   const shouldBlockSpawn = !state.spawnExistingWords && wasDiscovered;
   if (shouldBlockSpawn) {
-    showFloatingWordNotice("❌", "error", clientPoint);
+    showFloatingWordNotice(
+      stageEncoreEncyclopediaReward ? "💡" : "❌",
+      stageEncoreEncyclopediaReward ? "success" : "error",
+      clientPoint,
+    );
   } else {
     spawnResultTile(canonicalResult, firstTile, secondTile);
     if (!state.spawnExistingWords) {
@@ -7953,9 +8065,12 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
         hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
       },
     );
-    status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    if (!stageEncoreEncyclopediaReward) {
+      status.message = `${status.message} ${titleCase(canonicalResult)} is already in your discovered words, so it was not spawned.`;
+    }
   } else {
     status = getMixOutcomeMessage(
       leftWord,
@@ -7981,6 +8096,7 @@ async function handleMix(firstTile, secondTile, clientPoint = null) {
         usedShift: selection.usedShift,
         refundedTagCount: selection.refundedTagCount,
         hiddenEncyclopediaDiscovery,
+        stageEncoreEncyclopediaReward,
       },
     );
     if (!state.spawnExistingWords && status.stateName === "ok") {
@@ -8014,6 +8130,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
   let questResult = null;
   let hiddenEncyclopediaDiscovery = false;
   let skipQuestTurnForPreviewTokenBonus = false;
+  let didStageEncoreEncyclopediaReward = false;
 
   if (!existing && !canonicalIsStarter) {
     state.discovered.set(discoveryKey, canonicalResult);
@@ -8080,9 +8197,39 @@ function rememberResult(result, normalized = result, metadata = {}) {
         });
       }
     }
+    state.encyclopediaStageRewardKeys.add(discoveryKey);
   }
 
-  if (didDiscoverNewWord) {
+  if (
+    !didDiscoverNewWord
+    && metadata.fromMix
+    && isInEncyclopedia
+    && encyclopediaEntry
+    && isEncyclopediaCategoryRevealed(encyclopediaEntry.category)
+    && !canonicalIsStarter
+    && wasDiscovered
+    && !state.encyclopediaStageRewardKeys.has(discoveryKey)
+  ) {
+    didStageEncoreEncyclopediaReward = true;
+    state.encyclopediaStageRewardKeys.add(discoveryKey);
+    const encTokenDelta = {
+      newBroadChoiceTokens: 0,
+      newMinusMixTokens: 0,
+      newBanWordTokens: 0,
+      newWildcardTokens: 0,
+      newPositionTokenRewards: createEmptyPositionTokenRewardSummary(),
+    };
+    grantOneRandomQuestPoolToken(encTokenDelta);
+    newBroadChoiceTokensFromCompletion += encTokenDelta.newBroadChoiceTokens;
+    newMinusMixTokensFromCompletion += encTokenDelta.newMinusMixTokens;
+    newBanWordTokens += encTokenDelta.newBanWordTokens;
+    newWildcardTokens += encTokenDelta.newWildcardTokens;
+    newLexiconSynantonymTokens += getSafeCount(encTokenDelta.newLexiconSynantonymTokens);
+    newLexiconHypohypernymTokens += getSafeCount(encTokenDelta.newLexiconHypohypernymTokens);
+    mergePositionTokenRewardSummary(newPositionTokenRewards, encTokenDelta.newPositionTokenRewards);
+  }
+
+  if (didDiscoverNewWord || didStageEncoreEncyclopediaReward) {
     const previewKey = getCandidateResultKey({ word: result, normalized });
     const pendingRare = state.superRarePreviewByKey.get(previewKey);
     const normalizedRareReward = normalizeQuestPoolRewardTypeLoaded(pendingRare?.rewardType);
@@ -8129,7 +8276,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     didDiscoverNewWord,
     questMatchedWord: discoveryKey,
     countQuestDiscoveryTurn: allowQuestTurnTick,
-    spendQuestTurnWithoutNewWord: false,
+    spendQuestTurnWithoutNewWord: didStageEncoreEncyclopediaReward,
   });
   newBroadChoiceTokensFromCompletion += questResult.newBroadChoiceTokens;
   newMinusMixTokensFromCompletion += questResult.newMinusMixTokens;
@@ -8161,6 +8308,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
 
   if (
     didDiscoverNewWord
+    || didStageEncoreEncyclopediaReward
     || coinReward
     || totalNewBroadChoiceTokens > 0
     || totalNewMinusMixTokens > 0
@@ -8185,6 +8333,7 @@ function rememberResult(result, normalized = result, metadata = {}) {
     isInEncyclopedia,
     wasDiscovered,
     hiddenEncyclopediaDiscovery,
+    stageEncoreEncyclopediaReward: didStageEncoreEncyclopediaReward,
     coinReward,
     newBroadChoiceTokens: totalNewBroadChoiceTokens,
     newMinusMixTokens: totalNewMinusMixTokens,
@@ -8765,6 +8914,7 @@ function resetRun() {
   state.wordBoosterPurchasesThisStage = 0;
   state.runPermanentRandomTokens = 0;
   state.runPermanentMoreInk = 0;
+  state.runFreeWordBoosterTier = 0;
   state.runRecyclingMachineUnlocked = false;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
@@ -8807,6 +8957,7 @@ function resetRun() {
   state.nextTileId = 1;
   state.nextZIndex = 1;
   state.superRarePreviewByKey = new Map();
+  state.encyclopediaStageRewardKeys = new Set();
   els.wordSearch.value = "";
   els.shopWordBoosterModal.hidden = true;
   els.questWinModal.hidden = true;

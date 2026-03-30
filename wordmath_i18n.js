@@ -381,7 +381,7 @@ const SHOP_MESSAGES = {
     "shop-word-booster": {
       title: "Word Booster",
       description:
-        "Roll 10 random words from the common-word list, then pick 1 to discover. Your first roll each stage is free; later rolls start at 70 coins (then increase as before).",
+        "Roll 10 random words from the common-word list, then pick 1 to discover. Each stage, your first Word Booster is free, and the Shop can add more free rolls for the whole run; later rolls start at 70 coins (then increase as before).",
       purchaseDone: (cost) =>
         cost <= 0
           ? "Claimed your free Word Booster for this stage. Pick 1 rolled word to discover it."
@@ -474,6 +474,17 @@ const SHOP_MESSAGES = {
           tier === 1 ? "" : "s"
         } on the first quest.`,
     },
+    "shop-run-free-word-booster": {
+      title: "More free Word Boosters",
+      description:
+        "For this entire run: each shop tier adds +1 extra free Word Booster roll every stage (on top of the usual first free). Tier 2 means three free rolls per stage. Resets on New Game. Costs 300g, then 600g.",
+      purchaseDone: (cost, tier) => {
+        const freePerStage = 1 + tier;
+        return `Paid ${cost} coins (tier ${tier}/2). You now get ${freePerStage} free Word Booster${
+          freePerStage === 1 ? "" : "s"
+        } each stage before paid pricing kicks in.`;
+      },
+    },
     "shop-recycling-machine": {
       title: "Buy recycling machine",
       description:
@@ -497,7 +508,7 @@ const SHOP_MESSAGES = {
     "shop-word-booster": {
       title: "Бустер слов",
       description:
-        "10 случайных слов из частотного списка — выберите 1, чтобы открыть. Первый набор на этапе бесплатен; следующие снова от 70 монет (как раньше первый, дальше дороже).",
+        "10 случайных слов из частотного списка — выберите 1, чтобы открыть. На каждом этапе первый бустер бесплатен; в магазине можно добавить ещё бесплатные бустеры на весь забег; дальше снова от 70 монет (как раньше первый, дальше дороже).",
       purchaseDone: (cost) =>
         cost <= 0
           ? "Получен бесплатный бустер слов на этом этапе. Выберите 1 из выпавших слов."
@@ -587,6 +598,17 @@ const SHOP_MESSAGES = {
       purchaseDone: (cost, tier) =>
         `Потрачено ${cost} монет (уровень ${tier}/5). Первый квест нового этапа: +${tier} к лимиту чернил.`,
     },
+    "shop-run-free-word-booster": {
+      title: "Больше бесплатных бустеров",
+      description:
+        "На весь забег: каждый уровень даёт +1 дополнительный бесплатный бустер слов на каждом этапе (сверх обычного первого). 2-й уровень — три бесплатных бустера на этап. Сброс при «Новая игра». 300 монет, затем 600.",
+      purchaseDone: (cost, tier) => {
+        const freePerStage = 1 + tier;
+        return `Потрачено ${cost} монет (уровень ${tier}/2). На каждом этапе: ${freePerStage} бесплатных бустер${
+          freePerStage === 1 ? "" : freePerStage < 5 ? "а" : "ов"
+        }, затем платные цены.`;
+      },
+    },
     "shop-recycling-machine": {
       title: "Купить машину переработки",
       description:
@@ -665,8 +687,8 @@ export function getWordBoosterTopTitle(pending, reason, boosterCost) {
   const cost = Math.max(0, Math.floor(Number(boosterCost)) || 0);
   if (cost === 0) {
     return activeUiLang === "ru"
-      ? "Бесплатно: первый бустер на этом этапе."
-      : "Free: first Word Booster this stage.";
+      ? "Бесплатно: бустер слов на этом этапе (бесплатная квота)."
+      : "Free: Word Booster this stage (within your free rolls).";
   }
   return activeUiLang === "ru"
     ? `Купить за ${cost} монет.`
