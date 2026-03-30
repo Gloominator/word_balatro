@@ -11,9 +11,11 @@
       (function() {
         var t = localStorage.getItem('wordmath-theme') || 'light';
         document.documentElement.dataset.theme = t;
-        var paper = localStorage.getItem('wordmath-tile-paper') || 'classic';
-        var allowed = { classic:1, sticky:1, index:1, receipt:1, clip:1, kraft:1 };
-        document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'classic';
+        var paper = localStorage.getItem('wordmath-tile-paper');
+        if (paper === 'classic') paper = 'vanilla';
+        if (!paper) paper = 'receipt';
+        var allowed = { vanilla:1, sticky:1, index:1, receipt:1, clip:1, kraft:1 };
+        document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'receipt';
       })();
     </script>
 
@@ -279,12 +281,12 @@
         <div class="settings-tile-paper-block">
           <p class="muted" data-i18n="modal.settingsTilePaperLabel">Field word cards</p>
           <div class="settings-tile-paper-radios">
-            <label><input type="radio" name="wordmath-tile-paper" value="classic"> <span data-i18n="settings.tilePaperClassic">Default</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="receipt"> <span data-i18n="settings.tilePaperReceipt">Receipt tear-off</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="sticky"> <span data-i18n="settings.tilePaperSticky">Sticky scrap</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="index"> <span data-i18n="settings.tilePaperIndex">Index card</span></label>
-            <label><input type="radio" name="wordmath-tile-paper" value="receipt"> <span data-i18n="settings.tilePaperReceipt">Receipt tear-off</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="clip"> <span data-i18n="settings.tilePaperClip">Magazine clip</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="kraft"> <span data-i18n="settings.tilePaperKraft">Kraft scrap</span></label>
+            <label><input type="radio" name="wordmath-tile-paper" value="vanilla"> <span data-i18n="settings.tilePaperVanilla">Vanilla</span></label>
           </div>
           <p class="muted settings-copy" data-i18n="modal.settingsTilePaperHint">Saved in the browser. Affects words on the mixing field only.</p>
         </div>

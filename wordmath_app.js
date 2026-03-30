@@ -45,15 +45,35 @@ let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
 const RUN_ENCYCLOPEDIA_CATEGORY_COUNT = 16;
 
 const TILE_PAPER_STORAGE_KEY = "wordmath-tile-paper";
-const TILE_PAPER_IDS = ["classic", "sticky", "index", "receipt", "clip", "kraft"];
+const TILE_PAPER_IDS = ["vanilla", "sticky", "index", "receipt", "clip", "kraft"];
+const TILE_PAPER_DEFAULT = "receipt";
+
+/** Subtle per-tile hue/sat/light drift (scrap styles only; vanilla leaves CSS defaults). */
+const PAPER_COLOR_JITTER = {
+  sticky: { h: [4, 26], s: [0.96, 1.16], b: [0.95, 1.05] },
+  index: { h: [-14, 16], s: [0.86, 1.08], b: [0.95, 1.04] },
+  receipt: { h: [-12, 14], s: [0.84, 1.06], b: [0.93, 1.06] },
+  clip: { h: [-2, 24], s: [0.9, 1.12], b: [0.94, 1.05] },
+  kraft: { h: [-24, 18], s: [0.88, 1.14], b: [0.9, 1.03] },
+};
 
 function normalizeTilePaperStyle(raw) {
-  const id = typeof raw === "string" ? raw : "classic";
-  return TILE_PAPER_IDS.includes(id) ? id : "classic";
+  let id = typeof raw === "string" ? raw.trim() : "";
+  if (id === "classic") {
+    id = "vanilla";
+  }
+  if (TILE_PAPER_IDS.includes(id)) {
+    return id;
+  }
+  return TILE_PAPER_DEFAULT;
 }
 
 function getTilePaperStyle() {
-  return normalizeTilePaperStyle(window.localStorage.getItem(TILE_PAPER_STORAGE_KEY));
+  const stored = window.localStorage.getItem(TILE_PAPER_STORAGE_KEY);
+  if (stored == null || stored === "") {
+    return TILE_PAPER_DEFAULT;
+  }
+  return normalizeTilePaperStyle(stored);
 }
 
 function applyTilePaperStyle(styleId) {
@@ -119,8 +139,52 @@ function tornClipPathCss(tileId) {
   return `polygon(${buildTornClipPathPolygonPoints(tileId).join(", ")})`;
 }
 
+function tilePaperColorRng(tileId, paper) {
+  let s = Math.imul(tileId | 0, 0x243f6a89) ^ Math.imul(paper.length, 0x1bf142c7);
+  for (let i = 0; i < paper.length; i += 1) {
+    s ^= paper.charCodeAt(i) * (0x9e3779b9 + i);
+  }
+  s >>>= 0;
+  if (s === 0) {
+    s = 0x85ebca6b;
+  }
+  return () => {
+    s = Math.imul(s ^ (s << 13), 0xc2b2ae3d) >>> 0;
+    return s / 0x100000000;
+  };
+}
+
+function lerpHueSatBright(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function applyPaperStyleColorVariance(tileElement, tileId, { tagged }) {
+  const paper = getTilePaperStyle();
+  if (paper === "vanilla") {
+    tileElement.style.removeProperty("--paper-hue-rotate");
+    tileElement.style.removeProperty("--paper-saturate");
+    tileElement.style.removeProperty("--paper-brightness");
+    return;
+  }
+  const spec = PAPER_COLOR_JITTER[paper];
+  if (!spec) {
+    tileElement.style.removeProperty("--paper-hue-rotate");
+    tileElement.style.removeProperty("--paper-saturate");
+    tileElement.style.removeProperty("--paper-brightness");
+    return;
+  }
+  const rng = tilePaperColorRng(tileId, paper);
+  const damp = tagged ? 0.52 : 1;
+  const h = lerpHueSatBright(spec.h[0], spec.h[1], rng()) * damp;
+  const sat = lerpHueSatBright(spec.s[0], spec.s[1], rng());
+  const bri = lerpHueSatBright(spec.b[0], spec.b[1], rng());
+  tileElement.style.setProperty("--paper-hue-rotate", `${h.toFixed(2)}deg`);
+  tileElement.style.setProperty("--paper-saturate", sat.toFixed(3));
+  tileElement.style.setProperty("--paper-brightness", bri.toFixed(3));
+}
+
 function applyTornPaperClipToTile(tileElement, tileId) {
-  if (getTilePaperStyle() === "classic") {
+  if (getTilePaperStyle() === "vanilla") {
     tileElement.style.clipPath = "";
     tileElement.style.webkitClipPath = "";
     delete tileElement.dataset.tornPaper;
@@ -132,7 +196,7 @@ function applyTornPaperClipToTile(tileElement, tileId) {
   tileElement.dataset.tornPaper = "true";
 }
 
-function syncAllFieldTilesTornPaperClip() {
+function syncAllFieldTilePaperLook() {
   if (!els.playfieldSurface) {
     return;
   }
@@ -143,6 +207,7 @@ function syncAllFieldTilesTornPaperClip() {
       return;
     }
     applyTornPaperClipToTile(tileEl, id);
+    applyPaperStyleColorVariance(tileEl, id, { tagged: tileEl.dataset.tagged === "true" });
   });
 }
 
@@ -8806,6 +8871,7 @@ function renderTiles(options = {}) {
 
       tileElement.append(tagElement, banLineElement, broadLineElement, minusMixLineElement, wordElement, metaElement);
       applyTornPaperClipToTile(tileElement, tile.id);
+      applyPaperStyleColorVariance(tileElement, tile.id, { tagged: getTileTagRank(tile) >= 2 });
       els.playfieldSurface.append(tileElement);
     });
 
@@ -9444,7 +9510,7 @@ function initEvents() {
         return;
       }
       applyTilePaperStyle(radio.value);
-      syncAllFieldTilesTornPaperClip();
+      syncAllFieldTilePaperLook();
       setStatus(
         getUiLang() === "ru"
           ? "Оформление карточек на поле обновлено."

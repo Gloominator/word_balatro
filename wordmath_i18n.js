@@ -142,7 +142,7 @@ const MESSAGES = {
       "Word data matches the server (English or Russian build). Change interface language anytime.",
     "modal.settingsTilePaperLabel": "Field word cards (look)",
     "modal.settingsTilePaperHint": "Saved in the browser. Affects words on the mixing field only.",
-    "settings.tilePaperClassic": "Default",
+    "settings.tilePaperVanilla": "Vanilla",
     "settings.tilePaperSticky": "Sticky scrap",
     "settings.tilePaperIndex": "Ruled index",
     "settings.tilePaperReceipt": "Receipt tear-off",
@@ -334,7 +334,7 @@ const MESSAGES = {
     "modal.settingsTilePaperLabel": "Карточки на поле (оформление)",
     "modal.settingsTilePaperHint":
       "Сохраняется в браузере. Влияет только на слова на поле смешивания.",
-    "settings.tilePaperClassic": "Обычные",
+    "settings.tilePaperVanilla": "Vanilla (без бумаги)",
     "settings.tilePaperSticky": "Стикер",
     "settings.tilePaperIndex": "Карточка с линейкой",
     "settings.tilePaperReceipt": "Чек (перфорация)",
