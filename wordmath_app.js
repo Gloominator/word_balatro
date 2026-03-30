@@ -65,6 +65,10 @@ const TILE_PAPER_STORAGE_KEY = "wordmath-tile-paper";
 const TILE_PAPER_IDS = ["vanilla", "sticky", "index", "receipt", "clip", "kraft"];
 const TILE_PAPER_DEFAULT = "receipt";
 
+const PLAYFIELD_TEXTURE_STORAGE_KEY = "wordmath-playfield-texture";
+const PLAYFIELD_TEXTURE_IDS = ["1", "2", "3", "4"];
+const PLAYFIELD_TEXTURE_DEFAULT = "1";
+
 /** Subtle per-tile hue/sat/light drift (scrap styles only; vanilla leaves CSS defaults). */
 const PAPER_COLOR_JITTER = {
   sticky: { h: [4, 26], s: [0.96, 1.16], b: [0.95, 1.05] },
@@ -97,6 +101,28 @@ function applyTilePaperStyle(styleId) {
   const v = normalizeTilePaperStyle(styleId);
   window.localStorage.setItem(TILE_PAPER_STORAGE_KEY, v);
   document.documentElement.dataset.tilePaper = v;
+}
+
+function normalizePlayfieldTexture(raw) {
+  const id = typeof raw === "string" ? raw.trim() : "";
+  if (PLAYFIELD_TEXTURE_IDS.includes(id)) {
+    return id;
+  }
+  return PLAYFIELD_TEXTURE_DEFAULT;
+}
+
+function getPlayfieldTexture() {
+  const stored = window.localStorage.getItem(PLAYFIELD_TEXTURE_STORAGE_KEY);
+  if (stored == null || stored === "") {
+    return PLAYFIELD_TEXTURE_DEFAULT;
+  }
+  return normalizePlayfieldTexture(stored);
+}
+
+function applyPlayfieldTexture(textureId) {
+  const v = normalizePlayfieldTexture(textureId);
+  window.localStorage.setItem(PLAYFIELD_TEXTURE_STORAGE_KEY, v);
+  document.documentElement.dataset.playfieldTexture = v;
 }
 
 /** Deterministic rough paper edge; stable for the same tile id across re-renders. */
@@ -1112,6 +1138,7 @@ const els = {
   wordBoosterTopButton: document.querySelector("[data-action='buy-word-booster']"),
   wordBoosterCost: document.querySelector("[data-word-booster-cost]"),
   tilePaperRadios: document.querySelectorAll("input[name='wordmath-tile-paper']"),
+  playfieldTextureRadios: document.querySelectorAll("input[name='wordmath-playfield-texture']"),
   soundVolumeSlider: document.querySelector("[data-settings-sound-volume]"),
   soundVolumeValue: document.querySelector("[data-settings-sound-volume-value]"),
   musicVolumeSlider: document.querySelector("[data-settings-music-volume]"),
@@ -9221,6 +9248,10 @@ function renderSettings() {
   els.tilePaperRadios.forEach((radio) => {
     radio.checked = radio.value === paper;
   });
+  const playfieldTex = getPlayfieldTexture();
+  els.playfieldTextureRadios.forEach((radio) => {
+    radio.checked = radio.value === playfieldTex;
+  });
   const soundVol = getWordmathSoundVolumePercent();
   if (els.soundVolumeSlider) {
     els.soundVolumeSlider.value = String(soundVol);
@@ -9752,6 +9783,20 @@ function initEvents() {
       );
     });
   });
+  els.playfieldTextureRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (!radio.checked) {
+        return;
+      }
+      applyPlayfieldTexture(radio.value);
+      setStatus(
+        getUiLang() === "ru"
+          ? "Текстура поля обновлена."
+          : "Matching field texture updated.",
+        "ok",
+      );
+    });
+  });
   els.soundVolumeSlider?.addEventListener("input", () => {
     const raw = Number(els.soundVolumeSlider.value);
     const v = Math.min(100, Math.max(0, Math.round(Number.isFinite(raw) ? raw : 0)));
@@ -9911,6 +9956,7 @@ async function bootstrap() {
   setUiLang(uiLang);
   applyDocumentI18n(uiLang);
   applyTilePaperStyle(getTilePaperStyle());
+  applyPlayfieldTexture(getPlayfieldTexture());
   init();
 }
 

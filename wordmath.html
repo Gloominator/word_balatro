@@ -16,6 +16,9 @@
         if (!paper) paper = 'receipt';
         var allowed = { vanilla:1, sticky:1, index:1, receipt:1, clip:1, kraft:1 };
         document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'receipt';
+        var pft = localStorage.getItem('wordmath-playfield-texture');
+        if (pft !== '1' && pft !== '2' && pft !== '3' && pft !== '4') pft = '1';
+        document.documentElement.dataset.playfieldTexture = pft;
       })();
     </script>
 
@@ -281,6 +284,15 @@
             <label><input type="radio" name="wordmath-tile-paper" value="clip"> <span data-i18n="settings.tilePaperClip">Magazine clip</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="kraft"> <span data-i18n="settings.tilePaperKraft">Kraft scrap</span></label>
             <label><input type="radio" name="wordmath-tile-paper" value="vanilla"> <span data-i18n="settings.tilePaperVanilla">Vanilla</span></label>
+          </div>
+        </div>
+        <div class="settings-tile-paper-block">
+          <p class="muted" data-i18n="modal.settingsPlayfieldTextureLabel">Matching field texture</p>
+          <div class="settings-tile-paper-radios">
+            <label><input type="radio" name="wordmath-playfield-texture" value="1"> <span data-i18n="settings.playfieldTextureOption1">Option 1</span></label>
+            <label><input type="radio" name="wordmath-playfield-texture" value="2"> <span data-i18n="settings.playfieldTextureOption2">Option 2</span></label>
+            <label><input type="radio" name="wordmath-playfield-texture" value="3"> <span data-i18n="settings.playfieldTextureOption3">Option 3</span></label>
+            <label><input type="radio" name="wordmath-playfield-texture" value="4"> <span data-i18n="settings.playfieldTextureOption4">Option 4</span></label>
           </div>
         </div>
         <div class="settings-sound-block" style="margin-bottom:1rem;">

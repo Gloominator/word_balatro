@@ -244,9 +244,9 @@
 
   --playfield-border: rgba(56, 64, 74, 0.45);
   --playfield-hover-border: var(--primary);
-  /* Matching field: drop texture.png into assets/playfield/ (see comment on .playfield) */
+  /* Matching field textures: assets/playfield/texture1.png … texture4.png (see .playfield comment) */
   --playfield-fallback: #a8b0bb;
-  --playfield-texture-url: url("assets/playfield/texture.png");
+  --playfield-texture-url: url("assets/playfield/texture1.png");
   --playfield-texture-size: cover;
   --playfield-texture-position: center center;
   --playfield-texture-repeat: no-repeat;
@@ -280,6 +280,18 @@
   --radius-xl: 6px;
   --radius-2xl: 7px;
   --radius-full: 999px;
+}
+
+:root[data-playfield-texture="2"] {
+  --playfield-texture-url: url("assets/playfield/texture2.png");
+}
+
+:root[data-playfield-texture="3"] {
+  --playfield-texture-url: url("assets/playfield/texture3.png");
+}
+
+:root[data-playfield-texture="4"] {
+  --playfield-texture-url: url("assets/playfield/texture4.png");
 }
 
 /* --- Dark Theme -------------------------------------------------------- */
@@ -369,7 +381,6 @@
   --playfield-border: rgba(168, 158, 142, 0.28);
   --playfield-hover-border: var(--border-strong);
   --playfield-fallback: #0e0d0c;
-  /* --playfield-texture-url: url("assets/playfield/texture-dark.png"); */
   --playfield-tint: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.48),
@@ -1582,11 +1593,9 @@ input:focus {
 
 /* --- Playfield --------------------------------------------------------- */
 /*
-  Texture: save as assets/playfield/texture.png (same folder as wordmath.html).
-  Suggested size — full-bleed photo: ~1600×1000 or 1920×1200 (name it texture.png).
-  Seamless tile: ~512–1024 square, then set on :root:
-    --playfield-texture-size: 360px 360px;
-    --playfield-texture-repeat: repeat;
+  Textures: assets/playfield/texture1.png … texture4.png (pick in Settings).
+  Suggested full-bleed: ~1600×1000 or 1920×1200. Seamless tile: set on :root
+  --playfield-texture-size / --playfield-texture-repeat.
 */
 
 .playfield {
