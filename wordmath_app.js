@@ -746,7 +746,7 @@ const MAX_PLAYFIELD_ZOOM = 1;
 /** Each expand tier (2 and 3) multiplies world scale by this factor after pan/zoom is unlocked. */
 const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
 const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
-const SHOP_PLAYFIELD_EXPAND_COST = 600;
+const SHOP_PLAYFIELD_EXPAND_COST = 200;
 const SHOP_PLAYFIELD_EXPAND_2_COST = 2000;
 const DISCOVERY_COIN_REWARD_COMMON = 15;
 const DISCOVERY_COIN_REWARD_UNCOMMON = 20;
@@ -793,20 +793,37 @@ const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
 const SNAPSHOT_VERSION = 22;
 
-/** Run-wide shop upgrades: tiers 1–5 cost 500 / 1k / 2k / 3k / 4k; persist across stages, reset on New Game. */
-const RUN_PERMANENT_UPGRADE_MAX_TIER = 5;
-const RUN_PERMANENT_UPGRADE_TIER_COSTS = Object.freeze([500, 1000, 2000, 3000, 4000]);
+/** Run-wide: random tokens at stage start — 5 tiers, 300 / 500 / 700 / 900 / 1000g. */
+const RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER = 5;
+const RUN_PERMANENT_RANDOM_TOKEN_COSTS = Object.freeze([300, 500, 700, 900, 1000]);
 
-function normalizeRunPermanentUpgradeTier(value) {
-  return clamp(getSafeCount(value, 0), 0, RUN_PERMANENT_UPGRADE_MAX_TIER);
+function normalizeRunPermanentRandomTokenTier(value) {
+  return clamp(getSafeCount(value, 0), 0, RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER);
 }
 
-function getNextRunPermanentUpgradeShopCost(currentTier) {
-  const tier = normalizeRunPermanentUpgradeTier(currentTier);
-  if (tier >= RUN_PERMANENT_UPGRADE_MAX_TIER) {
+function getNextRunPermanentRandomTokenShopCost(currentTier) {
+  const tier = normalizeRunPermanentRandomTokenTier(currentTier);
+  if (tier >= RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER) {
     return 0;
   }
-  return RUN_PERMANENT_UPGRADE_TIER_COSTS[tier];
+  return RUN_PERMANENT_RANDOM_TOKEN_COSTS[tier];
+}
+
+/** Run-wide: extra first-quest turns on new stages — 10 tiers, 200g then +100 per tier (200…1100). */
+const RUN_PERMANENT_MORE_INK_MAX_TIER = 10;
+const RUN_PERMANENT_MORE_INK_FIRST_COST = 200;
+const RUN_PERMANENT_MORE_INK_COST_STEP = 100;
+
+function normalizeRunPermanentMoreInkTier(value) {
+  return clamp(getSafeCount(value, 0), 0, RUN_PERMANENT_MORE_INK_MAX_TIER);
+}
+
+function getNextRunPermanentMoreInkShopCost(currentTier) {
+  const tier = normalizeRunPermanentMoreInkTier(currentTier);
+  if (tier >= RUN_PERMANENT_MORE_INK_MAX_TIER) {
+    return 0;
+  }
+  return RUN_PERMANENT_MORE_INK_FIRST_COST + tier * RUN_PERMANENT_MORE_INK_COST_STEP;
 }
 
 /** Extra free Word Booster rolls each stage (on top of the default first free). Two tiers: 300g, 600g. */
@@ -1027,13 +1044,13 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-run-permanent-random-tokens",
     title: "1 random token",
-    cost: RUN_PERMANENT_UPGRADE_TIER_COSTS[0],
+    cost: RUN_PERMANENT_RANDOM_TOKEN_COSTS[0],
     description: "",
-    canPurchase: () => normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
-      < RUN_PERMANENT_UPGRADE_MAX_TIER,
+    canPurchase: () => normalizeRunPermanentRandomTokenTier(state.runPermanentRandomTokens)
+      < RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER,
     purchase: () => {
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-run-permanent-random-tokens"));
-      state.runPermanentRandomTokens = normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
+      state.runPermanentRandomTokens = normalizeRunPermanentRandomTokenTier(state.runPermanentRandomTokens)
         + 1;
       return formatShopPurchaseMessage("shop-run-permanent-random-tokens", [cost, state.runPermanentRandomTokens]);
     },
@@ -1041,13 +1058,13 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-run-permanent-more-ink",
     title: "More ink",
-    cost: RUN_PERMANENT_UPGRADE_TIER_COSTS[0],
+    cost: RUN_PERMANENT_MORE_INK_FIRST_COST,
     description: "",
-    canPurchase: () => normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk)
-      < RUN_PERMANENT_UPGRADE_MAX_TIER,
+    canPurchase: () => normalizeRunPermanentMoreInkTier(state.runPermanentMoreInk)
+      < RUN_PERMANENT_MORE_INK_MAX_TIER,
     purchase: () => {
       const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-run-permanent-more-ink"));
-      state.runPermanentMoreInk = normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk) + 1;
+      state.runPermanentMoreInk = normalizeRunPermanentMoreInkTier(state.runPermanentMoreInk) + 1;
       return formatShopPurchaseMessage("shop-run-permanent-more-ink", [cost, state.runPermanentMoreInk]);
     },
   },
@@ -1477,10 +1494,10 @@ function getShopItemCost(item) {
     return getPlayfieldUpgradeTrackShopCost();
   }
   if (item.id === "shop-run-permanent-random-tokens") {
-    return getNextRunPermanentUpgradeShopCost(state.runPermanentRandomTokens);
+    return getNextRunPermanentRandomTokenShopCost(state.runPermanentRandomTokens);
   }
   if (item.id === "shop-run-permanent-more-ink") {
-    return getNextRunPermanentUpgradeShopCost(state.runPermanentMoreInk);
+    return getNextRunPermanentMoreInkShopCost(state.runPermanentMoreInk);
   }
   if (item.id === "shop-run-free-word-booster") {
     return getNextRunFreeWordBoosterUpgradeShopCost(state.runFreeWordBoosterTier);
@@ -2106,7 +2123,7 @@ function assignNewQuest({ initial = false, previousTargetWord = null, carryOverT
   }
   const carry = getSafeCount(carryOverTurns);
   if (initial) {
-    const inkBonus = normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk);
+    const inkBonus = normalizeRunPermanentMoreInkTier(state.runPermanentMoreInk);
     state.quest.remainingDiscoveries = getInitialQuestTurnBudgetForStage(state.runStage) + carry + inkBonus;
   } else {
     const bonus = getQuestCompletionBonusTurns();
@@ -2210,7 +2227,7 @@ function grantOneRandomQuestPoolToken(rewardSummary) {
 }
 
 function grantRunPermanentRandomTokensAfterStageCarry(count) {
-  const n = normalizeRunPermanentUpgradeTier(count);
+  const n = normalizeRunPermanentRandomTokenTier(count);
   if (n <= 0) {
     return;
   }
@@ -2823,10 +2840,10 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     ? getSafeCount(snapshot.wordBoosterPurchasesThisStage, 0)
     : getShopPurchaseCount("shop-word-booster");
   state.runPermanentRandomTokens = snapshotVersion >= 13
-    ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentRandomTokens)
+    ? normalizeRunPermanentRandomTokenTier(snapshot.runPermanentRandomTokens)
     : 0;
   state.runPermanentMoreInk = snapshotVersion >= 13
-    ? normalizeRunPermanentUpgradeTier(snapshot.runPermanentMoreInk)
+    ? normalizeRunPermanentMoreInkTier(snapshot.runPermanentMoreInk)
     : 0;
   state.runFreeWordBoosterTier = snapshotVersion >= 21
     ? normalizeRunFreeWordBoosterUpgradeTier(snapshot.runFreeWordBoosterTier)
@@ -7280,17 +7297,19 @@ function renderUpgradePanel() {
     const isPermanentInk = item.id === "shop-run-permanent-more-ink";
     const isFreeBoosterRun = item.id === "shop-run-free-word-booster";
     const permanentTier = isPermanentRandom
-      ? normalizeRunPermanentUpgradeTier(state.runPermanentRandomTokens)
+      ? normalizeRunPermanentRandomTokenTier(state.runPermanentRandomTokens)
       : isPermanentInk
-        ? normalizeRunPermanentUpgradeTier(state.runPermanentMoreInk)
+        ? normalizeRunPermanentMoreInkTier(state.runPermanentMoreInk)
         : isFreeBoosterRun
           ? normalizeRunFreeWordBoosterUpgradeTier(state.runFreeWordBoosterTier)
           : 0;
     const permanentTierMax = isFreeBoosterRun
       ? RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER
-      : RUN_PERMANENT_UPGRADE_MAX_TIER;
-    const permanentAtMax = (isPermanentRandom || isPermanentInk)
-      && permanentTier >= RUN_PERMANENT_UPGRADE_MAX_TIER;
+      : isPermanentInk
+        ? RUN_PERMANENT_MORE_INK_MAX_TIER
+        : RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER;
+    const permanentAtMax = (isPermanentRandom && permanentTier >= RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER)
+      || (isPermanentInk && permanentTier >= RUN_PERMANENT_MORE_INK_MAX_TIER);
     const freeBoosterAtMax = isFreeBoosterRun
       && permanentTier >= RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER;
     const atMax = permanentAtMax || freeBoosterAtMax || playfieldAtMax || recyclingOwned;

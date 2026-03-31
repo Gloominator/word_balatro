@@ -496,7 +496,7 @@ const SHOP_MESSAGES = {
     "shop-run-permanent-random-tokens": {
       title: "1 random token",
       description:
-        "For this entire run: every time you enter a new stage, after token carry you also gain random quest-pool tokens—one per tier, up to 5 at tier 5. Resets on New Game.",
+        "For this entire run: every time you enter a new stage, after token carry you also gain random quest-pool tokens—one per tier, up to 5 at tier 5. Tiers cost 300 / 500 / 700 / 900 / 1000g. Resets on New Game.",
       purchaseDone: (cost, tier) =>
         `Paid ${cost} coins (tier ${tier}/5). You now receive ${tier} random token${
           tier === 1 ? "" : "s"
@@ -505,9 +505,9 @@ const SHOP_MESSAGES = {
     "shop-run-permanent-more-ink": {
       title: "More ink",
       description:
-        "For this entire run: each new stage's first quest starts with +1 extra turn per tier (+5 at tier 5). Resets on New Game.",
+        "For this entire run: each new stage's first quest starts with +1 extra turn per tier (+10 at tier 10). Ten tiers; 200g, then +100g each. Resets on New Game.",
       purchaseDone: (cost, tier) =>
-        `Paid ${cost} coins (tier ${tier}/5). New stages now start with +${tier} quest turn${
+        `Paid ${cost} coins (tier ${tier}/10). New stages now start with +${tier} quest turn${
           tier === 1 ? "" : "s"
         } on the first quest.`,
     },
@@ -624,16 +624,16 @@ const SHOP_MESSAGES = {
     "shop-run-permanent-random-tokens": {
       title: "1 случайный токен",
       description:
-        "На весь забег: при входе на новый этап после переноса токенов вы получаете ещё случайные токены из пула квеста — по одному за уровень, до 5 на 5-м. Сбрасывается при «Новая игра».",
+        "На весь забег: при входе на новый этап после переноса токенов — случайные токены из пула квеста, по одному за уровень (до 5). Цены уровней: 300 / 500 / 700 / 900 / 1000 монет. Сброс при «Новая игра».",
       purchaseDone: (cost, tier) =>
         `Потрачено ${cost} монет (уровень ${tier}/5). На старте каждого нового этапа (после переноса): ${tier}× случайный токен из пула квеста.`,
     },
     "shop-run-permanent-more-ink": {
       title: "Больше чернил",
       description:
-        "На весь забег: первый квест нового этапа начинается с +1 ход за уровень (+5 на 5-м). Сбрасывается при «Новая игра».",
+        "На весь забег: первый квест нового этапа — +1 ход за уровень (до +10 на 10-м). 10 уровней: 200 монет, затем +100 за уровень. Сброс при «Новая игра».",
       purchaseDone: (cost, tier) =>
-        `Потрачено ${cost} монет (уровень ${tier}/5). Первый квест нового этапа: +${tier} к лимиту чернил.`,
+        `Потрачено ${cost} монет (уровень ${tier}/10). Первый квест нового этапа: +${tier} к лимиту чернил.`,
     },
     "shop-run-free-word-booster": {
       title: "Больше бесплатных бустеров",
