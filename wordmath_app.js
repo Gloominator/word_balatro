@@ -2,6 +2,7 @@ import { LOCALES } from "./wordmath_locales.js";
 import {
   applyDocumentI18n,
   formatCoinsCount,
+  formatPlayfieldUpgradeShopBlurb,
   formatShopBuyLine,
   formatShopPurchaseMessage,
   getShopItemDescription as localizedShopDescription,
@@ -925,7 +926,8 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     id: "shop-word-booster",
     title: "Word Booster",
     cost: SHOP_WORD_BOOSTER_COST,
-    description: "Roll 10 random words from the common-word list, then pick 1 to discover.",
+    description:
+      "Roll 10 common words; pick 1 to discover. Free per stage: 1 + each tier of «More free Word Boosters».",
     canPurchase: () => !state.shopWordBooster.isLoading,
     purchase: async () => {
       if (hasPendingShopWordBooster()) {
@@ -1144,7 +1146,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     id: "shop-quest-turn",
     title: "Quest Turn +1",
     cost: 100,
-    description: "Add 1 turn before you lose the current active quest.",
+    description: "+1 turn before you fail the active quest.",
     canPurchase: () => Boolean(state.quest.targetWord) && !state.quest.isLost,
     purchase: () => {
       state.quest.remainingDiscoveries += 1;
@@ -7431,17 +7433,10 @@ function renderUpgradePanel() {
     blurb.className = "upgrade-card-text";
     if (isPlayfieldTrack) {
       const pfTier = getPlayfieldUpgradeTier();
-      const stepHint = getUiLang() === "ru"
-        ? (playfieldAtMax
-          ? `Готово: ${PLAYFIELD_SHOP_STEP_COUNT}/${PLAYFIELD_SHOP_STEP_COUNT}.`
-          : `Шаг ${pfTier + 1}/${PLAYFIELD_SHOP_STEP_COUNT}.`)
-        : (playfieldAtMax
-          ? `Complete: ${PLAYFIELD_SHOP_STEP_COUNT}/${PLAYFIELD_SHOP_STEP_COUNT}.`
-          : `Step ${pfTier + 1}/${PLAYFIELD_SHOP_STEP_COUNT}.`);
-      const desc = playfieldAtMax
-        ? localizedShopDescription("shop-playfield-upgrade-track")
-        : localizedShopDescription(playfieldNextId);
-      blurb.textContent = [desc, stepHint].filter(Boolean).join(" ");
+      const tierIndex = playfieldAtMax
+        ? PLAYFIELD_SHOP_STEP_COUNT
+        : pfTier + 1;
+      blurb.textContent = formatPlayfieldUpgradeShopBlurb(tierIndex, PLAYFIELD_SHOP_STEP_COUNT);
     } else if (isPermanentRandom || isPermanentInk || isFreeBoosterRun) {
       const tierHint = getUiLang() === "ru"
         ? `Уровень ${permanentTier}/${permanentTierMax}.`

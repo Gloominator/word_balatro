@@ -420,275 +420,242 @@ const SHOP_MESSAGES = {
     "shop-word-booster": {
       title: "Word Booster",
       description:
-        "Roll 10 random words from the common-word list, then pick 1 to discover. Each stage, your first Word Booster is free, and the Shop can add more free rolls for the whole run; later rolls start at 70 coins (then increase as before).",
+        "Roll 10 common words; pick 1 to discover. Free per stage: 1 + each tier of «More free Word Boosters».",
       purchaseDone: (cost) =>
-        cost <= 0
-          ? "Claimed your free Word Booster for this stage. Pick 1 rolled word to discover it."
-          : `Bought a Word Booster for ${cost} coins. Pick 1 rolled word to discover it.`,
-      reopen: "Reopened your pending Word Booster.",
+        cost <= 0 ? "Free booster — pick a word." : `Booster (${cost}) — pick a word.`,
+      reopen: "Booster pick still open.",
     },
     "shop-match-2": {
       title: "Second Result Token",
       description: "",
-      purchaseDone: (cost) => `Bought 1 Second Result token for ${cost} coins.`,
+      purchaseDone: (cost) => `+1 Second Result (${cost}).`,
     },
     "shop-match-3": {
       title: "Third Result Token",
       description: "",
-      purchaseDone: (cost) => `Bought 1 Third Result token for ${cost} coins.`,
+      purchaseDone: (cost) => `+1 Third Result (${cost}).`,
     },
     "shop-match-4": {
       title: "Fourth Result Token",
       description: "",
-      purchaseDone: (cost) => `Bought 1 Fourth Result token for ${cost} coins.`,
+      purchaseDone: (cost) => `+1 Fourth Result (${cost}).`,
     },
     "shop-match-5": {
       title: "Fifth Result Token",
       description: "",
-      purchaseDone: (cost) => `Bought 1 Fifth Result token for ${cost} coins.`,
+      purchaseDone: (cost) => `+1 Fifth Result (${cost}).`,
     },
     "shop-ban-word": {
       title: "Ban Word Token",
       description: "",
-      purchaseDone: (cost) => `Bought 1 Ban Word token for ${cost} coins.`,
+      purchaseDone: (cost) => `+1 Ban Word (${cost}).`,
     },
     "shop-broad-choice": {
       title: "Broad Choice Token",
-      description: "Charge a field word to see up to ten mix matches and pick the result.",
-      purchaseDone: (cost) => `Bought 1 Broad Choice token for ${cost} coins.`,
+      description: "Charge a field word: up to 10 mix outcomes, pick one.",
+      purchaseDone: (cost) => `+1 Broad Choice (${cost}).`,
     },
     "shop-minus-mix": {
       title: "Minus Mix Token",
-      description: "Tag a field word so mixes use subtraction: stationary word minus dragged word.",
-      purchaseDone: (cost) => `Bought 1 Minus mix token for ${cost} coins.`,
+      description: "Tag a field word: mix = stationary word minus dragged word.",
+      purchaseDone: (cost) => `+1 Minus mix (${cost}).`,
     },
     "shop-lexicon-synantonym": {
       title: "Synantonym token",
-      description:
-        "Field tile: each hover alternates synonyms and antonyms. Mix consumes the tile.",
-      purchaseDone: (cost) => `Bought 1 Synantonym token for ${cost} coins.`,
+      description: "Field tile: hover swaps synonym/antonym. Mix uses the tile.",
+      purchaseDone: (cost) => `+1 Synantonym (${cost}).`,
     },
     "shop-lexicon-hypohypernym": {
       title: "Hypo-/hypernym token",
-      description:
-        "Field tile: each hover alternates hyponyms and hypernyms. Mix consumes the tile.",
-      purchaseDone: (cost) => `Bought 1 Hypo-/hypernym token for ${cost} coins.`,
+      description: "Field tile: hover swaps hyponym/hypernym. Mix uses the tile.",
+      purchaseDone: (cost) => `+1 Hypo-/hypernym (${cost}).`,
     },
     "shop-playfield-pan-zoom": {
       title: "Field Pan & Zoom",
-      description:
-        "Unlock dragging the view and zooming on the full mixing field. Further size comes from Expand purchases in the Shop.",
-      purchaseDone: () => "Unlocked pan and zoom on the mixing field.",
+      description: "Unlocks a bigger mix field",
+      purchaseDone: () => "Pan & zoom on.",
     },
     "shop-playfield-expand": {
       title: "Expand Mixing Field +50%",
-      description: "Increase playfield size by 50% (requires Field Pan & Zoom).",
-      purchaseDone: () => "Mixing field expanded by +50%.",
+      description: "+50% field size (needs pan & zoom).",
+      purchaseDone: () => "Field +50%.",
     },
     "shop-playfield-expand-2": {
       title: "Expand Mixing Field +50% (again)",
-      description: "Grow the playfield by another 50% (after the first expansion).",
-      purchaseDone: () => "Mixing field expanded by another +50%.",
+      description: "Another +50% field size.",
+      purchaseDone: () => "Field +50% again.",
     },
     "shop-playfield-upgrade-track": {
       title: "Mixing field & view",
-      description: "All upgrades unlocked: pan and zoom on the full field, plus two +50% size expansions.",
+      description: "Pan, zoom, and both +50% expansions.",
       purchaseDone: () => "",
     },
     "shop-run-permanent-random-tokens": {
       title: "1 random token",
-      description:
-        "For this entire run: every time you enter a new stage, after token carry you also gain random quest-pool tokens—one per tier, up to 5 at tier 5. Tiers cost 300 / 500 / 700 / 900 / 1000g. Resets on New Game.",
+      description: "A random extra token at the beginning of a new stage.",
       purchaseDone: (cost, tier) =>
-        `Paid ${cost} coins (tier ${tier}/5). You now receive ${tier} random token${
-          tier === 1 ? "" : "s"
-        } at the start of each new stage (after carry).`,
+        `Tier ${tier}/5 (${cost}): +${tier} random quest token${tier === 1 ? "" : "s"} per new stage.`,
     },
     "shop-run-permanent-more-ink": {
       title: "More ink",
-      description:
-        "For this entire run: each new stage's first quest starts with +1 extra turn per tier (+10 at tier 10). Ten tiers; 200g, then +100g each. Resets on New Game.",
+      description: "Get +1 bonus turn per tier at new stage.",
       purchaseDone: (cost, tier) =>
-        `Paid ${cost} coins (tier ${tier}/10). New stages now start with +${tier} quest turn${
-          tier === 1 ? "" : "s"
-        } on the first quest.`,
+        `Tier ${tier}/10 (${cost}): +${tier} turn${tier === 1 ? "" : "s"} on first quest each stage.`,
     },
     "shop-run-free-word-booster": {
       title: "More free Word Boosters",
-      description:
-        "For this entire run: each shop tier adds +1 extra free Word Booster roll every stage (on top of the usual first free). Tier 2 means three free rolls per stage. Resets on New Game. Costs 300g, then 600g.",
+      description: "Each stage +1 free Word Booster per tier of this upgrade.",
       purchaseDone: (cost, tier) => {
         const freePerStage = 1 + tier;
-        return `Paid ${cost} coins (tier ${tier}/2). You now get ${freePerStage} free Word Booster${
+        return `Tier ${tier}/2 (${cost}): ${freePerStage} free Word Booster${
           freePerStage === 1 ? "" : "s"
-        } each stage before paid pricing kicks in.`;
+        } per stage.`;
       },
     },
     "shop-recycling-machine": {
       title: "Buy recycling machine",
-      description:
-        "For this entire run: unlock the Recycler under Available words—drag words off the list to remove them and earn random quest-pool tokens (5 words for the first payout, then +1 each time). Resets on New Game.",
-      purchaseDone: (cost) =>
-        `Paid ${cost} coins. The Recycler is now available under Available words.`,
+      description: "Shred unused words to get tokens",
+      purchaseDone: (cost) => `Recycler on (${cost}).`,
     },
     "shop-recycling-machine-owned": {
       title: "Recycling machine",
-      description: "Installed for this run. Use the Recycler on the Discovered tab.",
+      description: "Recycler lives under Available words; use the Discovered tab.",
       purchaseDone: () => "",
     },
     "shop-custom-categories-unlock": {
       title: "Custom word categories",
-      description:
-        "For this entire run: unlock the + button next to Available words so you can create named categories and organize your list. Costs 500g once. Resets on New Game.",
-      purchaseDone: (cost) =>
-        `Paid ${cost} coins. You can now add custom word categories from the word panel.`,
+      description: "Unlock word categorising",
+      purchaseDone: (cost) => `Categories on (${cost}).`,
     },
     "shop-custom-categories-unlock-owned": {
       title: "Custom categories unlocked",
-      description: "Unlocked for this run. Use + next to Available words to add a category.",
+      description: "+ by Available words adds a category.",
       purchaseDone: () => "",
     },
     "shop-quest-turn": {
       title: "Quest Turn +1",
-      description: "Add 1 turn before you lose the current active quest.",
-      purchaseDone: (cost, turns) =>
-        `Paid ${cost} coins. Added 1 turn to the active quest. You now lose in ${turns} turns.`,
+      description: "+1 turn before you fail the active quest.",
+      purchaseDone: (cost, turns) => `+1 turn (${cost}) · out in ${turns}.`,
     },
   },
   ru: {
     "shop-word-booster": {
       title: "Бустер слов",
       description:
-        "10 случайных слов из частотного списка — выберите 1, чтобы открыть. На каждом этапе первый бустер бесплатен; в магазине можно добавить ещё бесплатные бустеры на весь забег; дальше снова от 70 монет (как раньше первый, дальше дороже).",
+        "10 частых слов; оставьте 1. Бесплатно за этап: 1 + каждый уровень «Больше бесплатных бустеров».",
       purchaseDone: (cost) =>
-        cost <= 0
-          ? "Получен бесплатный бустер слов на этом этапе. Выберите 1 из выпавших слов."
-          : `Куплен бустер слов за ${cost} монет. Выберите 1 из выпавших слов.`,
-      reopen: "Снова открыт незавершённый бустер слов.",
+        cost <= 0 ? "Бесплатно — выберите слово." : `Бустер (${cost}) — выберите слово.`,
+      reopen: "Бустер всё ещё открыт.",
     },
     "shop-match-2": {
       title: "Токен «Второй результат»",
       description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Второй результат» за ${cost} монет.`,
+      purchaseDone: (cost) => `+1 «Второй результат» (${cost}).`,
     },
     "shop-match-3": {
       title: "Токен «Третий результат»",
       description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Третий результат» за ${cost} монет.`,
+      purchaseDone: (cost) => `+1 «Третий результат» (${cost}).`,
     },
     "shop-match-4": {
       title: "Токен «Четвёртый результат»",
       description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Четвёртый результат» за ${cost} монет.`,
+      purchaseDone: (cost) => `+1 «Четвёртый результат» (${cost}).`,
     },
     "shop-match-5": {
       title: "Токен «Пятый результат»",
       description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Пятый результат» за ${cost} монет.`,
+      purchaseDone: (cost) => `+1 «Пятый результат» (${cost}).`,
     },
     "shop-ban-word": {
       title: "Токен «Запретить слово»",
       description: "",
-      purchaseDone: (cost) => `Куплен 1 токен «Запретить слово» за ${cost} монет.`,
+      purchaseDone: (cost) => `+1 «Запретить слово» (${cost}).`,
     },
     "shop-broad-choice": {
       title: "Токен «Широкий выбор»",
-      description: "Зарядите слово на поле: до 10 вариантов смешивания и выбор исхода.",
-      purchaseDone: (cost) => `Куплен 1 токен «Широкий выбор» за ${cost} монет.`,
+      description: "Зарядите слово на поле: до 10 исходов смешивания, выберите один.",
+      purchaseDone: (cost) => `+1 «Широкий выбор» (${cost}).`,
     },
     "shop-minus-mix": {
       title: "Токен «Минус-смешение»",
-      description: "Пометьте слово: смешение — слово под курсором минус перетаскиваемое.",
-      purchaseDone: (cost) => `Куплен 1 токен «Минус-смешение» за ${cost} монет.`,
+      description: "Пометьте слово: смешение = слово под курсором минус перетаскиваемое.",
+      purchaseDone: (cost) => `+1 «Минус-смешение» (${cost}).`,
     },
     "shop-lexicon-synantonym": {
       title: "Токен «Синантоним»",
-      description:
-        "Плитка: каждый предпросмотр чередует синонимы и антонимы.",
-      purchaseDone: (cost) => `Куплен 1 токен «Синантоним» за ${cost} монет.`,
+      description: "Плитка: наведение чередует синоним/антоним. Смешение тратит плитку.",
+      purchaseDone: (cost) => `+1 «Синантоним» (${cost}).`,
     },
     "shop-lexicon-hypohypernym": {
       title: "Токен «Гипо-/гипероним»",
-      description:
-        "Плитка: каждый предпросмотр чередует гипонимы и гиперонимы.",
-      purchaseDone: (cost) => `Куплен 1 токен «Гипо-/гипероним» за ${cost} монет.`,
+      description: "Плитка: наведение чередует гипоним/гипероним. Смешение тратит плитку.",
+      purchaseDone: (cost) => `+1 «Гипо-/гипероним» (${cost}).`,
     },
     "shop-playfield-pan-zoom": {
       title: "Панорама и масштаб поля",
-      description:
-        "Включить перетаскивание вида и масштаб на всём поле. Размер дальше — покупки «Расширить» в магазине.",
-      purchaseDone: () => "Включены панорама и масштаб поля смешивания.",
+      description: "Панорама и масштаб всего поля смешивания.",
+      purchaseDone: () => "Панорама и масштаб вкл.",
     },
     "shop-playfield-expand": {
       title: "Расширить поле +50%",
-      description: "Увеличить поле на 50% (нужны панорама и масштаб).",
-      purchaseDone: () => "Поле смешивания расширено на +50%.",
+      description: "+50% размера поля (нужны панорама и масштаб).",
+      purchaseDone: () => "Поле +50%.",
     },
     "shop-playfield-expand-2": {
       title: "Расширить поле ещё +50%",
-      description: "Ещё +50% размера поля (после первого расширения).",
-      purchaseDone: () => "Поле смешивания снова расширено на +50%.",
+      description: "Ещё +50% размера поля.",
+      purchaseDone: () => "Поле снова +50%.",
     },
     "shop-playfield-upgrade-track": {
       title: "Поле и вид",
-      description:
-        "Все улучшения куплены: панорама и масштаб на всём поле и два расширения размера +50%.",
+      description: "Панорама, масштаб и оба расширения +50%.",
       purchaseDone: () => "",
     },
     "shop-run-permanent-random-tokens": {
       title: "1 случайный токен",
-      description:
-        "На весь забег: при входе на новый этап после переноса токенов — случайные токены из пула квеста, по одному за уровень (до 5). Цены уровней: 300 / 500 / 700 / 900 / 1000 монет. Сброс при «Новая игра».",
+      description: "Каждый новый этап: лишние случайные токены квеста (число = уровень, макс. 5).",
       purchaseDone: (cost, tier) =>
-        `Потрачено ${cost} монет (уровень ${tier}/5). На старте каждого нового этапа (после переноса): ${tier}× случайный токен из пула квеста.`,
+        `Ур. ${tier}/5 (${cost}): +${tier} к токенам квеста на каждый новый этап.`,
     },
     "shop-run-permanent-more-ink": {
       title: "Больше чернил",
-      description:
-        "На весь забег: первый квест нового этапа — +1 ход за уровень (до +10 на 10-м). 10 уровней: 200 монет, затем +100 за уровень. Сброс при «Новая игра».",
+      description: "Каждый новый этап: первый квест +1 ход за уровень (макс. +10).",
       purchaseDone: (cost, tier) =>
-        `Потрачено ${cost} монет (уровень ${tier}/10). Первый квест нового этапа: +${tier} к лимиту чернил.`,
+        `Ур. ${tier}/10 (${cost}): +${tier} к лимиту первого квеста на этап.`,
     },
     "shop-run-free-word-booster": {
       title: "Больше бесплатных бустеров",
-      description:
-        "На весь забег: каждый уровень даёт +1 дополнительный бесплатный бустер слов на каждом этапе (сверх обычного первого). 2-й уровень — три бесплатных бустера на этап. Сброс при «Новая игра». 300 монет, затем 600.",
+      description: "За этап: +1 бесплатный бустер за уровень здесь (вместе с базовым 1).",
       purchaseDone: (cost, tier) => {
         const freePerStage = 1 + tier;
-        return `Потрачено ${cost} монет (уровень ${tier}/2). На каждом этапе: ${freePerStage} бесплатных бустер${
-          freePerStage === 1 ? "" : freePerStage < 5 ? "а" : "ов"
-        }, затем платные цены.`;
+        return `Ур. ${tier}/2 (${cost}): ${freePerStage} бесплатных бустера на этап.`;
       },
     },
     "shop-recycling-machine": {
       title: "Купить машину переработки",
-      description:
-        "На весь забег: открыть «Переработчик» под доступными словами — убирайте слова с панели и получайте случайные токены из пула квеста (первый раз — за 5 слов, потом порог +1). Сброс при «Новая игра».",
-      purchaseDone: (cost) =>
-        `Потрачено ${cost} монет. Переработчик доступен под списком доступных слов.`,
+      description: "Переработчик у «Доступных слов»: убирайте слова со списка за токены пула квеста.",
+      purchaseDone: (cost) => `Переработчик вкл. (${cost}).`,
     },
     "shop-recycling-machine-owned": {
       title: "Переработка",
-      description: "Установлено на этот забег. Используйте панель «Открытые».",
+      description: "Переработчик у «Доступных слов»; панель «Открытые».",
       purchaseDone: () => "",
     },
     "shop-custom-categories-unlock": {
       title: "Свои категории слов",
-      description:
-        "На весь забег: кнопка + у «Доступных слов» — создание имён категорий и порядка в списке. Один раз 500 монет. Сброс при «Новая игра».",
-      purchaseDone: (cost) =>
-        `Потрачено ${cost} монет. Можно добавлять свои категории в панели слов.`,
+      description: "+ у «Доступных слов»: свои категории.",
+      purchaseDone: (cost) => `Категории вкл. (${cost}).`,
     },
     "shop-custom-categories-unlock-owned": {
       title: "Свои категории открыты",
-      description: "Открыто на этот забег. Кнопка + у «Доступных слов» добавляет категорию.",
+      description: "+ у «Доступных слов» добавляет категорию.",
       purchaseDone: () => "",
     },
     "shop-quest-turn": {
       title: "Квест: +1 ход",
-      description: "Добавить 1 ход до проигрыша по текущему квесту.",
-      purchaseDone: (cost, turns) =>
-        `Потрачено ${cost} монет. +1 ход к квесту. Проигрыш через ${turns} ходов.`,
+      description: "+1 ход до провала текущего квеста.",
+      purchaseDone: (cost, turns) => `+1 ход (${cost}) · конец через ${turns}.`,
     },
   },
 };
@@ -738,11 +705,25 @@ export function formatShopBuyLine(itemCost) {
   return `Buy for ${c} coins`;
 }
 
+/** Playfield shop card body: fixed line + 1-based tier (next step, or max/ max when complete). */
+export function formatPlayfieldUpgradeShopBlurb(tierIndex, tierTotal) {
+  const tot = Math.max(1, Math.floor(Number(tierTotal)) || 1);
+  const cur = clamp(Math.floor(Number(tierIndex)) || 1, 1, tot);
+  if (activeUiLang === "ru") {
+    return `Откройте большее поле смешивания. Уровень ${cur}/${tot}.`;
+  }
+  return `Unlock a bigger mixing field. Tier ${cur}/${tot}.`;
+}
+
+function clamp(n, lo, hi) {
+  return Math.min(hi, Math.max(lo, n));
+}
+
 export function getWordBoosterTopTitle(pending, reason, boosterCost, freeRemaining) {
   if (pending) {
     return activeUiLang === "ru"
-      ? "Откройте невыбранный бустер слов."
-      : "Open your pending Word Booster picks.";
+      ? "Довыберите бустер."
+      : "Finish booster pick.";
   }
   if (reason) {
     return reason;
@@ -752,16 +733,16 @@ export function getWordBoosterTopTitle(pending, reason, boosterCost, freeRemaini
     const n = Math.max(0, Math.floor(Number(freeRemaining)) || 0);
     if (n > 0) {
       return activeUiLang === "ru"
-        ? `Бесплатно: осталось ${n}.`
-        : `Free: ${n} remaining`;
+        ? `Бесплатно · ещё ${n}.`
+        : `Free · ${n} left.`;
     }
     return activeUiLang === "ru"
-      ? "Бесплатно: бустер слов на этом этапе (бесплатная квота)."
-      : "Free: Word Booster this stage (within your free rolls).";
+      ? "Бесплатный бустер на этапе."
+      : "Free booster this stage.";
   }
   return activeUiLang === "ru"
-    ? `Купить за ${cost} монет.`
-    : `Buy for ${cost} coins.`;
+    ? `${cost} монет.`
+    : `${cost} coins.`;
 }
 
 export function setUiLang(lang) {
