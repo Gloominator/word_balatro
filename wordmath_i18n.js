@@ -124,6 +124,7 @@ const MESSAGES = {
     "sidebar.matchHistoryButton": "History",
     "sidebar.genealogyContext": "View genealogy",
     "sidebar.sendToRecycler": "Send to Recycler",
+    "sidebar.addCategoryLockedTooltip": "Buy shop upgrade to unlock categories",
     "modal.genealogyTitle": "Genealogy",
     "modal.genealogyShort": "Tree",
     "modal.genealogySubtitleHasTree":
@@ -327,6 +328,7 @@ const MESSAGES = {
     "sidebar.matchHistoryButton": "История",
     "sidebar.genealogyContext": "Родословная",
     "sidebar.sendToRecycler": "В переработчик",
+    "sidebar.addCategoryLockedTooltip": "Купите улучшение в магазине, чтобы открыть категории",
     "modal.genealogyTitle": "Родословная",
     "modal.genealogyShort": "Дерево",
     "modal.genealogySubtitleHasTree":
@@ -534,6 +536,18 @@ const SHOP_MESSAGES = {
       description: "Installed for this run. Use the Recycler on the Discovered tab.",
       purchaseDone: () => "",
     },
+    "shop-custom-categories-unlock": {
+      title: "Custom word categories",
+      description:
+        "For this entire run: unlock the + button next to Available words so you can create named categories and organize your list. Costs 500g once. Resets on New Game.",
+      purchaseDone: (cost) =>
+        `Paid ${cost} coins. You can now add custom word categories from the word panel.`,
+    },
+    "shop-custom-categories-unlock-owned": {
+      title: "Custom categories unlocked",
+      description: "Unlocked for this run. Use + next to Available words to add a category.",
+      purchaseDone: () => "",
+    },
     "shop-quest-turn": {
       title: "Quest Turn +1",
       description: "Add 1 turn before you lose the current active quest.",
@@ -656,6 +670,18 @@ const SHOP_MESSAGES = {
     "shop-recycling-machine-owned": {
       title: "Переработка",
       description: "Установлено на этот забег. Используйте панель «Открытые».",
+      purchaseDone: () => "",
+    },
+    "shop-custom-categories-unlock": {
+      title: "Свои категории слов",
+      description:
+        "На весь забег: кнопка + у «Доступных слов» — создание имён категорий и порядка в списке. Один раз 500 монет. Сброс при «Новая игра».",
+      purchaseDone: (cost) =>
+        `Потрачено ${cost} монет. Можно добавлять свои категории в панели слов.`,
+    },
+    "shop-custom-categories-unlock-owned": {
+      title: "Свои категории открыты",
+      description: "Открыто на этот забег. Кнопка + у «Доступных слов» добавляет категорию.",
       purchaseDone: () => "",
     },
     "shop-quest-turn": {

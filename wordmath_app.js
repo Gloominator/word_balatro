@@ -770,6 +770,8 @@ const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 /** First recycler token after this many words removed; each payout adds 1 to the threshold. */
 const RECYCLER_WORDS_FIRST_TOKEN = 5;
 const SHOP_RECYCLING_MACHINE_COST = 300;
+/** Run-wide: unlock creating custom word categories (+ button); persists across stages until New Game. */
+const SHOP_CUSTOM_CATEGORIES_UNLOCK_COST = 500;
 const RECENT_DISCOVERED_WORD_LIMIT = 25;
 const PLAYFIELD_BASE_WORLD_SCALE = 2.2;
 const PLAYFIELD_ZONE_SCALE_STEP = 1.1;
@@ -824,7 +826,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 22;
+const SNAPSHOT_VERSION = 23;
 
 /** Run-wide: random tokens at stage start — 5 tiers, 300 / 500 / 700 / 900 / 1000g. */
 const RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER = 5;
@@ -1127,6 +1129,18 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
     },
   },
   {
+    id: "shop-custom-categories-unlock",
+    title: "Custom word categories",
+    cost: SHOP_CUSTOM_CATEGORIES_UNLOCK_COST,
+    description: "",
+    canPurchase: () => !state.runCustomCategoriesUnlocked,
+    purchase: () => {
+      state.runCustomCategoriesUnlocked = true;
+      const cost = getShopItemCost(SHOP_ITEM_BY_ID.get("shop-custom-categories-unlock"));
+      return formatShopPurchaseMessage("shop-custom-categories-unlock", [cost]);
+    },
+  },
+  {
     id: "shop-quest-turn",
     title: "Quest Turn +1",
     cost: 100,
@@ -1176,6 +1190,7 @@ const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-run-permanent-more-ink",
   "shop-run-free-word-booster",
   "shop-recycling-machine",
+  "shop-custom-categories-unlock",
 ]);
 
 function isSidebarShopUpgradeVisible(item) {
@@ -1226,6 +1241,8 @@ const state = {
   runFreeWordBoosterTier: 0,
   /** Run-wide: Recycler unlocked from Shop; persists across stages until New Game. */
   runRecyclingMachineUnlocked: false,
+  /** Run-wide: custom category creation (+ in word panel); Shop 500g; persists across stages until New Game. */
+  runCustomCategoriesUnlocked: false,
   availableBanWordTokens: 0,
   totalBanWordTokensEarned: 0,
   availableMinusMixTokens: 0,
@@ -2536,6 +2553,7 @@ function buildProgressSnapshot() {
     runPermanentMoreInk: state.runPermanentMoreInk,
     runFreeWordBoosterTier: state.runFreeWordBoosterTier,
     runRecyclingMachineUnlocked: state.runRecyclingMachineUnlocked,
+    runCustomCategoriesUnlocked: state.runCustomCategoriesUnlocked,
     availableBanWordTokens: state.availableBanWordTokens,
     totalBanWordTokensEarned: state.totalBanWordTokensEarned,
     availableMinusMixTokens: state.availableMinusMixTokens,
@@ -2934,6 +2952,11 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
       || getSafeCount(snapshot.garbageRewardLevel) > 0
       || getSafeCount(snapshot.garbageWordsSinceReward) > 0;
     state.runRecyclingMachineUnlocked = legacyHadDiscoveredThreshold || legacyHadRecyclerUsage;
+  }
+  if (snapshotVersion >= 23) {
+    state.runCustomCategoriesUnlocked = Boolean(snapshot.runCustomCategoriesUnlocked);
+  } else {
+    state.runCustomCategoriesUnlocked = true;
   }
   state.availableBanWordTokens = getSafeCount(snapshot.availableBanWordTokens);
   state.totalBanWordTokensEarned = getSafeCount(snapshot.totalBanWordTokensEarned);
@@ -7112,6 +7135,12 @@ function getShopItemPurchaseState(item) {
       reason: getUiLang() === "ru" ? "Уже куплено." : "Already purchased.",
     };
   }
+  if (item.id === "shop-custom-categories-unlock" && state.runCustomCategoriesUnlocked) {
+    return {
+      canBuy: false,
+      reason: getUiLang() === "ru" ? "Уже куплено." : "Already purchased.",
+    };
+  }
   const itemCost = getShopItemCost(item);
   if (state.coins < itemCost) {
     return {
@@ -7356,6 +7385,8 @@ function renderUpgradePanel() {
     const playfieldAtMax = isPlayfieldTrack && playfieldNextId === null;
     const isRecyclingMachine = item.id === "shop-recycling-machine";
     const recyclingOwned = isRecyclingMachine && state.runRecyclingMachineUnlocked;
+    const isCategoryUnlock = item.id === "shop-custom-categories-unlock";
+    const categoryUnlockOwned = isCategoryUnlock && state.runCustomCategoriesUnlocked;
     let upgradeCardTitle = localizedShopTitle(item.id);
     if (playfieldAtMax) {
       upgradeCardTitle = localizedShopTitle("shop-playfield-upgrade-track");
@@ -7363,6 +7394,8 @@ function renderUpgradePanel() {
       upgradeCardTitle = localizedShopTitle(playfieldNextId);
     } else if (recyclingOwned) {
       upgradeCardTitle = localizedShopTitle("shop-recycling-machine-owned");
+    } else if (categoryUnlockOwned) {
+      upgradeCardTitle = localizedShopTitle("shop-custom-categories-unlock-owned");
     }
     title.textContent = upgradeCardTitle;
 
@@ -7390,7 +7423,7 @@ function renderUpgradePanel() {
       || (isPermanentInk && permanentTier >= RUN_PERMANENT_MORE_INK_MAX_TIER);
     const freeBoosterAtMax = isFreeBoosterRun
       && permanentTier >= RUN_FREE_WORD_BOOSTER_UPGRADE_MAX_TIER;
-    const atMax = permanentAtMax || freeBoosterAtMax || playfieldAtMax || recyclingOwned;
+    const atMax = permanentAtMax || freeBoosterAtMax || playfieldAtMax || recyclingOwned || categoryUnlockOwned;
     price.textContent = atMax ? "—" : itemCost.toString();
     head.append(price);
 
@@ -7417,6 +7450,10 @@ function renderUpgradePanel() {
     } else if (isRecyclingMachine) {
       blurb.textContent = recyclingOwned
         ? localizedShopDescription("shop-recycling-machine-owned")
+        : getShopItemDescription(item);
+    } else if (isCategoryUnlock) {
+      blurb.textContent = categoryUnlockOwned
+        ? localizedShopDescription("shop-custom-categories-unlock-owned")
         : getShopItemDescription(item);
     } else {
       blurb.textContent = getShopItemDescription(item);
@@ -7453,9 +7490,19 @@ function renderGarbageBin() {
   els.garbageProgress.textContent = `${state.garbageWordsSinceReward}/${getCurrentGarbageTarget()}`;
 }
 
+function syncAddCategoryButtonUi() {
+  if (!els.addCategoryButton) {
+    return;
+  }
+  const unlocked = state.runCustomCategoriesUnlocked;
+  els.addCategoryButton.disabled = !unlocked;
+  els.addCategoryButton.title = unlocked ? "" : t("sidebar.addCategoryLockedTooltip");
+}
+
 function renderSidebar() {
   updateCounts();
   updatePlayfieldCamera();
+  syncAddCategoryButtonUi();
   const isWordTabActive = state.activeSidebarTab === "words";
   const isUpgradeTabActive = state.activeSidebarTab === "upgrades";
   els.sidebarTitle.textContent = isUpgradeTabActive ? t("sidebar.tabShop") : t("sidebar.wordPanelTitle");
@@ -9791,6 +9838,7 @@ function resetRun() {
   state.runPermanentMoreInk = 0;
   state.runFreeWordBoosterTier = 0;
   state.runRecyclingMachineUnlocked = false;
+  state.runCustomCategoriesUnlocked = false;
   state.availableBanWordTokens = 0;
   state.totalBanWordTokensEarned = 0;
   state.availableMinusMixTokens = 0;
@@ -10064,6 +10112,9 @@ function initEvents() {
     adjustPlayfieldZoom(PLAYFIELD_ZOOM_STEP);
   });
   els.addCategoryButton.addEventListener("click", () => {
+    if (!state.runCustomCategoriesUnlocked) {
+      return;
+    }
     const name = window.prompt("Category name?");
     if (!name) {
       return;
