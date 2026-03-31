@@ -4409,6 +4409,7 @@ function lexiconApiPayloadToMixCandidates(payload) {
           normalized: normalized || word,
           zipf: Number.isFinite(c.zipf) ? c.zipf : null,
           similarity: Number.isFinite(c.similarity) ? c.similarity : 0,
+          ...(Number.isFinite(c.questSimilarity) ? { questSimilarity: c.questSimilarity } : {}),
         };
       })
       .filter(Boolean);
@@ -4431,6 +4432,7 @@ function lexiconApiPayloadToMixCandidates(payload) {
 }
 
 async function fetchLexiconRelations(word, mode, maxCount) {
+  const questWord = getMixQuestWordForApi();
   const response = await fetch("./api/lexicon", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -4439,6 +4441,7 @@ async function fetchLexiconRelations(word, mode, maxCount) {
       mode,
       maxCount,
       banned: [...state.removedResultWords],
+      ...(questWord ? { questWord } : {}),
     }),
   });
   const payload = await response.json();
@@ -4450,6 +4453,7 @@ async function fetchLexiconRelations(word, mode, maxCount) {
 
 function showFloatingLexiconPreview({
   words,
+  candidates: mixStyleCandidates,
   mode,
   placeholder,
   clientPoint,
@@ -4476,39 +4480,85 @@ function showFloatingLexiconPreview({
     : (cap > DEFAULT_MIX_PREVIEW_COUNT ? `${modeLabel} (${cap})` : modeLabel);
   preview.append(title);
 
-  const lines = filterLexiconSuggestions(words || []);
+  const useQuestStyling = !placeholder
+    && Array.isArray(mixStyleCandidates)
+    && mixStyleCandidates.length > 0;
+
   if (placeholder) {
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
     line.textContent = t("lexicon.previewPlaceholderBody");
     preview.append(line);
-  } else if (!lines.length && mode === "antonym") {
-    const line = document.createElement("div");
-    line.className = "floating-match-preview-line";
-    line.textContent = t("lexicon.noAntonyms");
-    preview.append(line);
-  } else if (!lines.length && mode === "hyponym") {
-    const line = document.createElement("div");
-    line.className = "floating-match-preview-line";
-    line.textContent = t("lexicon.noHyponyms");
-    preview.append(line);
-  } else if (!lines.length && mode === "hypernym") {
-    const line = document.createElement("div");
-    line.className = "floating-match-preview-line";
-    line.textContent = t("lexicon.noHypernyms");
-    preview.append(line);
-  } else if (!lines.length) {
-    const line = document.createElement("div");
-    line.className = "floating-match-preview-line";
-    line.textContent = t("lexicon.noSynonyms");
-    preview.append(line);
-  } else {
-    lines.slice(0, cap).forEach((w, index) => {
+  } else if (useQuestStyling) {
+    const filtered = filterRemovedCandidates(mixStyleCandidates);
+    if (!filtered.length) {
       const line = document.createElement("div");
       line.className = "floating-match-preview-line";
-      line.append(`${index + 1}. ${titleCase(w)}`);
+      line.textContent = t("lexicon.mixAllStruck");
       preview.append(line);
-    });
+    } else {
+      pruneSuperRarePreviewBonusesForDiscoveredWords();
+      registerSuperRarePreviewCandidatesForRoll(filtered);
+      filtered.slice(0, cap).forEach((candidate, index) => {
+        const line = document.createElement("div");
+        line.className = "floating-match-preview-line";
+        const label = titleCase(candidate.word || candidate.normalized || "");
+        line.append(`${index + 1}. `);
+        line.append(buildQuestSimilarityWarmWordElement(candidate, label));
+        line.append(document.createTextNode(formatQuestSimilaritySuffix(candidate)));
+        const encTier = getEncyclopediaPreviewBadgeTier(candidate);
+        if (encTier) {
+          const encSpan = document.createElement("span");
+          encSpan.className = `floating-match-preview-encyc-mark floating-match-preview-encyc-${encTier}`;
+          encSpan.textContent = "\u00A0E";
+          const hint = encTier === "yellow"
+            ? "Hidden encyclopedia (??? until category is in play). Coin + token on discovery; does not spend quest ink."
+            : encTier === "black"
+              ? "Quest-target encyclopedia word. Coin + token on discovery; spends quest ink."
+              : "Revealed encyclopedia word. New: coin + quest-pool token + ink. Already in book: token + ink once per stage (no extra coin). Ban discover: no ink.";
+          encSpan.setAttribute("title", hint);
+          line.append(encSpan);
+        }
+        const rareMark = getSuperRarePreviewBonusEmojiSuffix(candidate).trim();
+        if (rareMark) {
+          const rareSpan = document.createElement("span");
+          rareSpan.className = "floating-match-preview-token-mark";
+          rareSpan.textContent = `\u00A0${rareMark}`;
+          line.append(rareSpan);
+        }
+        preview.append(line);
+      });
+    }
+  } else {
+    const lines = filterLexiconSuggestions(words || []);
+    if (!lines.length && mode === "antonym") {
+      const line = document.createElement("div");
+      line.className = "floating-match-preview-line";
+      line.textContent = t("lexicon.noAntonyms");
+      preview.append(line);
+    } else if (!lines.length && mode === "hyponym") {
+      const line = document.createElement("div");
+      line.className = "floating-match-preview-line";
+      line.textContent = t("lexicon.noHyponyms");
+      preview.append(line);
+    } else if (!lines.length && mode === "hypernym") {
+      const line = document.createElement("div");
+      line.className = "floating-match-preview-line";
+      line.textContent = t("lexicon.noHypernyms");
+      preview.append(line);
+    } else if (!lines.length) {
+      const line = document.createElement("div");
+      line.className = "floating-match-preview-line";
+      line.textContent = t("lexicon.noSynonyms");
+      preview.append(line);
+    } else {
+      lines.slice(0, cap).forEach((w, index) => {
+        const line = document.createElement("div");
+        line.className = "floating-match-preview-line";
+        line.append(`${index + 1}. ${titleCase(w)}`);
+        preview.append(line);
+      });
+    }
   }
 
   setFloatingCandidatePreviewPosition(preview, clientPoint);
@@ -4752,6 +4802,7 @@ async function updateDragMixPreview(sourceTile, targetTile, clientPoint) {
       }
       showFloatingLexiconPreview({
         words: payload.words,
+        candidates: lexiconApiPayloadToMixCandidates(payload),
         mode: apiMode,
         placeholder: Boolean(payload.placeholder),
         clientPoint: dragMixPreviewState.clientPoint,
@@ -9401,6 +9452,10 @@ function renderShopWordBooster() {
         hiddenEncyclopediaDiscovery,
       });
       const shouldBlockSpawn = wasDiscovered && !stageEncoreEncyclopediaReward;
+      autoBanMixResultWhenDuplicateShown(canonicalResult, shouldBlockSpawn);
+      if (!shouldBlockSpawn) {
+        spawnWordOnField(canonicalResult);
+      }
       applyOutcomeStatus(status, {
         vocabularyOverflow,
         questResult,

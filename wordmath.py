@@ -170,7 +170,13 @@ def _lexicon_hyponyms_from_synset(
             out.append(nm)
 
 
-def lexicon_lookup(word: str, mode: str, banned_list: list, max_count: int = 5) -> dict:
+def lexicon_lookup(
+    word: str,
+    mode: str,
+    banned_list: list,
+    max_count: int = 5,
+    quest_word: str | None = None,
+) -> dict:
     """WordNet relations: walk senses in order until max_count single-token lemmas (English only)."""
     try:
         cap = max(1, min(int(max_count), 20))
@@ -221,19 +227,29 @@ def lexicon_lookup(word: str, mode: str, banned_list: list, max_count: int = 5) 
             _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
 
     final_words = words_out[:cap]
+    quest_clean = (quest_word or "").strip().lower() or None
+    nlp = None
+    if quest_clean:
+        nlp, _, _, _ = get_language_resources()
+
+    def _lexicon_candidate_entry(w: str) -> dict:
+        entry: dict = {
+            "word": w,
+            "normalized": w,
+            "similarity": 0.0,
+            "zipf": get_word_zipf_frequency(w),
+        }
+        if quest_clean and nlp is not None:
+            qs = cosine_similarity_word_vectors(nlp, quest_clean, w)
+            if qs is not None:
+                entry["questSimilarity"] = round(qs, 1)
+        return entry
+
     return {
         "ok": True,
         "placeholder": False,
         "words": final_words,
-        "candidates": [
-            {
-                "word": w,
-                "normalized": w,
-                "similarity": 0.0,
-                "zipf": get_word_zipf_frequency(w),
-            }
-            for w in final_words
-        ],
+        "candidates": [_lexicon_candidate_entry(w) for w in final_words],
     }
 
 
@@ -671,6 +687,8 @@ def api_lexicon():
     payload = request.get_json(silent=True) or {}
     word = payload.get("word") or ""
     mode = payload.get("mode") or "synonym"
+    quest_param = payload.get("questWord") or ""
+    quest_word = quest_param.strip().lower() or None
     try:
         max_count = int(payload.get("maxCount", 5))
     except (TypeError, ValueError):
@@ -679,7 +697,7 @@ def api_lexicon():
     if not isinstance(banned, list):
         banned = []
     try:
-        body = lexicon_lookup(word, mode, banned, max_count)
+        body = lexicon_lookup(word, mode, banned, max_count, quest_word)
     except Exception as error:  # pragma: no cover
         traceback.print_exc()
         return jsonify({"ok": False, "error": str(error)}), 500
