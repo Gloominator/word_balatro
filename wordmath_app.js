@@ -125,23 +125,59 @@ function applyPlayfieldTexture(textureId) {
   document.documentElement.dataset.playfieldTexture = v;
 }
 
-const QUEST_SIMILARITY_TOP_MATCHES_KEY = "wordmath-quest-similarity-top-matches";
+const QUEST_SIMILARITY_LEGACY_TOP_MATCHES_KEY = "wordmath-quest-similarity-top-matches";
+const QUEST_SIMILARITY_EFFECTS_KEY = "wordmath-quest-similarity-effects";
+const QUEST_SIMILARITY_COEFFICIENT_KEY = "wordmath-quest-similarity-coefficient";
 
-function getQuestSimilarityInTopMatchesPreview() {
-  return window.localStorage.getItem(QUEST_SIMILARITY_TOP_MATCHES_KEY) === "1";
-}
-
-function setQuestSimilarityInTopMatchesPreview(enabled) {
-  if (enabled) {
-    window.localStorage.setItem(QUEST_SIMILARITY_TOP_MATCHES_KEY, "1");
-  } else {
-    window.localStorage.removeItem(QUEST_SIMILARITY_TOP_MATCHES_KEY);
+/** Single-checkbox migration → effects + coefficient (both on if legacy was on). */
+function migrateQuestSimilaritySettingsFromLegacy() {
+  if (window.localStorage.getItem(QUEST_SIMILARITY_LEGACY_TOP_MATCHES_KEY) !== "1") {
+    return;
+  }
+  window.localStorage.removeItem(QUEST_SIMILARITY_LEGACY_TOP_MATCHES_KEY);
+  if (window.localStorage.getItem(QUEST_SIMILARITY_EFFECTS_KEY) === null) {
+    window.localStorage.setItem(QUEST_SIMILARITY_EFFECTS_KEY, "1");
+  }
+  if (window.localStorage.getItem(QUEST_SIMILARITY_COEFFICIENT_KEY) === null) {
+    window.localStorage.setItem(QUEST_SIMILARITY_COEFFICIENT_KEY, "1");
   }
 }
 
-/** Current quest target for /api/mix when the experimental similarity overlay is enabled. */
+/** Warmth / motion on match words (default on). */
+function getQuestSimilarityEffectsEnabled() {
+  migrateQuestSimilaritySettingsFromLegacy();
+  const v = window.localStorage.getItem(QUEST_SIMILARITY_EFFECTS_KEY);
+  if (v === null) {
+    return true;
+  }
+  return v === "1";
+}
+
+function setQuestSimilarityEffectsEnabled(enabled) {
+  window.localStorage.setItem(QUEST_SIMILARITY_EFFECTS_KEY, enabled ? "1" : "0");
+}
+
+/** Show (0.0–1.0) cosine next to each match (default off). */
+function getQuestSimilarityCoefficientEnabled() {
+  migrateQuestSimilaritySettingsFromLegacy();
+  return window.localStorage.getItem(QUEST_SIMILARITY_COEFFICIENT_KEY) === "1";
+}
+
+function setQuestSimilarityCoefficientEnabled(enabled) {
+  if (enabled) {
+    window.localStorage.setItem(QUEST_SIMILARITY_COEFFICIENT_KEY, "1");
+  } else {
+    window.localStorage.removeItem(QUEST_SIMILARITY_COEFFICIENT_KEY);
+  }
+}
+
+function isQuestSimilarityActiveForApi() {
+  return getQuestSimilarityEffectsEnabled() || getQuestSimilarityCoefficientEnabled();
+}
+
+/** Current quest target for /api/mix when similarity data is needed. */
 function getMixQuestWordForApi() {
-  if (!getQuestSimilarityInTopMatchesPreview()) {
+  if (!isQuestSimilarityActiveForApi()) {
     return "";
   }
   const target = state.quest?.targetWord;
@@ -152,7 +188,7 @@ function getMixQuestWordForApi() {
 }
 
 function formatQuestSimilaritySuffix(candidate) {
-  if (!getQuestSimilarityInTopMatchesPreview()) {
+  if (!getQuestSimilarityCoefficientEnabled()) {
     return "";
   }
   const qs = candidate?.questSimilarity;
@@ -223,7 +259,7 @@ function buildQuestSimilarityChunkyFlames() {
  */
 function buildQuestSimilarityWarmWordElement(candidate, wordLabel) {
   const label = wordLabel ?? "";
-  if (!getQuestSimilarityInTopMatchesPreview()) {
+  if (!getQuestSimilarityEffectsEnabled()) {
     const plain = document.createElement("span");
     plain.textContent = label;
     return plain;
@@ -1311,7 +1347,8 @@ const els = {
   soundVolumeValue: document.querySelector("[data-settings-sound-volume-value]"),
   musicVolumeSlider: document.querySelector("[data-settings-music-volume]"),
   musicVolumeValue: document.querySelector("[data-settings-music-volume-value]"),
-  questSimilarityTopMatchesToggle: document.querySelector("[data-settings-quest-similarity-top-matches]"),
+  questSimilarityEffectsToggle: document.querySelector("[data-settings-quest-similarity-effects]"),
+  questSimilarityCoefficientToggle: document.querySelector("[data-settings-quest-similarity-coefficient]"),
   questWarmthShowcaseToggle: document.querySelector("[data-action='toggle-quest-warmth-showcase']"),
   questWarmthShowcasePanel: document.querySelector("[data-quest-warmth-showcase]"),
 };
@@ -9449,8 +9486,11 @@ function renderSettings() {
   if (els.musicVolumeValue) {
     els.musicVolumeValue.textContent = String(musicVol);
   }
-  if (els.questSimilarityTopMatchesToggle) {
-    els.questSimilarityTopMatchesToggle.checked = getQuestSimilarityInTopMatchesPreview();
+  if (els.questSimilarityEffectsToggle) {
+    els.questSimilarityEffectsToggle.checked = getQuestSimilarityEffectsEnabled();
+  }
+  if (els.questSimilarityCoefficientToggle) {
+    els.questSimilarityCoefficientToggle.checked = getQuestSimilarityCoefficientEnabled();
   }
 }
 
@@ -9999,8 +10039,12 @@ function initEvents() {
       els.musicVolumeValue.textContent = String(v);
     }
   });
-  els.questSimilarityTopMatchesToggle?.addEventListener("change", () => {
-    setQuestSimilarityInTopMatchesPreview(Boolean(els.questSimilarityTopMatchesToggle.checked));
+  els.questSimilarityEffectsToggle?.addEventListener("change", () => {
+    setQuestSimilarityEffectsEnabled(Boolean(els.questSimilarityEffectsToggle.checked));
+    associationPreviewCache.clear();
+  });
+  els.questSimilarityCoefficientToggle?.addEventListener("change", () => {
+    setQuestSimilarityCoefficientEnabled(Boolean(els.questSimilarityCoefficientToggle.checked));
     associationPreviewCache.clear();
   });
   els.questWarmthShowcaseToggle?.addEventListener("click", () => {

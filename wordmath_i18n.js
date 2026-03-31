@@ -155,9 +155,13 @@ const MESSAGES = {
     "settings.playfieldTextureOption3": "Option 3",
     "settings.playfieldTextureOption4": "Option 4",
     "settings.spawnWord": "Spawn Word",
-    "settings.questSimilarityTopMatches": "Quest similarity in top matches",
-    "settings.questSimilarityTopMatchesHint":
-      "Show a cosine similarity score (one decimal, typically −1.0–1.0) next to each top match vs the current quest word. Experimental.",
+    "settings.questSimilarityHeading": "Quest similarity (top matches)",
+    "settings.questSimilarityEffects": "Warmth effects",
+    "settings.questSimilarityEffectsHint":
+      "Color and motion from cosine similarity vs the quest word.",
+    "settings.questSimilarityCoefficient": "Show similarity coefficient",
+    "settings.questSimilarityCoefficientHint":
+      "Append a 0.0–1.0 cosine score (one decimal) next to each top match. Experimental.",
     "settings.questWarmthShowcase": "Preview quest warmth styles",
     "settings.questWarmthShowcaseHint":
       "Sample words by quest-similarity tier. Rows 0.7–1.0 compare four blazing styles (debug).",
@@ -354,9 +358,13 @@ const MESSAGES = {
     "settings.playfieldTextureOption3": "Вариант 3",
     "settings.playfieldTextureOption4": "Вариант 4",
     "settings.spawnWord": "Создать слово",
-    "settings.questSimilarityTopMatches": "Схожесть с квестом в топ-совпадениях",
-    "settings.questSimilarityTopMatchesHint":
-      "Показывать косинусную близость (один знак после запятой, обычно от −1,0 до 1,0) у каждого топ-совпадения к текущему слову квеста. Эксперимент.",
+    "settings.questSimilarityHeading": "Схожесть с квестом (топ-совпадения)",
+    "settings.questSimilarityEffects": "Эффекты «тепла»",
+    "settings.questSimilarityEffectsHint":
+      "Цвет и анимация по косинусной близости к слову квеста.",
+    "settings.questSimilarityCoefficient": "Показывать коэффициент",
+    "settings.questSimilarityCoefficientHint":
+      "Добавлять косинусную близость 0,0–1,0 (один знак) у каждого совпадения. Эксперимент.",
     "settings.questWarmthShowcase": "Показать стили «тепла» квеста",
     "settings.questWarmthShowcaseHint":
       "Примеры по уровням схожести. Строки 0.7–1.0 — четыре варианта «пламени» (отладка).",

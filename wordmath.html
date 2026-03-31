@@ -322,13 +322,23 @@
           </label>
           <input id="wordmath-music-volume" type="range" min="0" max="100" step="1" value="50" data-settings-music-volume style="width:100%;max-width:22rem;margin-top:0.35rem;">
         </div>
-        <label class="settings-toggle" style="margin-bottom:1rem;">
-          <input type="checkbox" data-settings-quest-similarity-top-matches>
-          <span>
-            <strong data-i18n="settings.questSimilarityTopMatches">Quest similarity in top matches</strong>
-            <span class="settings-toggle-copy muted" data-i18n="settings.questSimilarityTopMatchesHint">Show a 0.0–1.0 cosine score next to each top match vs the current quest word (experimental).</span>
-          </span>
-        </label>
+        <div class="settings-tile-paper-block" style="margin-bottom:1rem;">
+          <p class="muted" style="margin:0 0 0.35rem;" data-i18n="settings.questSimilarityHeading">Quest similarity (top matches)</p>
+          <label class="settings-toggle" style="margin-bottom:0.65rem;">
+            <input type="checkbox" data-settings-quest-similarity-effects checked>
+            <span>
+              <strong data-i18n="settings.questSimilarityEffects">Warmth effects</strong>
+              <span class="settings-toggle-copy muted" data-i18n="settings.questSimilarityEffectsHint">Color and motion from cosine similarity vs the quest word.</span>
+            </span>
+          </label>
+          <label class="settings-toggle" style="margin-bottom:0;">
+            <input type="checkbox" data-settings-quest-similarity-coefficient>
+            <span>
+              <strong data-i18n="settings.questSimilarityCoefficient">Show similarity coefficient</strong>
+              <span class="settings-toggle-copy muted" data-i18n="settings.questSimilarityCoefficientHint">Append a 0.0–1.0 score next to each match. Experimental.</span>
+            </span>
+          </label>
+        </div>
         <div class="settings-quest-warmth-tools" style="margin-bottom:1rem;">
           <button
             type="button"
