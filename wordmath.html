@@ -24,9 +24,9 @@
         document.documentElement.dataset.theme = t;
         var paper = localStorage.getItem('wordmath-tile-paper');
         if (paper === 'classic') paper = 'vanilla';
-        if (!paper) paper = 'receipt';
+        if (!paper) paper = 'kraft';
         var allowed = { vanilla:1, sticky:1, index:1, receipt:1, clip:1, kraft:1 };
-        document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'receipt';
+        document.documentElement.dataset.tilePaper = allowed[paper] ? paper : 'kraft';
         var pft = localStorage.getItem('wordmath-playfield-texture');
         if (pft !== '1' && pft !== '2' && pft !== '3' && pft !== '4') pft = '1';
         document.documentElement.dataset.playfieldTexture = pft;

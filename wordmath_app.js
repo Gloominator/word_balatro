@@ -63,7 +63,7 @@ const TOKEN_DOCK_FLASH_MS = 2000;
 
 const TILE_PAPER_STORAGE_KEY = "wordmath-tile-paper";
 const TILE_PAPER_IDS = ["vanilla", "sticky", "index", "receipt", "clip", "kraft"];
-const TILE_PAPER_DEFAULT = "receipt";
+const TILE_PAPER_DEFAULT = "kraft";
 
 const PLAYFIELD_TEXTURE_STORAGE_KEY = "wordmath-playfield-texture";
 const PLAYFIELD_TEXTURE_IDS = ["1", "2", "3", "4"];
