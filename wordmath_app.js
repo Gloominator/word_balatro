@@ -799,6 +799,16 @@ const QUEST_FIRST_BUDGET_STAGE_2_PLUS = 20;
 /** Bonus discoveries added when you complete a quest and roll the next target. */
 const QUEST_COMPLETION_BONUS_TURNS = 5;
 const QUEST_COMPLETION_COIN_REWARD = 100;
+/** Gold per leftover quest ink when clearing stage 1 (after ink spend on the winning play). */
+const STAGE_CLEAR_UNUSED_INK_GOLD_PER_STAGE_1 = 10;
+/** Gold per leftover quest ink when clearing stage 2+ or the full run (after ink spend on the winning play). */
+const STAGE_CLEAR_UNUSED_INK_GOLD_PER_STAGE_2_PLUS = 50;
+
+function getStageClearUnusedInkGoldPer(runStage = state.runStage) {
+  return getSafeCount(runStage, 1) <= 1
+    ? STAGE_CLEAR_UNUSED_INK_GOLD_PER_STAGE_1
+    : STAGE_CLEAR_UNUSED_INK_GOLD_PER_STAGE_2_PLUS;
+}
 const QUEST_COMPLETION_REWARD_COUNT = 1;
 /** All types that can appear in weighted quest / preview / encyclopedia bonus rolls (see pickRandomQuestPoolRewardType). */
 const QUEST_REWARD_TOKEN_POOL = Object.freeze([
@@ -2409,6 +2419,8 @@ function advanceQuest(canonicalResult, {
     questBaseCoins: 0,
     questSpeedBonusCoins: 0,
     questTotalCoins: 0,
+    questStageClearUnusedInkCount: 0,
+    questStageClearUnusedInkBonusCoins: 0,
   };
   if (!state.quest.targetWord || state.quest.isLost || state.quest.isWon) {
     return questResult;
@@ -2426,11 +2438,21 @@ function advanceQuest(canonicalResult, {
     const coinReward = awardQuestCompletionCoins(state.quest.turnsTaken);
     const rewardSummary = awardQuestCompletionTokens();
     const completedTargetWord = state.quest.targetWord;
+    const unusedInkBeforeNextQuest = state.quest.remainingDiscoveries;
+    const stageForInkSalvage = state.runStage;
     const nextQuest = assignNewQuest({
       initial: false,
       previousTargetWord: completedTargetWord,
       carryOverTurns: 0,
     });
+    if ((nextQuest.isStageAdvance || nextQuest.isWon) && unusedInkBeforeNextQuest > 0) {
+      const perInk = getStageClearUnusedInkGoldPer(stageForInkSalvage);
+      const inkSalvage = unusedInkBeforeNextQuest * perInk;
+      state.coins += inkSalvage;
+      state.totalCoinsEarned += inkSalvage;
+      questResult.questStageClearUnusedInkCount = unusedInkBeforeNextQuest;
+      questResult.questStageClearUnusedInkBonusCoins = inkSalvage;
+    }
     questResult.completedQuest = true;
     questResult.completedFullRun = Boolean(nextQuest.isWon);
     questResult.pendingStageAdvance = Boolean(nextQuest.isStageAdvance);
@@ -4291,7 +4313,8 @@ function showQuestCompletionNotice(questResult, overflowMessage = "") {
 
   const body = document.createElement("div");
   body.className = "quest-complete-toast-body";
-  body.textContent = `${titleCase(questResult.completedTargetWord)} found. +${questResult.questTotalCoins} coins.`;
+  const questCoinTotal = questResult.questTotalCoins + getSafeCount(questResult.questStageClearUnusedInkBonusCoins, 0);
+  body.textContent = `${titleCase(questResult.completedTargetWord)} found. +${questCoinTotal} coins.`;
 
   const next = document.createElement("div");
   next.className = "quest-complete-toast-next";
@@ -7744,6 +7767,11 @@ function getQuestCompletionMessage(questResult) {
   let rewardText = `${questResult.questTotalCoins} coins`;
   if (questResult.questSpeedBonusCoins > 0) {
     rewardText = `${rewardText}, including a ${questResult.questSpeedBonusCoins}-coin speed bonus for finishing in ${questResult.turnsTaken} turns`;
+  }
+  if (getSafeCount(questResult.questStageClearUnusedInkBonusCoins) > 0) {
+    const inkLeft = getSafeCount(questResult.questStageClearUnusedInkCount);
+    const inkGold = getSafeCount(questResult.questStageClearUnusedInkBonusCoins);
+    rewardText = `${rewardText}, plus ${inkGold} coins for ${inkLeft} unused ink`;
   }
 
   if (questResult.pendingStageAdvance) {
