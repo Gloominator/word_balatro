@@ -158,6 +158,13 @@ const MESSAGES = {
     "settings.questSimilarityTopMatches": "Quest similarity in top matches",
     "settings.questSimilarityTopMatchesHint":
       "Show a cosine similarity score (one decimal, typically −1.0–1.0) next to each top match vs the current quest word. Experimental.",
+    "settings.questWarmthShowcase": "Preview quest warmth styles",
+    "settings.questWarmthShowcaseHint":
+      "Sample words by quest-similarity tier. Rows 0.7–1.0 compare four blazing styles (debug).",
+    "settings.questWarmthBurnChromatic": "Chromatic bloom",
+    "settings.questWarmthBurnShimmer": "Heat shimmer (SVG)",
+    "settings.questWarmthBurnSparks": "Ember sparks",
+    "settings.questWarmthBurnChunky": "Chunky strips + flicker",
     "settings.exportSave": "Debug Export Save JSON",
     "settings.importSave": "Load Saved Game JSON",
     "booster.title": "Word Booster",
@@ -350,6 +357,13 @@ const MESSAGES = {
     "settings.questSimilarityTopMatches": "Схожесть с квестом в топ-совпадениях",
     "settings.questSimilarityTopMatchesHint":
       "Показывать косинусную близость (один знак после запятой, обычно от −1,0 до 1,0) у каждого топ-совпадения к текущему слову квеста. Эксперимент.",
+    "settings.questWarmthShowcase": "Показать стили «тепла» квеста",
+    "settings.questWarmthShowcaseHint":
+      "Примеры по уровням схожести. Строки 0.7–1.0 — четыре варианта «пламени» (отладка).",
+    "settings.questWarmthBurnChromatic": "Хроматическое свечение",
+    "settings.questWarmthBurnShimmer": "Мерцание (SVG)",
+    "settings.questWarmthBurnSparks": "Искры углей",
+    "settings.questWarmthBurnChunky": "Полосы + мерцание",
     "settings.exportSave": "Экспорт сохранения (JSON)",
     "settings.importSave": "Загрузить сохранение (JSON)",
     "booster.title": "Бустер слов",

@@ -7,6 +7,17 @@
     <link rel="stylesheet" href="./wordmath_styles.css">
   </head>
   <body>
+    <!-- SVG filters for settings warmth showcase (heat shimmer) -->
+    <svg class="quest-sim-warmth-svg-filters" aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden;clip:rect(0,0,0,0)">
+      <defs>
+        <filter id="quest-sim-heat-shimmer-filter" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.042 0.09" numOctaves="2" seed="2" result="noise">
+            <animate attributeName="baseFrequency" dur="2.8s" values="0.042 0.09;0.058 0.14;0.04 0.07;0.042 0.09" repeatCount="indefinite" />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.8" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
     <script>
       (function() {
         var t = localStorage.getItem('wordmath-theme') || 'light';
@@ -318,6 +329,130 @@
             <span class="settings-toggle-copy muted" data-i18n="settings.questSimilarityTopMatchesHint">Show a 0.0–1.0 cosine score next to each top match vs the current quest word (experimental).</span>
           </span>
         </label>
+        <div class="settings-quest-warmth-tools" style="margin-bottom:1rem;">
+          <button
+            type="button"
+            class="ghost-button"
+            data-action="toggle-quest-warmth-showcase"
+            aria-expanded="false"
+            aria-controls="quest-warmth-showcase-panel"
+            data-i18n="settings.questWarmthShowcase"
+          >
+            Preview quest warmth styles
+          </button>
+          <div
+            id="quest-warmth-showcase-panel"
+            class="quest-sim-warmth-showcase"
+            data-quest-warmth-showcase
+            hidden
+          >
+            <p class="muted quest-sim-warmth-showcase-intro" data-i18n="settings.questWarmthShowcaseHint">
+              Sample words by quest-similarity tier. Rows 0.7–1.0 show four different blazing styles for comparison.
+            </p>
+            <div class="quest-sim-warmth-showcase-rows" role="list">
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.0</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--very-cold">
+                  <span class="quest-sim-warmth-word">Glacial</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.1</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--very-cold">
+                  <span class="quest-sim-warmth-word">Frostbite</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.2</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--cold">
+                  <span class="quest-sim-warmth-flake" aria-hidden="true">&#10052;</span>
+                  <span class="quest-sim-warmth-flake" aria-hidden="true">&#10052;</span>
+                  <span class="quest-sim-warmth-flake" aria-hidden="true">&#10052;</span>
+                  <span class="quest-sim-warmth-word">Snowfall</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.3</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--normal">
+                  <span class="quest-sim-warmth-word">Neutral</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.4</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--warm">
+                  <span class="quest-sim-warmth-word">Sunlit</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.5</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--hot">
+                  <span class="quest-sim-warmth-flames" aria-hidden="true">
+                    <span class="quest-sim-warmth-flame"></span>
+                    <span class="quest-sim-warmth-flame"></span>
+                    <span class="quest-sim-warmth-flame"></span>
+                  </span>
+                  <span class="quest-sim-warmth-word">Scorch</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.6</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--hot">
+                  <span class="quest-sim-warmth-flames" aria-hidden="true">
+                    <span class="quest-sim-warmth-flame"></span>
+                    <span class="quest-sim-warmth-flame"></span>
+                    <span class="quest-sim-warmth-flame"></span>
+                  </span>
+                  <span class="quest-sim-warmth-word">Ember</span>
+                </span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.7</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--burn-chromatic">
+                  <span class="quest-sim-warmth-word">Blaze</span>
+                </span>
+                <span class="quest-sim-warmth-variant-tag" data-i18n="settings.questWarmthBurnChromatic">Chromatic bloom</span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.8</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--burn-shimmer">
+                  <span class="quest-sim-warmth-word">Inferno</span>
+                </span>
+                <span class="quest-sim-warmth-variant-tag" data-i18n="settings.questWarmthBurnShimmer">Heat shimmer (SVG)</span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">0.9</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--burn-sparks">
+                  <span class="quest-sim-warmth-sparks" aria-hidden="true">
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                    <span class="quest-sim-warmth-spark"></span>
+                  </span>
+                  <span class="quest-sim-warmth-word">Solar</span>
+                </span>
+                <span class="quest-sim-warmth-variant-tag" data-i18n="settings.questWarmthBurnSparks">Ember sparks</span>
+              </div>
+              <div class="quest-sim-warmth-showcase-row" role="listitem">
+                <span class="quest-sim-warmth-score">1.0</span>
+                <span class="quest-sim-warmth-word-wrap quest-sim-warmth--burn-chunky">
+                  <span class="quest-sim-warmth-flames quest-sim-warmth-flames--chunky" aria-hidden="true">
+                    <span class="quest-sim-warmth-flame-strip"></span>
+                    <span class="quest-sim-warmth-flame-strip"></span>
+                    <span class="quest-sim-warmth-flame-strip"></span>
+                    <span class="quest-sim-warmth-flame-strip"></span>
+                    <span class="quest-sim-warmth-flame-strip"></span>
+                  </span>
+                  <span class="quest-sim-warmth-word">Nova</span>
+                </span>
+                <span class="quest-sim-warmth-variant-tag" data-i18n="settings.questWarmthBurnChunky">Chunky strips + flicker</span>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="settings-actions">
           <button type="button" data-action="spawn-word" data-i18n="settings.spawnWord">Spawn Word</button>
           <button type="button" data-action="export-save" data-i18n="settings.exportSave">Debug Export Save JSON</button>

@@ -162,6 +162,137 @@ function formatQuestSimilaritySuffix(candidate) {
   return ` (${Number(qs).toFixed(1)})`;
 }
 
+/** Quest cosine tier for warmth styling (see settings showcase). */
+function questSimilarityWarmthTier(qs) {
+  if (!Number.isFinite(qs)) {
+    return null;
+  }
+  if (qs < 0.15) {
+    return "glacial";
+  }
+  if (qs < 0.25) {
+    return "cold";
+  }
+  if (qs < 0.35) {
+    return "normal";
+  }
+  if (qs < 0.45) {
+    return "warm";
+  }
+  if (qs < 0.55) {
+    return "shimmer";
+  }
+  if (qs < 0.65) {
+    return "ember-sparks";
+  }
+  if (qs < 0.95) {
+    return "chromatic";
+  }
+  return "chunky";
+}
+
+/** Ember sparks: same count as settings preview 0.9 (Solar). */
+function buildQuestSimilaritySparkContainer(sparkCount) {
+  const container = document.createElement("span");
+  container.className = "quest-sim-warmth-sparks";
+  container.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < sparkCount; i += 1) {
+    const spark = document.createElement("span");
+    spark.className = "quest-sim-warmth-spark";
+    container.append(spark);
+  }
+  return container;
+}
+
+function buildQuestSimilarityChunkyFlames() {
+  const flames = document.createElement("span");
+  flames.className = "quest-sim-warmth-flames quest-sim-warmth-flames--chunky";
+  flames.setAttribute("aria-hidden", "true");
+  for (let i = 0; i < 5; i += 1) {
+    const strip = document.createElement("span");
+    strip.className = "quest-sim-warmth-flame-strip";
+    flames.append(strip);
+  }
+  return flames;
+}
+
+/**
+ * Styled word span for mix top-match UI when quest similarity overlay is on.
+ * @param {object} candidate
+ * @param {string} wordLabel — display text (e.g. title case)
+ */
+function buildQuestSimilarityWarmWordElement(candidate, wordLabel) {
+  const label = wordLabel ?? "";
+  if (!getQuestSimilarityInTopMatchesPreview()) {
+    const plain = document.createElement("span");
+    plain.textContent = label;
+    return plain;
+  }
+  const qs = candidate?.questSimilarity;
+  if (!Number.isFinite(qs)) {
+    const plain = document.createElement("span");
+    plain.textContent = label;
+    return plain;
+  }
+  const tier = questSimilarityWarmthTier(qs);
+  const wrap = document.createElement("span");
+  wrap.className = "quest-sim-warmth-word-wrap quest-sim-warmth--context-game";
+  const wordSpan = document.createElement("span");
+  wordSpan.className = "quest-sim-warmth-word";
+  wordSpan.textContent = label;
+
+  switch (tier) {
+    case "glacial":
+      wrap.classList.add("quest-sim-warmth--very-cold", "quest-sim-warmth--game-glacial");
+      wrap.append(wordSpan);
+      break;
+    case "cold": {
+      wrap.classList.add("quest-sim-warmth--cold");
+      for (let i = 0; i < 3; i += 1) {
+        const flake = document.createElement("span");
+        flake.className = "quest-sim-warmth-flake";
+        flake.setAttribute("aria-hidden", "true");
+        flake.innerHTML = "&#10052;";
+        wrap.append(flake);
+      }
+      wrap.append(wordSpan);
+      break;
+    }
+    case "normal":
+      wrap.classList.add("quest-sim-warmth--normal");
+      wrap.append(wordSpan);
+      break;
+    case "warm":
+      wrap.classList.add("quest-sim-warmth--warm");
+      wrap.append(wordSpan);
+      break;
+    case "shimmer":
+      wrap.classList.add("quest-sim-warmth--burn-shimmer");
+      wrap.append(wordSpan);
+      break;
+    case "ember-sparks":
+      wrap.classList.add(
+        "quest-sim-warmth--burn-sparks",
+        "quest-sim-warmth--ember-sparks-game",
+      );
+      wrap.append(buildQuestSimilaritySparkContainer(8));
+      wrap.append(wordSpan);
+      break;
+    case "chromatic":
+      wrap.classList.add("quest-sim-warmth--burn-chromatic");
+      wrap.append(wordSpan);
+      break;
+    case "chunky":
+      wrap.classList.add("quest-sim-warmth--burn-chunky");
+      wrap.append(buildQuestSimilarityChunkyFlames());
+      wrap.append(wordSpan);
+      break;
+    default:
+      wrap.append(wordSpan);
+  }
+  return wrap;
+}
+
 /** Deterministic rough paper edge; stable for the same tile id across re-renders. */
 function buildTornClipPathPolygonPoints(tileId) {
   let state = Math.imul(Number(tileId) | 0, 0x9e3779b1) ^ 0x6a09e667;
@@ -1181,6 +1312,8 @@ const els = {
   musicVolumeSlider: document.querySelector("[data-settings-music-volume]"),
   musicVolumeValue: document.querySelector("[data-settings-music-volume-value]"),
   questSimilarityTopMatchesToggle: document.querySelector("[data-settings-quest-similarity-top-matches]"),
+  questWarmthShowcaseToggle: document.querySelector("[data-action='toggle-quest-warmth-showcase']"),
+  questWarmthShowcasePanel: document.querySelector("[data-quest-warmth-showcase]"),
 };
 
 let pendingProgressSave = null;
@@ -4419,7 +4552,9 @@ function showFloatingCandidatePreview(candidates, clientPoint = null, { persiste
     const line = document.createElement("div");
     line.className = "floating-match-preview-line";
     const label = titleCase(candidate.word || candidate.normalized || "");
-    line.append(`${index + 1}. ${label}${formatQuestSimilaritySuffix(candidate)}`);
+    line.append(`${index + 1}. `);
+    line.append(buildQuestSimilarityWarmWordElement(candidate, label));
+    line.append(document.createTextNode(formatQuestSimilaritySuffix(candidate)));
     const encTier = getEncyclopediaPreviewBadgeTier(candidate);
     if (encTier) {
       const encSpan = document.createElement("span");
@@ -4481,7 +4616,11 @@ function openBroadChoiceModal(candidates) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "broad-choice-option";
-      btn.textContent = `${titleCase(candidate.word || candidate.normalized || "")}${formatQuestSimilaritySuffix(candidate)}`;
+      btn.append(buildQuestSimilarityWarmWordElement(
+        candidate,
+        titleCase(candidate.word || candidate.normalized || ""),
+      ));
+      btn.append(document.createTextNode(formatQuestSimilaritySuffix(candidate)));
       const onClick = () => finish(candidate);
       btn.addEventListener("click", onClick);
       cleanups.push(() => btn.removeEventListener("click", onClick));
@@ -9863,6 +10002,16 @@ function initEvents() {
   els.questSimilarityTopMatchesToggle?.addEventListener("change", () => {
     setQuestSimilarityInTopMatchesPreview(Boolean(els.questSimilarityTopMatchesToggle.checked));
     associationPreviewCache.clear();
+  });
+  els.questWarmthShowcaseToggle?.addEventListener("click", () => {
+    const panel = els.questWarmthShowcasePanel;
+    const btn = els.questWarmthShowcaseToggle;
+    if (!panel || !btn) {
+      return;
+    }
+    const willOpen = panel.hidden;
+    panel.hidden = !willOpen;
+    btn.setAttribute("aria-expanded", willOpen ? "true" : "false");
   });
   els.saveFileInput.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
