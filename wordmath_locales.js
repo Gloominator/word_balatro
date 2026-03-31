@@ -61,7 +61,7 @@ export const LOCALES = {
       { name: "Technology", words: ["screen", "cable", "battery", "algorithm", "database"] },
       { name: "Filler Words", words: ["very", "just", "really", "perhaps", "somehow"] },
       { name: "Computer Games", words: ["pixel", "quest", "respawn", "dungeon", "emulator"] },
-      { name: "Romance", words: ["kiss", "valentine", "bouquet", "candlelight", "embrace"] },
+      { name: "Romance", words: ["kiss", "valentine", "bouquet", "candlelight", "hug"] },
       { name: "Politics", words: ["ballot", "senate", "treaty", "lobbyist", "referendum"] },
       { name: "Astronomy", words: ["comet", "nebula", "quasar", "orbit", "telescope"] },
       { name: "Alcohol", words: ["whiskey", "brewery", "cocktail", "vintage", "hangover"] },

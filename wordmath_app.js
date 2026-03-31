@@ -3363,28 +3363,26 @@ function shouldHidePastStageEncyclopediaFromWordPanel(word, key) {
 function getAvailableWordEntries() {
   const available = new Map();
 
+  const upsertAvailableEntry = (mergeKey, key, word) => {
+    const existing = available.get(mergeKey);
+    if (!existing || isPreferredDiscoveredVariant(word, existing.word)) {
+      available.set(mergeKey, { key, word });
+    }
+  };
+
   state.starters.forEach((word) => {
-    available.set(word, {
-      key: word,
-      word,
-    });
+    upsertAvailableEntry(word.toLowerCase(), word, word);
   });
 
   state.discovered.forEach((word, normalized) => {
     if (shouldHidePastStageEncyclopediaFromWordPanel(word, normalized)) {
       return;
     }
-    const existing = available.get(normalized);
-    if (!existing || isPreferredDiscoveredVariant(word, existing.word)) {
-      available.set(normalized, {
-        key: normalized,
-        word,
-      });
-    }
+    upsertAvailableEntry(normalized.toLowerCase(), normalized, word);
   });
 
   state.hiddenWordPanelWords.forEach((wordKey) => {
-    available.delete(wordKey);
+    available.delete(wordKey.toLowerCase());
   });
 
   const sorted = [...available.values()].sort((a, b) => a.word.localeCompare(b.word));
