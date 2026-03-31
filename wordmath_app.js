@@ -43,9 +43,14 @@ import {
 
 let gameLocale = "en";
 let STARTER_POOL = LOCALES.en.starterPool.slice();
+function normalizeEncyclopediaDifficulty(value) {
+  return value === "easy" ? "easy" : "hard";
+}
+
 let ENCYCLOPEDIA_CATEGORY_POOL = LOCALES.en.encyclopediaCategories.map((c) => ({
   name: c.name,
   words: c.words.slice(),
+  difficulty: normalizeEncyclopediaDifficulty(c.difficulty),
 }));
 let ENCYCLOPEDIA_CATEGORIES = ENCYCLOPEDIA_CATEGORY_POOL.map((c) => ({
   name: c.name,
@@ -57,6 +62,8 @@ let SHOP_WORD_BOOSTER_SOURCE_PATH = LOCALES.en.wordBoosterPoolPath;
 
 /** How many encyclopedia categories are in play for one run (80 words at 5 per category). */
 const RUN_ENCYCLOPEDIA_CATEGORY_COUNT = 16;
+/** Reroll random run categories until at least this many are `easy` (stage 1–2 pacing). */
+const RUN_ENCYCLOPEDIA_MIN_EASY_CATEGORY_COUNT = 2;
 
 /** Token dock highlight duration after earning tokens (ms). */
 const TOKEN_DOCK_FLASH_MS = 2000;
@@ -504,11 +511,36 @@ function applyEncyclopediaCategoriesForRunFromSlots() {
   rebuildEncyclopediaIndexes();
 }
 
+function countEasyCategoriesAmongPoolIndices(indices) {
+  let tally = 0;
+  for (const raw of indices) {
+    const i = Math.floor(getSafeCount(raw, -1));
+    if (!Number.isFinite(i) || i < 0 || i >= ENCYCLOPEDIA_CATEGORY_POOL.length) {
+      continue;
+    }
+    if (ENCYCLOPEDIA_CATEGORY_POOL[i].difficulty === "easy") {
+      tally += 1;
+    }
+  }
+  return tally;
+}
+
 function pickRandomRunEncyclopediaSlots() {
   const n = ENCYCLOPEDIA_CATEGORY_POOL.length;
   const k = RUN_ENCYCLOPEDIA_CATEGORY_COUNT;
   if (n < k) {
     return [...Array(n).keys()];
+  }
+  const easyInFullPool = countEasyCategoriesAmongPoolIndices([...Array(n).keys()]);
+  if (easyInFullPool < RUN_ENCYCLOPEDIA_MIN_EASY_CATEGORY_COUNT) {
+    return shuffle([...Array(n).keys()]).slice(0, k);
+  }
+  const cap = 10000;
+  for (let attempt = 0; attempt < cap; attempt += 1) {
+    const picked = shuffle([...Array(n).keys()]).slice(0, k);
+    if (countEasyCategoriesAmongPoolIndices(picked) >= RUN_ENCYCLOPEDIA_MIN_EASY_CATEGORY_COUNT) {
+      return picked;
+    }
   }
   return shuffle([...Array(n).keys()]).slice(0, k);
 }
@@ -576,6 +608,7 @@ function applyGameLocale(locale) {
   ENCYCLOPEDIA_CATEGORY_POOL = pack.encyclopediaCategories.map((c) => ({
     name: c.name,
     words: c.words.slice(),
+    difficulty: normalizeEncyclopediaDifficulty(c.difficulty),
   }));
   ENCYCLOPEDIA_CATEGORIES = ENCYCLOPEDIA_CATEGORY_POOL.map((c) => ({
     name: c.name,
@@ -731,8 +764,8 @@ function lexiconRemovedToDockMessage(kind) {
   return t("lexicon.removedSynantonym");
 }
 
-/** Lexicon tokens (synantonym / hypo-hypernym): base 150g; menu sits above Broad/Minus (200) in price order. */
-const SHOP_LEXICON_TOKEN_COST = 150;
+/** Lexicon tokens (synantonym / hypo-hypernym): base 105g (−30% vs 150); menu sits above Ban (40) at stage 1, above Broad/Minus (200). */
+const SHOP_LEXICON_TOKEN_COST = 105;
 const SECOND_RESULT_FIRST_UNLOCK_WORDS = 10;
 /** First recycler token after this many words removed; each payout adds 1 to the threshold. */
 const RECYCLER_WORDS_FIRST_TOKEN = 5;
@@ -745,9 +778,9 @@ const MIN_PLAYFIELD_ZOOM = 0.02;
 const MAX_PLAYFIELD_ZOOM = 1;
 /** Each expand tier (2 and 3) multiplies world scale by this factor after pan/zoom is unlocked. */
 const PLAYFIELD_EXPAND_MULTIPLIER = 1.5;
-const SHOP_PLAYFIELD_PAN_ZOOM_COST = 450;
-const SHOP_PLAYFIELD_EXPAND_COST = 200;
-const SHOP_PLAYFIELD_EXPAND_2_COST = 2000;
+const SHOP_PLAYFIELD_PAN_ZOOM_COST = 200;
+const SHOP_PLAYFIELD_EXPAND_COST = 500;
+const SHOP_PLAYFIELD_EXPAND_2_COST = 500;
 const DISCOVERY_COIN_REWARD_COMMON = 15;
 const DISCOVERY_COIN_REWARD_UNCOMMON = 20;
 const DISCOVERY_COIN_REWARD_RARE = 25;
@@ -849,10 +882,10 @@ function getFreeWordBoostersPerStageCount() {
 const POSITION_TOKEN_RANKS = [2, 3, 4, 5];
 const SHOP_WORD_BOOSTER_COST = 70;
 const SHOP_WORD_BOOSTER_ROLL_COUNT = 10;
-/** Per completed purchase: token-like shop lines cost +10% over the last paid price (integer, rounded up). */
-const SHOP_INCREMENTAL_STANDARD_NUM = 110;
+/** Per completed purchase: token-like shop lines cost +20% over the last paid price (integer, rounded up). */
+const SHOP_INCREMENTAL_STANDARD_NUM = 120;
 const SHOP_INCREMENTAL_STANDARD_DEN = 100;
-/** Word Booster paid rolls: +20% over the last paid price (same scaling pattern, steeper step). */
+/** Word Booster paid rolls: +20% over the last paid price (same step as other incremental lines). */
 const SHOP_INCREMENTAL_WORD_BOOSTER_NUM = 120;
 const SHOP_INCREMENTAL_WORD_BOOSTER_DEN = 100;
 const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
@@ -869,8 +902,11 @@ const SHOP_ITEM_IDS_INCREMENTAL_PRICE = new Set([
   "shop-lexicon-hypohypernym",
 ]);
 
-/** Rank 2–5 + Ban: effective base cost = list price × current run stage (stage 1 = 1×, 2 = 2×, …). */
-const SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE = new Set([
+/**
+ * Incremental token shop lines: base list price × run-stage factor.
+ * Stage 1 = 100%, then +30% per stage (2 → 130%, 3 → 160%, …): ×(1 + 0.3×(stage−1)).
+ */
+const SHOP_ITEM_IDS_RUN_STAGE_SCALED_BASE = new Set([
   "shop-match-2",
   "shop-match-3",
   "shop-match-4",
@@ -878,10 +914,6 @@ const SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE = new Set([
   "shop-ban-word",
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
-]);
-
-/** Broad + Minus: base × (1 + 0.5×(stage−1)) — stage 1 = 1×, 2 = 1.5×, 3 = 2×, …. */
-const SHOP_ITEM_IDS_STAGE_HALFPACE_MULTIPLIER = new Set([
   "shop-broad-choice",
   "shop-minus-mix",
 ]);
@@ -955,7 +987,7 @@ const SHOP_ITEM_DEFINITIONS = Object.freeze([
   {
     id: "shop-ban-word",
     title: "Ban Word Token",
-    cost: 80,
+    cost: 40,
     description: "",
     canPurchase: () => true,
     purchase: () => {
@@ -1113,10 +1145,10 @@ const SHOP_ITEM_BY_ID = new Map(SHOP_ITEM_DEFINITIONS.map((entry) => [entry.id, 
 /** Token purchases only (Purchase Tokens dropdown). Word Booster is the top bar button. */
 const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
   "shop-match-2",
+  "shop-ban-word",
   "shop-match-3",
   "shop-match-4",
   "shop-match-5",
-  "shop-ban-word",
   "shop-broad-choice",
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
@@ -1128,10 +1160,10 @@ const SHOP_ITEM_IDS_PURCHASE_TOKENS_MENU = new Set([
  */
 const PURCHASE_TOKENS_MENU_ORDER = Object.freeze([
   "shop-match-2",
+  "shop-ban-word",
   "shop-match-3",
   "shop-match-4",
   "shop-match-5",
-  "shop-ban-word",
   "shop-lexicon-synantonym",
   "shop-lexicon-hypohypernym",
   "shop-broad-choice",
@@ -1471,17 +1503,16 @@ function getShopStageForPricing() {
   return clamp(getSafeCount(state.runStage, 1), 1, RUN_STAGE_COUNT);
 }
 
-/** Base gold for incremental shop lines before per-stage +10% (or booster +20%) stacking. */
+/** Base gold for incremental shop lines before per-purchase +20% stacking (Word Booster base is fixed). */
 function getShopIncrementalBaseCost(item) {
   if (!item) {
     return 0;
   }
   const stage = getShopStageForPricing();
-  if (SHOP_ITEM_IDS_STAGE_MULTIPLY_BY_RUN_STAGE.has(item.id)) {
-    return Math.max(1, Math.ceil(item.cost * stage));
-  }
-  if (SHOP_ITEM_IDS_STAGE_HALFPACE_MULTIPLIER.has(item.id)) {
-    return Math.max(1, Math.ceil(item.cost * (1 + 0.5 * (stage - 1))));
+  if (SHOP_ITEM_IDS_RUN_STAGE_SCALED_BASE.has(item.id)) {
+    const stageNum = 10 + 3 * (stage - 1);
+    const stageDen = 10;
+    return Math.max(1, Math.ceil((item.cost * stageNum) / stageDen));
   }
   return item.cost;
 }
@@ -1893,13 +1924,59 @@ function isEncyclopediaCategoryRevealed(categoryName) {
     || state.stageCategoryNames.includes(categoryName);
 }
 
+function isEncyclopediaCategoryEasy(categoryName) {
+  const cat = ENCYCLOPEDIA_CATEGORY_POOL.find((c) => c.name === categoryName);
+  return Boolean(cat && cat.difficulty === "easy");
+}
+
+/**
+ * Picks `count` distinct category names from `eligibleNames` (unfinished run categories),
+ * enforcing easy / mixed rules for run stages 1–2.
+ */
+function pickStageCategoryNamesFromEligiblePool(eligibleNames, count, forRunStage) {
+  const pool = eligibleNames.filter((name) => typeof name === "string");
+  const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
+  const stage = clamp(getSafeCount(forRunStage, 1), 1, RUN_STAGE_COUNT);
+  if (stage >= 3 || pool.length === 0) {
+    return shuffle(pool).slice(0, n);
+  }
+  if (stage === 1) {
+    const easyOnly = pool.filter((name) => isEncyclopediaCategoryEasy(name));
+    const source = easyOnly.length ? easyOnly : pool;
+    return shuffle(source).slice(0, n);
+  }
+  // Stage 2: at least one easy among the batch when two (or more) picks exist.
+  if (n === 1) {
+    const easyOnly = pool.filter((name) => isEncyclopediaCategoryEasy(name));
+    const source = easyOnly.length ? easyOnly : pool;
+    return shuffle(source).slice(0, 1);
+  }
+  const easyInPool = pool.filter((name) => isEncyclopediaCategoryEasy(name));
+  const picked = [];
+  let first;
+  if (easyInPool.length) {
+    first = easyInPool[Math.floor(Math.random() * easyInPool.length)];
+  } else {
+    first = pool[Math.floor(Math.random() * pool.length)];
+  }
+  picked.push(first);
+  const restPool = pool.filter((name) => name !== first);
+  let remaining = n - 1;
+  while (remaining > 0 && restPool.length) {
+    const idx = Math.floor(Math.random() * restPool.length);
+    picked.push(restPool.splice(idx, 1)[0]);
+    remaining -= 1;
+  }
+  return shuffle(picked);
+}
+
 function pickRandomStageCategoryNames(count) {
   const runNames = state.runEncyclopediaSlots
     .map((i) => ENCYCLOPEDIA_CATEGORY_POOL[Math.floor(i)]?.name)
     .filter((name) => typeof name === "string");
   const pool = runNames.filter((name) => !state.completedRunCategoryNames.has(name));
   const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
-  return shuffle(pool).slice(0, n);
+  return pickStageCategoryNamesFromEligiblePool(pool, n, state.runStage);
 }
 
 function initializeStageCategoryNamesForNewRun() {
@@ -2003,9 +2080,10 @@ function peekNextStageCategoryNamesForAfterAdvance() {
     .filter((name) => typeof name === "string");
   const used = new Set([...state.completedRunCategoryNames, ...state.stageCategoryNames]);
   const pool = runNames.filter((name) => !used.has(name));
-  const count = getStageCategoryPickCountForRunStage(state.runStage + 1);
+  const nextRunStage = state.runStage + 1;
+  const count = getStageCategoryPickCountForRunStage(nextRunStage);
   const n = clamp(getSafeCount(count, 1), 1, Math.max(1, pool.length));
-  return shuffle(pool).slice(0, n);
+  return pickStageCategoryNamesFromEligiblePool(pool, n, nextRunStage);
 }
 
 function isStageAdvanceBlockingPlay() {
