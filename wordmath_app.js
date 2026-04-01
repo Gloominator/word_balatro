@@ -4331,6 +4331,79 @@ function collectStatusCoinGoldRanges(text) {
   return merged;
 }
 
+function statusHighlightRangesIntersect(a0, a1, b0, b1) {
+  return Math.max(a0, b0) < Math.min(a1, b1);
+}
+
+function escapeRegExpForStatusHighlight(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function getStatusTokenRewardHighlightSpecs() {
+  const esc = escapeRegExpForStatusHighlight;
+  const parts = [
+    { pattern: String.raw`\b\d+ Broad Choice tokens?\b`, className: "status-token-reward status-token--broad" },
+    { pattern: String.raw`\b\d+ Minus mix tokens?\b`, className: "status-token-reward status-token--minus" },
+    { pattern: String.raw`\b\d+ Ban Word tokens?\b`, className: "status-token-reward status-token--ban" },
+    { pattern: String.raw`\b\d+ wildcard tokens?\b`, className: "status-token-reward status-token--wildcard" },
+  ];
+  POSITION_TOKEN_RANKS.forEach((rank) => {
+    const title = getPositionTokenDisplayName(rank);
+    parts.push({
+      pattern: `\\b\\d+ ${esc(title)} tokens?\\b`,
+      className: `status-token-reward status-token--rank-${rank}`,
+    });
+  });
+  parts.push(
+    {
+      pattern: `\\b\\d+ ${esc(t("tile.lexiconSynantonym"))} tokens?\\b`,
+      className: "status-token-reward status-token--lex-syn",
+    },
+    {
+      pattern: `\\b\\d+ ${esc(t("tile.lexiconHypohypernym"))} tokens?\\b`,
+      className: "status-token-reward status-token--lex-hypo",
+    },
+  );
+  return parts.map(({ pattern, className }) => ({
+    re: new RegExp(pattern, "g"),
+    className,
+  }));
+}
+
+function collectStatusHighlightSegments(text) {
+  if (typeof text !== "string" || !text) {
+    return [];
+  }
+  const segments = [];
+  collectStatusCoinGoldRanges(text).forEach(([start, end]) => {
+    segments.push({ start, end, className: "status-coin-gold" });
+  });
+  getStatusTokenRewardHighlightSpecs().forEach(({ re, className }) => {
+    const r = new RegExp(re.source, "g");
+    let match = r.exec(text);
+    while (match !== null) {
+      const start = match.index;
+      const end = start + match[0].length;
+      const overlapsCoin = segments.some(
+        (seg) => seg.className === "status-coin-gold"
+          && statusHighlightRangesIntersect(start, end, seg.start, seg.end),
+      );
+      if (!overlapsCoin) {
+        const overlapsToken = segments.some(
+          (seg) => seg.className !== "status-coin-gold"
+            && statusHighlightRangesIntersect(start, end, seg.start, seg.end),
+        );
+        if (!overlapsToken) {
+          segments.push({ start, end, className });
+        }
+      }
+      match = r.exec(text);
+    }
+  });
+  segments.sort((x, y) => x.start - y.start || y.end - x.end);
+  return segments;
+}
+
 function clearStatusNotificationLog() {
   statusNotificationLog.length = 0;
 }
@@ -4357,21 +4430,21 @@ function fillStatusMessageNodes(container, message) {
   if (!container) {
     return;
   }
-  const ranges = collectStatusCoinGoldRanges(message);
-  if (!ranges.length) {
+  const segments = collectStatusHighlightSegments(message);
+  if (!segments.length) {
     container.textContent = message;
     return;
   }
   container.textContent = "";
   let cursor = 0;
-  ranges.forEach(([start, end]) => {
+  segments.forEach(({ start, end, className }) => {
     if (cursor < start) {
       container.append(document.createTextNode(message.slice(cursor, start)));
     }
-    const gold = document.createElement("span");
-    gold.className = "status-coin-gold";
-    gold.textContent = message.slice(start, end);
-    container.append(gold);
+    const span = document.createElement("span");
+    span.className = className;
+    span.textContent = message.slice(start, end);
+    container.append(span);
     cursor = end;
   });
   if (cursor < message.length) {

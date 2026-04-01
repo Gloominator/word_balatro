@@ -755,6 +755,98 @@ input:focus {
   color: #ffe066;
 }
 
+/* Status line: token reward phrases (sky / cyan — fits numbered dock emoji chips) */
+.status-pill .status-token-reward {
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 0.08em 0.45em 0.12em;
+  margin: 0 0.04em;
+  font-weight: 800;
+  font-size: 0.95em;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: #0c4a6e;
+  border: 1px solid #0284c7;
+  background: linear-gradient(165deg, #e0f2fe 0%, #7dd3fc 45%, #38bdf8 100%);
+  box-shadow:
+    0 0 10px rgba(56, 189, 248, 0.35),
+    0 1px 0 rgba(255, 255, 255, 0.45) inset;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+[data-theme="dark"] .status-pill .status-token-reward {
+  color: #f0f9ff;
+  border-color: #38bdf8;
+  background: linear-gradient(165deg, #0c4a6e 0%, #0369a1 55%, #075985 100%);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.status-pill[data-state="reward"] .status-token-reward {
+  border-color: #0ea5e9;
+  background: linear-gradient(165deg, #dbeafe 0%, #93c5fd 50%, #3b82f6 100%);
+  color: #1e3a8a;
+}
+
+[data-theme="dark"] .status-pill[data-state="reward"] .status-token-reward {
+  background: linear-gradient(165deg, #1e3a8a 0%, #1d4ed8 50%, #172554 100%);
+  color: #e0f2fe;
+  border-color: #60a5fa;
+}
+
+/* Shapes — subtle variation per token family (dock: B, 2️⃣➖🃏…) */
+.status-pill .status-token--broad {
+  border-radius: 0.15em 0.55em 0.15em 0.55em;
+  transform: rotate(-1.2deg);
+}
+
+.status-pill .status-token--minus {
+  border-radius: 0.35em;
+}
+
+.status-pill .status-token--ban {
+  border-radius: 999px;
+  border-color: #dc2626;
+  box-shadow:
+    0 0 8px rgba(248, 113, 113, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.35) inset;
+}
+
+[data-theme="dark"] .status-pill .status-token--ban {
+  border-color: #f87171;
+}
+
+.status-pill .status-token--wildcard {
+  border-radius: 0.2em 0.5em 0.35em 0.35em;
+  transform: rotate(1deg);
+}
+
+.status-pill .status-token--lex-syn {
+  border-radius: 0.25em 0.25em 0.5em 0.5em;
+}
+
+.status-pill .status-token--lex-hypo {
+  border-radius: 0.45em 0.2em;
+}
+
+.status-pill .status-token--rank-2 {
+  border-radius: 999px;
+  padding-inline: 0.55em;
+}
+
+.status-pill .status-token--rank-3 {
+  border-radius: 0.2em;
+}
+
+.status-pill .status-token--rank-4 {
+  border-radius: 0.55em 0.2em 0.55em 0.2em;
+}
+
+.status-pill .status-token--rank-5 {
+  border-radius: 50%;
+  padding-inline: 0.5em;
+}
+
 @keyframes coin-counter-gain-pop {
   0% {
     transform: scale(1) rotate(0deg);
@@ -3958,6 +4050,93 @@ input:focus {
 
 [data-theme="dark"] .status-history-item[data-state="reward"] .status-coin-gold {
   color: #ffe066;
+}
+
+.status-history-item .status-token-reward {
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 0.06rem 0.4rem 0.1rem;
+  margin: 0 0.06rem;
+  font-weight: 800;
+  font-size: 0.92em;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+  color: #0c4a6e;
+  border: 1px solid #0284c7;
+  background: linear-gradient(165deg, #e0f2fe 0%, #7dd3fc 45%, #38bdf8 100%);
+  box-shadow:
+    0 0 8px rgba(56, 189, 248, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.4) inset;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+[data-theme="dark"] .status-history-item .status-token-reward {
+  color: #f0f9ff;
+  border-color: #38bdf8;
+  background: linear-gradient(165deg, #0c4a6e 0%, #0369a1 55%, #075985 100%);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.status-history-item[data-state="reward"] .status-token-reward {
+  border-color: #0ea5e9;
+  background: linear-gradient(165deg, #dbeafe 0%, #93c5fd 50%, #3b82f6 100%);
+  color: #1e3a8a;
+}
+
+[data-theme="dark"] .status-history-item[data-state="reward"] .status-token-reward {
+  background: linear-gradient(165deg, #1e3a8a 0%, #1d4ed8 50%, #172554 100%);
+  color: #e0f2fe;
+  border-color: #60a5fa;
+}
+
+.status-history-item .status-token--broad {
+  border-radius: 0.12rem 0.45rem 0.12rem 0.45rem;
+  transform: rotate(-1deg);
+}
+
+.status-history-item .status-token--minus {
+  border-radius: 0.3rem;
+}
+
+.status-history-item .status-token--ban {
+  border-radius: 999px;
+  border-color: #dc2626;
+}
+
+[data-theme="dark"] .status-history-item .status-token--ban {
+  border-color: #f87171;
+}
+
+.status-history-item .status-token--wildcard {
+  border-radius: 0.15rem 0.45rem 0.3rem 0.3rem;
+  transform: rotate(0.8deg);
+}
+
+.status-history-item .status-token--lex-syn {
+  border-radius: 0.2rem 0.2rem 0.45rem 0.45rem;
+}
+
+.status-history-item .status-token--lex-hypo {
+  border-radius: 0.4rem 0.15rem;
+}
+
+.status-history-item .status-token--rank-2 {
+  border-radius: 999px;
+  padding-inline: 0.5rem;
+}
+
+.status-history-item .status-token--rank-3 {
+  border-radius: 0.15rem;
+}
+
+.status-history-item .status-token--rank-4 {
+  border-radius: 0.5rem 0.15rem 0.5rem 0.15rem;
+}
+
+.status-history-item .status-token--rank-5 {
+  border-radius: 50%;
+  padding-inline: 0.45rem;
 }
 
 .genealogy-modal-card {
