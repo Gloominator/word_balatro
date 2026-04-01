@@ -696,6 +696,61 @@ input:focus {
   border-color: var(--bad-border);
 }
 
+.status-pill .status-coin-gold {
+  color: #9a6b00;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow:
+    0 0 10px rgba(255, 200, 90, 0.55),
+    0 1px 0 rgba(255, 248, 210, 0.55);
+}
+
+[data-theme="dark"] .status-pill .status-coin-gold {
+  color: #ffcf4a;
+  text-shadow:
+    0 0 12px rgba(255, 200, 70, 0.65),
+    0 1px 2px rgba(60, 40, 0, 0.85);
+}
+
+.status-pill[data-state="reward"] .status-coin-gold {
+  color: #7a5200;
+}
+
+[data-theme="dark"] .status-pill[data-state="reward"] .status-coin-gold {
+  color: #ffe066;
+}
+
+@keyframes coin-counter-gain-pop {
+  0% {
+    transform: scale(1) rotate(0deg);
+  }
+  18% {
+    transform: scale(1.14) rotate(-2.5deg);
+  }
+  40% {
+    transform: scale(1.08) rotate(1.8deg);
+  }
+  62% {
+    transform: scale(1.04) rotate(-0.8deg);
+  }
+  82% {
+    transform: scale(1.02) rotate(0.4deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.topbar-coin-counter.coin-counter-gain-pulse {
+  animation: coin-counter-gain-pop 0.58s cubic-bezier(0.33, 1.45, 0.55, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .topbar-coin-counter.coin-counter-gain-pulse {
+    animation: none;
+  }
+}
+
 /* --- Token dock (under status pill, sticky with top bar) --------------- */
 
 .token-dock-outer {

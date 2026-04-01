@@ -1380,6 +1380,7 @@ const els = {
   openWordTabButton: document.querySelector("[data-action='open-word-tab']"),
   openUpgradesTabButton: document.querySelector("[data-action='open-upgrades-tab']"),
   topbarCoinCount: document.querySelector("[data-topbar-coin-count]"),
+  topbarCoinCounter: document.querySelector(".topbar-coin-counter"),
   tokenDock: document.querySelector("[data-token-dock]"),
   tokenDockOuter: document.querySelector("[data-token-dock-outer]"),
   upgradeCount: document.querySelector("[data-upgrade-count]"),
@@ -1658,6 +1659,7 @@ function awardDiscoveryCoins(options = {}) {
   const reward = getDiscoveryCoinReward(options);
   state.coins += reward.coins;
   state.totalCoinsEarned += reward.coins;
+  triggerTopbarCoinGainAnimation();
   return reward;
 }
 
@@ -2368,7 +2370,7 @@ function awardQuestCompletionTokens(count = QUEST_COMPLETION_REWARD_COUNT) {
 
 function getQuestSpeedBonusCoins(turnsTaken = state.quest.turnsTaken) {
   const t = Math.max(0, getSafeCount(turnsTaken));
-  if (t <= 1) {
+  if (t <= 2) {
     return 150;
   }
   if (t <= 5) {
@@ -2470,6 +2472,7 @@ function advanceQuest(canonicalResult, {
     questResult.newLexiconSynantonymTokens = getSafeCount(rewardSummary.newLexiconSynantonymTokens);
     questResult.newLexiconHypohypernymTokens = getSafeCount(rewardSummary.newLexiconHypohypernymTokens);
     mergePositionTokenRewardSummary(questResult.newPositionTokenRewards, rewardSummary.newPositionTokenRewards);
+    triggerTopbarCoinGainAnimation();
     return questResult;
   }
 
@@ -4262,9 +4265,89 @@ function resolveCandidateSelection(candidates, tileIds = [], { applyTagEffects =
   };
 }
 
+function collectStatusCoinGoldRanges(text) {
+  if (typeof text !== "string" || !text) {
+    return [];
+  }
+  const ranges = [];
+  const patterns = [
+    /\bYou earned \d+ (?:coin|coins)\b/g,
+    /(?<= and earned )\d+ coins\b/g,
+    /(?<=, including a )\d+-coin(?= speed bonus)/g,
+    /(?<=, plus )\d+ coins(?= for)/g,
+  ];
+  patterns.forEach((re) => {
+    re.lastIndex = 0;
+    let match = re.exec(text);
+    while (match !== null) {
+      ranges.push([match.index, match.index + match[0].length]);
+      match = re.exec(text);
+    }
+  });
+  if (!ranges.length) {
+    return [];
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  ranges.forEach(([a, b]) => {
+    const last = merged[merged.length - 1];
+    if (!last || last[1] < a) {
+      merged.push([a, b]);
+    } else {
+      last[1] = Math.max(last[1], b);
+    }
+  });
+  return merged;
+}
+
+function triggerTopbarCoinGainAnimation() {
+  const root = els.topbarCoinCounter;
+  if (!root || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+    return;
+  }
+  if (triggerTopbarCoinGainAnimation._debounceId != null) {
+    window.clearTimeout(triggerTopbarCoinGainAnimation._debounceId);
+  }
+  triggerTopbarCoinGainAnimation._debounceId = window.setTimeout(() => {
+    triggerTopbarCoinGainAnimation._debounceId = null;
+    root.classList.remove("coin-counter-gain-pulse");
+    void root.offsetWidth;
+    root.classList.add("coin-counter-gain-pulse");
+    if (triggerTopbarCoinGainAnimation._endTimeoutId != null) {
+      window.clearTimeout(triggerTopbarCoinGainAnimation._endTimeoutId);
+    }
+    triggerTopbarCoinGainAnimation._endTimeoutId = window.setTimeout(() => {
+      root.classList.remove("coin-counter-gain-pulse");
+      triggerTopbarCoinGainAnimation._endTimeoutId = null;
+    }, 650);
+  }, 35);
+}
+
 function setStatus(message, stateName = "ok") {
-  els.status.textContent = message;
+  if (!els.status) {
+    return;
+  }
   els.status.dataset.state = stateName;
+  const ranges = collectStatusCoinGoldRanges(message);
+  if (!ranges.length) {
+    els.status.textContent = message;
+    return;
+  }
+  els.status.textContent = "";
+  let cursor = 0;
+  ranges.forEach(([start, end]) => {
+    if (cursor < start) {
+      els.status.append(document.createTextNode(message.slice(cursor, start)));
+    }
+    const gold = document.createElement("span");
+    gold.className = "status-coin-gold";
+    gold.textContent = message.slice(start, end);
+    els.status.append(gold);
+    cursor = end;
+  });
+  if (cursor < message.length) {
+    els.status.append(document.createTextNode(message.slice(cursor)));
+  }
 }
 
 function clearQuestCompletionNotice() {
