@@ -602,9 +602,17 @@ function normalizeRunEncyclopediaSlotsFromSnapshot(snapshot, snapshotVersion) {
 
 rebuildEncyclopediaIndexes();
 
+function normalizeServerGameLocale(code) {
+  const v = typeof code === "string" ? code.trim().toLowerCase() : "";
+  if (v === "ru" || v === "es") {
+    return v;
+  }
+  return "en";
+}
+
 function applyGameLocale(locale) {
   const pack = LOCALES[locale] || LOCALES.en;
-  gameLocale = locale === "ru" ? "ru" : "en";
+  gameLocale = normalizeServerGameLocale(locale);
   STARTER_POOL = pack.starterPool.slice();
   ENCYCLOPEDIA_CATEGORY_POOL = pack.encyclopediaCategories.map((c) => ({
     name: c.name,
@@ -632,8 +640,7 @@ async function fetchGameConfig() {
     throw new Error(`Bad /api/config response (${response.status})`);
   }
   const data = await response.json();
-  const locale = data.gameLocale === "ru" ? "ru" : "en";
-  applyGameLocale(locale);
+  applyGameLocale(normalizeServerGameLocale(data.gameLocale));
 }
 
 function getStorageKey() {

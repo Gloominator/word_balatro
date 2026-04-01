@@ -3,6 +3,7 @@ import contextlib
 import mimetypes
 import os
 import re
+import unicodedata
 import socket
 import sys
 import threading
@@ -18,6 +19,21 @@ import wordfreq
 from wordfreq import zipf_frequency
 
 
+def _strip_accents_nfkd(text: str) -> str:
+    return "".join(
+        ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch)
+    )
+
+
+def _nltk_download_extension(name: str) -> None:
+    import nltk  # noqa: PLC0415
+
+    try:
+        nltk.download(name, quiet=True)
+    except Exception:
+        pass
+
+
 @lru_cache(maxsize=1)
 def get_nltk_wordnet():
     import nltk  # noqa: PLC0415
@@ -27,7 +43,61 @@ def get_nltk_wordnet():
         wn.synsets("a")
     except LookupError:
         nltk.download("wordnet", quiet=True)
+    if GAME_LOCALE == "es":
+        try:
+            wn.synsets("perro", lang="spa")
+        except LookupError:
+            _nltk_download_extension("omw-1.4")
+        except OSError:
+            _nltk_download_extension("omw-1.4")
     return wn
+
+
+def _wn_emit_lang() -> str:
+    """NLTK WordNet / OMW language code for emitted lexicon strings."""
+    return "spa" if GAME_LOCALE == "es" else "eng"
+
+
+def _synset_surface_lemma_strings(syn, wn_emit: str) -> list[str]:
+    if wn_emit == "eng":
+        out: list[str] = []
+        for lem in syn.lemmas():
+            nm = lem.name().replace("_", " ").strip().lower()
+            if nm:
+                out.append(nm)
+        return out
+    try:
+        raw = syn.lemma_names(wn_emit)
+    except (KeyError, ValueError, LookupError):
+        return []
+    forms: list[str] = []
+    for nm in raw:
+        s = str(nm).replace("_", " ").strip().lower()
+        if s:
+            forms.append(s)
+    return forms
+
+
+def _lexicon_emit_antonym_lemma(
+    ant_lemma,
+    exclude: set[str],
+    banned_keys: set[str],
+    seen: set[str],
+    out: list[str],
+    max_total: int,
+    wn_emit: str,
+) -> None:
+    if wn_emit == "eng":
+        _lexicon_push(ant_lemma.name(), exclude, banned_keys, seen, out)
+        return
+    try:
+        names = ant_lemma.synset().lemma_names(wn_emit)
+    except (KeyError, ValueError, LookupError):
+        return
+    for raw_name in names:
+        _lexicon_push(raw_name, exclude, banned_keys, seen, out)
+        if len(out) >= max_total:
+            return
 
 
 def _lexicon_is_single_token_label(nm: str) -> bool:
@@ -54,19 +124,13 @@ def _lexicon_synonyms_from_synset(
     seen: set[str],
     out: list[str],
     max_total: int,
+    *,
+    wn_emit: str = "eng",
 ) -> None:
-    for lem in syn.lemmas():
+    for nm in _synset_surface_lemma_strings(syn, wn_emit):
         if len(out) >= max_total:
             return
-        nm = lem.name().replace("_", " ").strip().lower()
-        if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
-            continue
-        cand = {nm}
-        cand.update(get_word_family_forms(nm))
-        if cand & banned_keys:
-            continue
-        seen.add(nm)
-        out.append(nm)
+        _lexicon_push(nm, exclude, banned_keys, seen, out)
 
 
 def _lexicon_antonyms_from_synset(
@@ -76,12 +140,14 @@ def _lexicon_antonyms_from_synset(
     seen: set[str],
     out: list[str],
     max_total: int,
+    *,
+    wn_emit: str = "eng",
 ) -> None:
     for lem in syn.lemmas():
         if len(out) >= max_total:
             return
         for ant in lem.antonyms():
-            _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+            _lexicon_emit_antonym_lemma(ant, exclude, banned_keys, seen, out, max_total, wn_emit)
             if len(out) >= max_total:
                 return
     for sim in syn.similar_tos()[:4]:
@@ -91,7 +157,7 @@ def _lexicon_antonyms_from_synset(
             if len(out) >= max_total:
                 return
             for ant in lem.antonyms():
-                _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                _lexicon_emit_antonym_lemma(ant, exclude, banned_keys, seen, out, max_total, wn_emit)
                 if len(out) >= max_total:
                     return
     for hyp in syn.hypernyms()[:2]:
@@ -101,7 +167,7 @@ def _lexicon_antonyms_from_synset(
             if len(out) >= max_total:
                 return
             for ant in lem.antonyms():
-                _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                _lexicon_emit_antonym_lemma(ant, exclude, banned_keys, seen, out, max_total, wn_emit)
                 if len(out) >= max_total:
                     return
         for hypo in hyp.hyponyms()[:12]:
@@ -111,7 +177,7 @@ def _lexicon_antonyms_from_synset(
                 if len(out) >= max_total:
                     return
                 for ant in lem.antonyms():
-                    _lexicon_push(ant.name(), exclude, banned_keys, seen, out)
+                    _lexicon_emit_antonym_lemma(ant, exclude, banned_keys, seen, out, max_total, wn_emit)
                     if len(out) >= max_total:
                         return
 
@@ -123,15 +189,16 @@ def _lexicon_hypernyms_from_synset(
     seen: set[str],
     out: list[str],
     max_total: int,
+    *,
+    wn_emit: str = "eng",
 ) -> None:
     """Immediate parent synsets (more general terms)."""
     for hyp in syn.hypernyms():
         if len(out) >= max_total:
             return
-        for lem in hyp.lemmas():
+        for nm in _synset_surface_lemma_strings(hyp, wn_emit):
             if len(out) >= max_total:
                 return
-            nm = lem.name().replace("_", " ").strip().lower()
             if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
                 continue
             cand = {nm}
@@ -151,15 +218,15 @@ def _lexicon_hyponyms_from_synset(
     max_total: int,
     *,
     max_child_synsets: int = 36,
+    wn_emit: str = "eng",
 ) -> None:
     """Child synsets (more specific kinds); breadth-capped per sense."""
     for hypo in syn.hyponyms()[:max_child_synsets]:
         if len(out) >= max_total:
             return
-        for lem in hypo.lemmas():
+        for nm in _synset_surface_lemma_strings(hypo, wn_emit):
             if len(out) >= max_total:
                 return
-            nm = lem.name().replace("_", " ").strip().lower()
             if not _lexicon_is_single_token_label(nm) or nm in exclude or nm in seen:
                 continue
             cand = {nm}
@@ -170,6 +237,32 @@ def _lexicon_hyponyms_from_synset(
             out.append(nm)
 
 
+def _spanish_wn_synsets(wn, raw: str, lemma: str):
+    """Resolve Spanish synsets (OMW) with NFC keys, lemma fallbacks, and de-accented lookups."""
+    keys: list[str] = []
+    s = unicodedata.normalize("NFC", (raw or "").strip().lower())
+    lm = (lemma or "").strip().lower()
+    lm = unicodedata.normalize("NFC", lm) if lm else ""
+    for key in (s, lm):
+        if key and key not in keys:
+            keys.append(key)
+    expanded: list[str] = []
+    for key in keys:
+        if key not in expanded:
+            expanded.append(key)
+        bare = _strip_accents_nfkd(key)
+        if bare and bare not in expanded:
+            expanded.append(bare)
+    for key in expanded:
+        try:
+            found = wn.synsets(key, lang="spa")
+        except Exception:
+            found = []
+        if found:
+            return list(found)
+    return []
+
+
 def lexicon_lookup(
     word: str,
     mode: str,
@@ -177,7 +270,7 @@ def lexicon_lookup(
     max_count: int = 5,
     quest_word: str | None = None,
 ) -> dict:
-    """WordNet relations: walk senses in order until max_count single-token lemmas (English only)."""
+    """WordNet + OMW relations: single-token lemmas (English or Spanish); Russian build uses placeholder."""
     try:
         cap = max(1, min(int(max_count), 20))
     except (TypeError, ValueError):
@@ -186,11 +279,18 @@ def lexicon_lookup(
     if GAME_LOCALE == "ru":
         return {"ok": True, "placeholder": True, "words": [], "candidates": []}
     wn = get_nltk_wordnet()
-    raw = (word or "").strip().lower()
+    if GAME_LOCALE == "es":
+        raw = unicodedata.normalize("NFC", (word or "").strip().lower())
+    else:
+        raw = (word or "").strip().lower()
     if not raw:
         return dict(empty)
     lemma = normalize_word(raw)
-    synsets = wn.synsets(lemma) or wn.synsets(raw)
+    wn_emit = _wn_emit_lang()
+    if GAME_LOCALE == "es":
+        synsets = _spanish_wn_synsets(wn, raw, lemma)
+    else:
+        synsets = wn.synsets(lemma) or wn.synsets(raw)
     if not synsets:
         return dict(empty)
 
@@ -216,26 +316,39 @@ def lexicon_lookup(
         if len(words_out) >= cap:
             break
         if mode_norm == "synonym":
-            _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+            _lexicon_synonyms_from_synset(
+                syn, exclude, banned_keys, seen, words_out, cap, wn_emit=wn_emit
+            )
         elif mode_norm == "antonym":
-            _lexicon_antonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+            _lexicon_antonyms_from_synset(
+                syn, exclude, banned_keys, seen, words_out, cap, wn_emit=wn_emit
+            )
         elif mode_norm == "hypernym":
-            _lexicon_hypernyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+            _lexicon_hypernyms_from_synset(
+                syn, exclude, banned_keys, seen, words_out, cap, wn_emit=wn_emit
+            )
         elif mode_norm == "hyponym":
-            _lexicon_hyponyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+            _lexicon_hyponyms_from_synset(
+                syn, exclude, banned_keys, seen, words_out, cap, wn_emit=wn_emit
+            )
         else:
-            _lexicon_synonyms_from_synset(syn, exclude, banned_keys, seen, words_out, cap)
+            _lexicon_synonyms_from_synset(
+                syn, exclude, banned_keys, seen, words_out, cap, wn_emit=wn_emit
+            )
 
     final_words = words_out[:cap]
     quest_clean = (quest_word or "").strip().lower() or None
+    if quest_clean and GAME_LOCALE == "es":
+        quest_clean = unicodedata.normalize("NFC", quest_clean)
     nlp = None
     if quest_clean:
         nlp, _, _, _ = get_language_resources()
 
     def _lexicon_candidate_entry(w: str) -> dict:
+        norm_out = normalize_word(w) if GAME_LOCALE == "es" else w
         entry: dict = {
             "word": w,
-            "normalized": w,
+            "normalized": norm_out,
             "similarity": 0.0,
             "zipf": get_word_zipf_frequency(w),
         }
@@ -284,22 +397,27 @@ def resolve_game_locale() -> str:
         exe_stem = Path(sys.executable).stem.lower()
         if "ru" in exe_stem:
             os.environ.setdefault("KINGMINUSMAN_GAME_LOCALE", "ru")
+        elif "es" in exe_stem:
+            os.environ.setdefault("KINGMINUSMAN_GAME_LOCALE", "es")
     explicit = _env_pref("KINGMINUSMAN_GAME_LOCALE", "WORDMATH_GAME_LOCALE").lower()
-    if explicit in ("en", "ru"):
+    if explicit in ("en", "ru", "es"):
         return explicit
     model = _env_pref("KINGMINUSMAN_SPACY_MODEL", "WORDMATH_SPACY_MODEL").lower()
     if model.startswith("ru_"):
         return "ru"
+    if model.startswith("es_"):
+        return "es"
     if model.startswith("en_"):
         return "en"
     return "en"
 
 
 GAME_LOCALE = resolve_game_locale()
-WORDFREQ_LANG = "ru" if GAME_LOCALE == "ru" else "en"
+WORDFREQ_LANG = {"ru": "ru", "es": "es"}.get(GAME_LOCALE, "en")
 SPACY_MODEL_CHAINS = {
     "en": ("en_core_web_lg", "en_core_web_md"),
     "ru": ("ru_core_news_lg", "ru_core_news_md"),
+    "es": ("es_core_news_lg", "es_core_news_md"),
 }
 DEFAULT_SPACY_MODELS = SPACY_MODEL_CHAINS[GAME_LOCALE]
 ZIPF_LOOKUP_WARNING_SHOWN = False
@@ -400,19 +518,49 @@ PROFANITY_BASE_FORMS = {
 @lru_cache(maxsize=4096)
 def normalize_word(word: str) -> str:
     nlp, _, _, _ = get_language_resources()
-    token = nlp(word.strip().lower())[0]
-    lemma = token.lemma_.strip().lower()
+    if GAME_LOCALE == "es":
+        raw_in = unicodedata.normalize("NFC", word.strip().lower())
+    else:
+        raw_in = word.strip().lower()
+    if not raw_in:
+        return raw_in
+    token = nlp(raw_in)[0]
+    if GAME_LOCALE == "es":
+        lemma = (token.lemma_ or "").strip().lower()
+        if lemma and lemma != "-pron-" and all(ch.isalpha() for ch in lemma):
+            return lemma
+        norm = (token.norm_ or "").strip().lower()
+        if norm and all(ch.isalpha() for ch in norm):
+            return unicodedata.normalize("NFC", norm)
+        return unicodedata.normalize("NFC", token.text.lower())
+    lemma = (token.lemma_ or "").strip().lower()
     return lemma if lemma else token.text.lower()
 
 
 @lru_cache(maxsize=4096)
 def get_word_family_forms(word: str) -> frozenset[str]:
-    lowered = word.strip().lower()
+    if GAME_LOCALE == "es":
+        lowered = unicodedata.normalize("NFC", word.strip().lower())
+    else:
+        lowered = word.strip().lower()
     forms = {lowered}
 
     lemma = normalize_word(lowered)
     if lemma:
         forms.add(lemma)
+
+    if GAME_LOCALE == "es":
+        nlp, _, _, _ = get_language_resources()
+        for surface in (lowered, lemma):
+            if not surface:
+                continue
+            t = nlp(surface)[0]
+            tx = unicodedata.normalize("NFC", t.text.strip().lower())
+            if tx:
+                forms.add(tx)
+            nm = (t.norm_ or "").strip().lower()
+            if nm:
+                forms.add(unicodedata.normalize("NFC", nm))
 
     if GAME_LOCALE == "en":
         if lowered.endswith("ies") and len(lowered) > 3:
@@ -449,6 +597,13 @@ def get_preferred_root(word: str) -> str:
                 suffix_penalty += 2
             if form.endswith("s"):
                 suffix_penalty += 1
+        if GAME_LOCALE == "es":
+            if form.endswith("mente") and len(form) > 5:
+                suffix_penalty += 1
+            for suf in ("ando", "iendo", "ados", "idos", "amos", "imos", "abas", "abais"):
+                if form.endswith(suf) and len(form) > len(suf) + 1:
+                    suffix_penalty += 1
+                    break
         candidates.append((
             has_vector,
             -suffix_penalty,
@@ -879,7 +1034,7 @@ def main():
     )
     get_language_resources()
     print("spaCy model ready.")
-    if GAME_LOCALE == "en":
+    if GAME_LOCALE in ("en", "es"):
         print("Loading WordNet (NLTK)...")
         get_nltk_wordnet()
         print("WordNet ready.")
