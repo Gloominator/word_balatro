@@ -82,8 +82,13 @@
         </div>
       </header>
 
-      <div class="status-pill" data-status data-state="ok" data-i18n="status.initial">
-        Drop a word onto the field to start mixing.
+      <div class="status-pill-shell">
+        <div class="status-pill" data-status data-state="ok" data-i18n="status.initial" role="status" aria-live="polite" aria-atomic="true">
+          Drop a word onto the field to start mixing.
+        </div>
+        <button type="button" class="status-history-open ghost-button" data-action="open-status-history" data-i18n-aria="status.openHistoryAria" aria-label="Open notification history" aria-expanded="false">
+          <span class="material-symbols-outlined status-history-open-icon" aria-hidden="true">unfold_more</span>
+        </button>
       </div>
 
       <div class="token-dock-outer" data-token-dock-outer hidden>
@@ -262,6 +267,19 @@
           </div>
         </div>
         <div class="history-list" data-history-list></div>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" data-status-history-modal hidden>
+      <section class="modal-card status-history-modal-card" role="dialog" aria-modal="true" aria-labelledby="status-history-title">
+        <div class="modal-head">
+          <div>
+            <h2 id="status-history-title" data-i18n="modal.statusHistoryTitle">Notification history</h2>
+            <p class="muted" data-i18n="modal.statusHistoryHint">Last 50 messages from the status bar.</p>
+          </div>
+          <button type="button" class="ghost-button" data-action="close-status-history" data-i18n="modal.close">Close</button>
+        </div>
+        <div class="status-history-list" data-status-history-list></div>
       </section>
     </div>
 

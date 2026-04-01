@@ -1205,6 +1205,9 @@ const SHOP_ITEM_IDS_SIDEBAR_SHOP = new Set([
   "shop-custom-categories-unlock",
 ]);
 
+const STATUS_NOTIFICATION_LIMIT = 50;
+const statusNotificationLog = [];
+
 function isSidebarShopUpgradeVisible(item) {
   return true;
 }
@@ -1326,6 +1329,9 @@ const state = {
 
 const els = {
   status: document.querySelector("[data-status]"),
+  statusHistoryModal: document.querySelector("[data-status-history-modal]"),
+  statusHistoryList: document.querySelector("[data-status-history-list]"),
+  openStatusHistoryButton: document.querySelector("[data-action='open-status-history']"),
   encyclopediaCount: document.querySelector("[data-encyclopedia-count]"),
   historyCount: document.querySelector("[data-history-count]"),
   discoveredCount: document.querySelector("[data-discovered-count]"),
@@ -3142,6 +3148,7 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
   renderTiles();
   renderHistory();
   renderSettings();
+  clearStatusNotificationLog();
   setStatus(statusMessage, "ok");
   clearFloatingCandidatePreview();
   clearFloatingWordNotice();
@@ -4300,6 +4307,54 @@ function collectStatusCoinGoldRanges(text) {
   return merged;
 }
 
+function clearStatusNotificationLog() {
+  statusNotificationLog.length = 0;
+}
+
+function recordStatusNotification(message, stateName) {
+  if (typeof message !== "string") {
+    return;
+  }
+  const trimmed = message.trim();
+  if (!trimmed) {
+    return;
+  }
+  statusNotificationLog.unshift({
+    message: trimmed,
+    stateName: typeof stateName === "string" ? stateName : "ok",
+    at: Date.now(),
+  });
+  if (statusNotificationLog.length > STATUS_NOTIFICATION_LIMIT) {
+    statusNotificationLog.length = STATUS_NOTIFICATION_LIMIT;
+  }
+}
+
+function fillStatusMessageNodes(container, message) {
+  if (!container) {
+    return;
+  }
+  const ranges = collectStatusCoinGoldRanges(message);
+  if (!ranges.length) {
+    container.textContent = message;
+    return;
+  }
+  container.textContent = "";
+  let cursor = 0;
+  ranges.forEach(([start, end]) => {
+    if (cursor < start) {
+      container.append(document.createTextNode(message.slice(cursor, start)));
+    }
+    const gold = document.createElement("span");
+    gold.className = "status-coin-gold";
+    gold.textContent = message.slice(start, end);
+    container.append(gold);
+    cursor = end;
+  });
+  if (cursor < message.length) {
+    container.append(document.createTextNode(message.slice(cursor)));
+  }
+}
+
 function triggerTopbarCoinGainAnimation() {
   const root = els.topbarCoinCounter;
   if (!root || typeof window === "undefined" || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
@@ -4327,27 +4382,10 @@ function setStatus(message, stateName = "ok") {
   if (!els.status) {
     return;
   }
+  const text = typeof message === "string" ? message : "";
   els.status.dataset.state = stateName;
-  const ranges = collectStatusCoinGoldRanges(message);
-  if (!ranges.length) {
-    els.status.textContent = message;
-    return;
-  }
-  els.status.textContent = "";
-  let cursor = 0;
-  ranges.forEach(([start, end]) => {
-    if (cursor < start) {
-      els.status.append(document.createTextNode(message.slice(cursor, start)));
-    }
-    const gold = document.createElement("span");
-    gold.className = "status-coin-gold";
-    gold.textContent = message.slice(start, end);
-    els.status.append(gold);
-    cursor = end;
-  });
-  if (cursor < message.length) {
-    els.status.append(document.createTextNode(message.slice(cursor)));
-  }
+  fillStatusMessageNodes(els.status, text);
+  recordStatusNotification(text, stateName);
 }
 
 function clearQuestCompletionNotice() {
@@ -9757,6 +9795,54 @@ function closeHistory() {
   els.historyModal.hidden = true;
 }
 
+function renderStatusNotificationHistory() {
+  if (!els.statusHistoryList) {
+    return;
+  }
+  els.statusHistoryList.innerHTML = "";
+  if (!statusNotificationLog.length) {
+    const empty = document.createElement("p");
+    empty.className = "muted status-history-empty";
+    empty.textContent = t("modal.statusHistoryEmpty");
+    els.statusHistoryList.append(empty);
+    return;
+  }
+  statusNotificationLog.forEach((entry) => {
+    const row = document.createElement("div");
+    row.className = "status-history-item";
+    row.dataset.state = entry.stateName || "ok";
+    const meta = document.createElement("div");
+    meta.className = "status-history-item-meta";
+    meta.textContent = new Date(entry.at).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const body = document.createElement("div");
+    body.className = "status-history-item-text";
+    fillStatusMessageNodes(body, entry.message);
+    row.append(meta, body);
+    els.statusHistoryList.append(row);
+  });
+}
+
+function openStatusHistoryModal() {
+  if (!els.statusHistoryModal) {
+    return;
+  }
+  renderStatusNotificationHistory();
+  els.statusHistoryModal.hidden = false;
+  els.openStatusHistoryButton?.setAttribute("aria-expanded", "true");
+}
+
+function closeStatusHistoryModal() {
+  if (!els.statusHistoryModal) {
+    return;
+  }
+  els.statusHistoryModal.hidden = true;
+  els.openStatusHistoryButton?.setAttribute("aria-expanded", "false");
+}
+
 function openSettings() {
   renderSettings();
   els.settingsModal.hidden = false;
@@ -9907,6 +9993,7 @@ async function importSaveSnapshotFromFile(file) {
 }
 
 function resetRun() {
+  clearStatusNotificationLog();
   state.starters = sampleStarters();
   state.discovered = new Map(state.starters.map((word) => [word, word]));
   state.selfMatchedWords = new Set();
@@ -10281,6 +10368,8 @@ function initEvents() {
     }
   }, true);
   els.closeHistoryButton.addEventListener("click", closeHistory);
+  els.openStatusHistoryButton?.addEventListener("click", openStatusHistoryModal);
+  document.querySelector("[data-action='close-status-history']")?.addEventListener("click", closeStatusHistoryModal);
   els.openSettingsButton.addEventListener("click", openSettings);
   document.querySelector("[data-action='open-tutorial-help']")?.addEventListener("click", () => {
     openTutorialHelpMenu();
@@ -10386,6 +10475,11 @@ function initEvents() {
       closeHistory();
     }
   });
+  els.statusHistoryModal?.addEventListener("click", (event) => {
+    if (event.target === els.statusHistoryModal) {
+      closeStatusHistoryModal();
+    }
+  });
   if (els.genealogyModal) {
     els.genealogyModal.addEventListener("click", (event) => {
       if (event.target === els.genealogyModal) {
@@ -10423,6 +10517,9 @@ function initEvents() {
     }
     if (event.key === "Escape" && !els.historyModal.hidden) {
       closeHistory();
+    }
+    if (event.key === "Escape" && els.statusHistoryModal && !els.statusHistoryModal.hidden) {
+      closeStatusHistoryModal();
     }
     if (event.key === "Escape" && els.genealogyModal && !els.genealogyModal.hidden) {
       closeGenealogyModal();

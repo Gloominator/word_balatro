@@ -662,10 +662,45 @@ input:focus {
 
 /* --- Status Pill ------------------------------------------------------- */
 
-.status-pill {
+.status-pill-shell {
   box-sizing: border-box;
   max-width: 1420px;
   margin: 0.5rem auto 0.75rem;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.status-pill-shell .status-pill {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-pill-shell .status-history-open.ghost-button {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  padding: 0.35rem 0.45rem;
+  color: var(--text-muted);
+}
+
+.status-pill-shell .status-history-open.ghost-button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.status-history-open-icon {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.status-pill {
+  box-sizing: border-box;
+  max-width: none;
+  margin: 0;
   padding: 0.7rem 1.5rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
@@ -3845,6 +3880,84 @@ input:focus {
   margin-top: 0.25rem;
   color: var(--text-muted);
   font-size: 0.85rem;
+}
+
+.status-history-modal-card {
+  width: min(720px, 100%);
+}
+
+.status-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  max-height: min(52vh, 24rem);
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.status-history-empty {
+  margin: 0.25rem 0 0;
+}
+
+.status-history-item {
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--primary-faint);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.status-history-item-meta {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.status-history-item-text {
+  min-width: 0;
+  word-break: break-word;
+}
+
+.status-history-item[data-state="success"] {
+  border-color: var(--good-border);
+  background: var(--good-bg);
+}
+
+.status-history-item[data-state="reward"] {
+  border-color: var(--reward-border);
+  background: var(--reward-bg);
+}
+
+.status-history-item[data-state="error"] {
+  border-color: var(--bad-border);
+  background: var(--bad-bg);
+}
+
+.status-history-item .status-coin-gold {
+  color: #9a6b00;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-shadow:
+    0 0 10px rgba(255, 200, 90, 0.5),
+    0 1px 0 rgba(255, 248, 210, 0.45);
+}
+
+[data-theme="dark"] .status-history-item .status-coin-gold {
+  color: #ffcf4a;
+  text-shadow:
+    0 0 12px rgba(255, 200, 70, 0.6),
+    0 1px 2px rgba(60, 40, 0, 0.85);
+}
+
+.status-history-item[data-state="reward"] .status-coin-gold {
+  color: #7a5200;
+}
+
+[data-theme="dark"] .status-history-item[data-state="reward"] .status-coin-gold {
+  color: #ffe066;
 }
 
 .genealogy-modal-card {
