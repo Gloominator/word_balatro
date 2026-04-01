@@ -33,7 +33,6 @@ const MIX_PUNCHER_URLS = [1, 2, 3, 4, 5].map(
 const FILES = {
   uiClick: "ui_click.wav",
   tokenPickup: "token_pickupnew.mp3",
-  encyclopediaEntry: "encyclopedia_entry.wav",
   questComplete: "FANFARE.mp3",
   stageComplete: "stage_complete.wav",
 };
@@ -331,7 +330,7 @@ function countDockTokensFromOutcome(outcome) {
   return n;
 }
 
-/** New tile from mix when not using quest-complete or encyclopedia-entry primary SFX. */
+/** New tile spawn from the field (mix, booster, wildcard, encyclopedia, etc.) when quest did not just complete. */
 function playMixSpawnRandomPuncherSound() {
   const userMul = getWordmathSoundVolumePercent() / 100;
   if (userMul <= 0) {
@@ -344,32 +343,21 @@ function playMixSpawnRandomPuncherSound() {
 }
 
 /**
- * @param {{ fromMix?: boolean, shouldBlockSpawn?: boolean, outcome?: object }} spec
+ * @param {{ shouldBlockSpawn?: boolean, outcome?: object }} spec
  */
 export function playRememberOutcomeSound(spec) {
   if (!wordmathSoundsEnabled() || !spec?.outcome) {
     return;
   }
-  const fromMix = Boolean(spec.fromMix);
   const shouldBlockSpawn = Boolean(spec.shouldBlockSpawn);
   const hadSpawn = !shouldBlockSpawn;
   const o = spec.outcome;
   const questWon = Boolean(o.questResult?.completedQuest);
-  const encDing = Boolean(
-    o.isInEncyclopedia
-    && !o.hiddenEncyclopediaDiscovery
-    && (!o.wasDiscovered || o.stageEncoreEncyclopediaReward)
-    && !questWon,
-  );
 
   let primary = null;
   if (questWon) {
     primary = "quest";
-  } else if (encDing && hadSpawn) {
-    primary = "encyclopedia";
-  } else if (hadSpawn && fromMix && !encDing) {
-    primary = "mix";
-  } else if (hadSpawn && !fromMix) {
+  } else if (hadSpawn) {
     primary = "mix";
   }
 
@@ -377,8 +365,6 @@ export function playRememberOutcomeSound(spec) {
 
   if (primary === "quest") {
     playNamed("questComplete", VOL.game);
-  } else if (primary === "encyclopedia") {
-    playNamed("encyclopediaEntry", VOL.game);
   } else if (primary === "mix") {
     playMixSpawnRandomPuncherSound();
   }

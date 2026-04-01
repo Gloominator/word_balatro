@@ -5083,8 +5083,9 @@ html[data-theme="dark"] .quest-sim-warmth--burn-chunky .quest-sim-warmth-word {
   animation: tutorial-arrow-bob 0.9s ease-in-out infinite;
 }
 
-/* Tip points up toward Word Booster / top-bar targets (below the button). */
-.wordmath-tutorial-arrow.wordmath-tutorial-arrow--booster {
+/* Tip points up toward Word Booster / Encyclopedia (arrow sits just below the button). */
+.wordmath-tutorial-arrow.wordmath-tutorial-arrow--booster,
+.wordmath-tutorial-arrow.wordmath-tutorial-arrow--encyclopedia {
   border-top: none;
   border-bottom: 22px solid var(--primary);
   animation: tutorial-arrow-bob-up 0.9s ease-in-out infinite;
@@ -5175,82 +5176,6 @@ html[data-theme="dark"] .quest-sim-warmth--burn-chunky .quest-sim-warmth-word {
   .wordmath-tutorial-ghost-hand--anim-loop {
     animation: tutorial-ghost-float-loop-muted 2.2s ease-in-out infinite;
   }
-}
-
-/* Stage 1: draw attention to the two starter tiles (gentle glow + ring; ::before avoids clashing with tile tilt). */
-.tile.tutorial-pick-word {
-  outline: 3px solid var(--primary);
-  outline-offset: 2px;
-  z-index: 6;
-  animation: tutorial-tile-pick-glow 1.5s ease-in-out infinite;
-  will-change: box-shadow, filter;
-}
-
-.tile.tutorial-pick-word::before {
-  content: "";
-  position: absolute;
-  inset: -12px;
-  border-radius: calc(var(--radius-lg) + 10px);
-  border: 2px solid color-mix(in srgb, var(--primary) 70%, transparent);
-  background: transparent;
-  pointer-events: none;
-  opacity: 0.65;
-  box-shadow: 0 0 18px color-mix(in srgb, var(--primary) 35%, transparent);
-  animation: tutorial-tile-pick-ring 1.5s ease-in-out infinite;
-  will-change: transform, opacity;
-}
-
-@keyframes tutorial-tile-pick-glow {
-  0%, 100% {
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--primary) 32%, transparent),
-      0 6px 18px rgba(27, 29, 14, 0.12),
-      0 0 22px color-mix(in srgb, var(--primary) 28%, transparent);
-    filter: brightness(1);
-  }
-
-  50% {
-    box-shadow:
-      0 0 0 4px color-mix(in srgb, var(--primary) 52%, transparent),
-      0 12px 28px rgba(27, 29, 14, 0.2),
-      0 0 36px color-mix(in srgb, var(--primary) 48%, transparent);
-    filter: brightness(1.06);
-  }
-}
-
-@keyframes tutorial-tile-pick-ring {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.55;
-  }
-
-  50% {
-    transform: scale(1.06);
-    opacity: 0.95;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tile.tutorial-pick-word {
-    animation: none;
-    filter: none;
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent),
-      0 8px 22px rgba(0, 0, 0, 0.18);
-    will-change: auto;
-  }
-
-  .tile.tutorial-pick-word::before {
-    animation: none;
-    transform: none;
-    opacity: 0.45;
-    will-change: auto;
-  }
-}
-
-[data-theme="dark"] .tile.tutorial-pick-word::before {
-  border-color: color-mix(in srgb, var(--primary) 55%, transparent);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 
 .wordmath-tutorial-help-backdrop {

@@ -15,16 +15,15 @@ const STAGE_COPY = {
     stageLabel: (n) => `Step ${n}`,
     1: {
       title: "Welcome to King Minus Man!",
-      body: "You mix words on the field to create new words. Your goal is to find the quest word. Try mixing your first pair!",
-      tip: "You can mix a word with itself (double-click or drag a tile onto its twin).",
+      body: "",
+      tip: "Hold a word and drag it over another to see what result you will get (you get the 1st result by default)",
       cta: "Sweet — let's mix",
     },
     2: {
       title: "Mind your INK",
       body:
-        "Every mix spends INK. When you get to 0 INK you lose. Think about what you mix!",
-      tip:
-        "Think about what category your target word is in and choose only words that are semantically getting you closer to it.",
+        "Every mix spends INK. When you get to 0 INK you lose. Choose what you mix carefully!",
+      tip: 'Follow the "hot and cold" indicators — they get you closer to the target!',
       cta: "Got it",
     },
     3: {
@@ -41,8 +40,9 @@ const STAGE_COPY = {
     },
     5: {
       title: "Wow! Good job!",
-      body: "Each stage, you'll work through categories in the encyclopedia - 16 categories with 5 words each. Mixing words from the encyclopedia grants bonus tokens!",
-      tip: "Peek at the Encyclopedia button in the top bar when you need a reminder.",
+      body:
+        "Each stage, you'll get quest words from categories in the encyclopedia - 16 categories with 5 words each. Mixing words from the encyclopedia grants bonus tokens and coins so don't miss out on them!",
+      tip: "Encyclopedia words are marked with E in top matches - yellow and black ones don't spend INK!",
       cta: "Nice",
     },
     6: {
@@ -61,16 +61,16 @@ const STAGE_COPY = {
     stageLabel: (n) => `Шаг ${n}`,
     1: {
       title: "Добро пожаловать в King Minus Man!",
-      body: "Смешивайте слова на поле, чтобы получать новые. Цель — найти слово квеста. Смешайте первую пару!",
-      tip: "Слово можно смешать само с собой (двойной клик или перетаскивание).",
+      body: "",
+      tip: "Удерживайте слово и перетащите на другое, чтобы увидеть результат (по умолчанию берётся 1-й вариант).",
       cta: "Понял, вперёд",
     },
     2: {
       title: "Следите за чернилами",
       body:
-        "Каждое смешивание тратит чернила. Когда чернила закончатся — проигрыш. Думайте, что смешивать!",
+        "Каждое смешивание тратит чернила. Когда чернила закончатся — проигрыш. Выбирайте, что смешивать, вдумчиво!",
       tip:
-        "Подумайте, к какой категории относится целевое слово, и выбирайте только те слова, которые семантически приближают вас к нему.",
+        "Ориентируйтесь на индикаторы «горячо/холодно» — они подводят к цели!",
       cta: "Понял",
     },
     3: {
@@ -87,8 +87,9 @@ const STAGE_COPY = {
     },
     5: {
       title: "Ура, отлично!",
-      body: "На каждом этапе нужно закрывать категории энциклопедии — 16 категорий по 5 слов. Смешивание слов из энциклопедии даёт бонусные жетоны!",
-      tip: "Кнопка Encyclopedia наверху — заглядывайте, когда нужно освежить картину.",
+      body:
+        "На каждом этапе в квесте участвуют слова из категорий энциклопедии — 16 категорий по 5 слов. Смешивание слов из энциклопедии даёт бонусные жетоны и монеты — не пропускайте!",
+      tip: "Слова из энциклопедии помечены E в топ-совпадениях — жёлтые и чёрные не тратят чернила!",
       cta: "Класс",
     },
     6: {
@@ -117,9 +118,7 @@ let stageQueue = [];
 let activeStage = null;
 let replayMode = false;
 
-/** @type {number[]} */
-let stage1HighlightTileIds = [];
-/** After closing step 1 card, keep starter highlights until the first mix from the field. */
+/** After closing step 1 card, loop ghost hand between starters until the first mix from the field. */
 let stage1AwaitingMixAfterWelcome = false;
 
 function copyFor(lang) {
@@ -197,7 +196,7 @@ function maxReplayStage() {
 
 function maybeEnqueueWordBoosterHintStage() {
   const n = api?.getAvailableWordCount?.() ?? 0;
-  if (n >= 6 && isDismissed(2) && !isDismissed(3)) {
+  if (n >= 4 && isDismissed(2) && !isDismissed(3)) {
     enqueueStages([3]);
   }
 }
@@ -330,18 +329,15 @@ function buildProTipRow(tipText, idSuffix, proTipLabel) {
   return wrap;
 }
 
-function positionArrow(arrowEl, targetEl, place) {
-  if (!arrowEl || !targetEl || targetEl.hidden) {
-    return;
+function titleCaseTutorialWord(raw) {
+  if (!raw || typeof raw !== "string") {
+    return "";
   }
-  const r = targetEl.getBoundingClientRect();
-  if (!r.width) {
-    return;
+  const t = raw.trim();
+  if (!t) {
+    return "";
   }
-  const ax = place === "below" ? r.left + r.width / 2 - 24 : r.right + 8;
-  const ay = place === "below" ? r.bottom + 12 : r.top + r.height / 2 - 24;
-  arrowEl.style.left = `${Math.round(ax)}px`;
-  arrowEl.style.top = `${Math.round(ay)}px`;
+  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
 }
 
 function positionBoosterArrow() {
@@ -373,13 +369,29 @@ function startBoosterArrowLoop() {
   return () => window.cancelAnimationFrame(frame);
 }
 
+function positionEncArrow() {
+  const targetEl = api?.els?.openEncyclopediaButton;
+  if (!encArrowEl || encArrowEl.hidden || !targetEl || targetEl.hidden) {
+    return;
+  }
+  const r = targetEl.getBoundingClientRect();
+  if (!r.width) {
+    return;
+  }
+  const gap = 8;
+  const centerX = r.left + r.width / 2;
+  const top = r.bottom + gap;
+  encArrowEl.style.left = `${Math.round(centerX)}px`;
+  encArrowEl.style.top = `${Math.round(top)}px`;
+}
+
 function startEncArrowLoop() {
   if (!api?.els?.openEncyclopediaButton) {
     return () => {};
   }
   let frame = 0;
   const tick = () => {
-    positionArrow(encArrowEl, api.els.openEncyclopediaButton, "below");
+    positionEncArrow();
     frame = window.requestAnimationFrame(tick);
   };
   tick();
@@ -410,6 +422,9 @@ function bindTutorialResizeOnce() {
 }
 
 function resolveTutorialSpotlightTarget() {
+  if (activeStage === 1 && api?.els?.questWord) {
+    return api.els.questWord;
+  }
   if (activeStage === 2 && api?.els?.questInkPanel) {
     return api.els.questInkPanel;
   }
@@ -479,7 +494,69 @@ function updateGhostHandLayoutVars() {
   ghostHandEl.style.setProperty("--gh-ey", `${ey - sy}px`);
 }
 
+function stopStage1MixGhostRaf() {
+  if (stage1MixGhostRaf !== null) {
+    window.cancelAnimationFrame(stage1MixGhostRaf);
+    stage1MixGhostRaf = null;
+  }
+}
+
+function updateStage1MixGhostHandLayout() {
+  if (!ghostHandEl || !api?.els?.playfieldSurface) {
+    return;
+  }
+  const tiles = api.getStarterFieldTiles?.() || [];
+  if (tiles.length < 2) {
+    return;
+  }
+  const elA = api.els.playfieldSurface.querySelector(`.tile[data-tile-id="${tiles[0].id}"]`);
+  const elB = api.els.playfieldSurface.querySelector(`.tile[data-tile-id="${tiles[1].id}"]`);
+  if (!elA || !elB) {
+    return;
+  }
+  const a = elA.getBoundingClientRect();
+  const b = elB.getBoundingClientRect();
+  const sx = a.left + a.width / 2;
+  const sy = a.top + a.height / 2;
+  const ex = b.left + b.width / 2;
+  const ey = b.top + b.height / 2;
+  ghostHandEl.style.left = `${Math.round(sx)}px`;
+  ghostHandEl.style.top = `${Math.round(sy)}px`;
+  ghostHandEl.style.setProperty("--gh-ex", `${ex - sx}px`);
+  ghostHandEl.style.setProperty("--gh-ey", `${ey - sy}px`);
+}
+
+function startStage1MixGhostHandRaf() {
+  stopStage1MixGhostRaf();
+  const tick = () => {
+    if (!ghostHandEl || ghostHandEl.hidden || !stage1AwaitingMixAfterWelcome) {
+      stage1MixGhostRaf = null;
+      return;
+    }
+    updateStage1MixGhostHandLayout();
+    stage1MixGhostRaf = window.requestAnimationFrame(tick);
+  };
+  stage1MixGhostRaf = window.requestAnimationFrame(tick);
+}
+
+/** Looping drag hint between the two starter tiles until the first field mix (step 1 after welcome). */
+function startStage1MixGhostHand() {
+  if (!ghostHandEl || !api?.els?.playfield) {
+    return;
+  }
+  const tiles = api.getStarterFieldTiles?.() || [];
+  if (tiles.length < 2) {
+    return;
+  }
+  updateStage1MixGhostHandLayout();
+  ghostHandEl.hidden = false;
+  ghostHandEl.classList.remove("wordmath-tutorial-ghost-hand--anim");
+  ghostHandEl.classList.add("wordmath-tutorial-ghost-hand--anim-loop");
+  startStage1MixGhostHandRaf();
+}
+
 function stopGhostHandLoop() {
+  stopStage1MixGhostRaf();
   if (ghostHandLayoutRaf !== null) {
     window.cancelAnimationFrame(ghostHandLayoutRaf);
     ghostHandLayoutRaf = null;
@@ -537,13 +614,13 @@ function hideEncArrow() {
 let stopBoosterRaf = null;
 let stopEncRaf = null;
 let ghostHandLayoutRaf = null;
+let stage1MixGhostRaf = null;
 
 function teardownActiveVisuals() {
   hideBoosterArrow();
   hideEncArrow();
   stopAllTutorialRafs();
   stopGhostHandLoop();
-  stage1HighlightTileIds = [];
   stage1AwaitingMixAfterWelcome = false;
   if (api?.refreshTileRender) {
     api.refreshTileRender();
@@ -569,6 +646,7 @@ function dismissActiveStage() {
     hideEncArrow();
     stopAllTutorialRafs();
     stage1AwaitingMixAfterWelcome = true;
+    startStage1MixGhostHand();
     api?.refreshTileRender?.();
   } else if (s === 2) {
     hideBoosterArrow();
@@ -642,7 +720,16 @@ function renderSpotlightContent(stage, { replay }) {
 
   const p = document.createElement("p");
   p.className = "wordmath-tutorial-card-body";
-  p.textContent = block.body;
+  if (stage === 1) {
+    const raw = api.getQuestTargetWord?.();
+    const label = titleCaseTutorialWord(raw) || (lang === "ru" ? "слово квеста" : "quest word");
+    p.textContent =
+      lang === "ru"
+        ? `Ваша цель — смешать «${label}». Смешивайте слова на поле друг с другом, чтобы получать новые слова. Попробуйте перетащить слова на поле и сделать первое смешивание!`
+        : `Your goal is to mix "${label}". You mix words on the field with each other to create new words. Try dragging the words on the field together and mixing your first pair!`;
+  } else {
+    p.textContent = block.body;
+  }
 
   const tipRow = buildProTipRow(block.tip, idS, C.proTip);
 
@@ -673,12 +760,6 @@ function showSpotlightStage(stage, { replay = false } = {}) {
 
   const primary = renderSpotlightContent(stage, { replay });
   window.queueMicrotask(() => primary.focus());
-
-  if (stage === 1 && !replay) {
-    const tiles = api.getStarterFieldTiles?.() || [];
-    stage1HighlightTileIds = tiles.slice(0, 2).map((t) => t.id);
-    api.refreshTileRender?.();
-  }
 
   if (stage === 3) {
     const used = api.getWordBoosterStageUses?.() ?? 0;
@@ -765,14 +846,14 @@ export function notifyRememberResult(ctx) {
 
   maybeEnqueueWordBoosterHintStage();
 
-  if (didDiscoverNewWord && fromMix) {
+  if (fromMix) {
     const wasAwaitingFirstFieldMix = stage1AwaitingMixAfterWelcome;
     if (stage1AwaitingMixAfterWelcome) {
       stage1AwaitingMixAfterWelcome = false;
-      stage1HighlightTileIds = [];
+      stopGhostHandLoop();
       api?.refreshTileRender?.();
     }
-    if (wasAwaitingFirstFieldMix && isDismissed(1) && !isDismissed(2)) {
+    if (didDiscoverNewWord && wasAwaitingFirstFieldMix && isDismissed(1) && !isDismissed(2)) {
       enqueueStages([2]);
     }
   }
@@ -821,18 +902,6 @@ export function refreshTutorialTileHighlights() {
   api.els.playfieldSurface.querySelectorAll(".tile.tutorial-pick-word").forEach((el) => {
     el.classList.remove("tutorial-pick-word");
   });
-  const wantHighlights =
-    stage1HighlightTileIds.length > 0
-    && (activeStage === 1 || stage1AwaitingMixAfterWelcome);
-  if (!wantHighlights) {
-    return;
-  }
-  for (const id of stage1HighlightTileIds) {
-    const tile = api.els.playfieldSurface.querySelector(`.tile[data-tile-id="${id}"]`);
-    if (tile) {
-      tile.classList.add("tutorial-pick-word");
-    }
-  }
 }
 
 export function openTutorialHelpMenu() {

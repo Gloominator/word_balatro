@@ -837,7 +837,7 @@ const SUPER_RARE_PREVIEW_SECOND_TIER_BONUS_CHANCE = 0.1;
 /** Categories added per run stage (1–6). Sums to RUN_ENCYCLOPEDIA_CATEGORY_COUNT. */
 const RUN_STAGE_CATEGORY_PICK_COUNTS = Object.freeze([1, 2, 3, 3, 3, 4]);
 const RUN_STAGE_COUNT = RUN_STAGE_CATEGORY_PICK_COUNTS.length;
-const SNAPSHOT_VERSION = 23;
+const SNAPSHOT_VERSION = 24;
 
 /** Run-wide: random tokens at stage start — 5 tiers, 300 / 500 / 700 / 900 / 1000g. */
 const RUN_PERMANENT_RANDOM_TOKEN_MAX_TIER = 5;
@@ -1242,6 +1242,8 @@ const state = {
   availableBroadChoiceTokens: 0,
   totalBroadChoiceTokensEarned: 0,
   progressBroadChoiceTokensAwarded: 0,
+  /** 0/1 — milestone at BROAD_CHOICE_FIRST_UNLOCK_WORDS discovered words awards one random 2–5 result token (not Broad). */
+  progressFiveWordResultTokenAwarded: 0,
   coins: 0,
   totalCoinsEarned: 0,
   purchasedUpgrades: createDefaultPurchasedUpgradeState(),
@@ -2577,6 +2579,7 @@ function buildProgressSnapshot() {
     availableBroadChoiceTokens: state.availableBroadChoiceTokens,
     totalBroadChoiceTokensEarned: state.totalBroadChoiceTokensEarned,
     progressBroadChoiceTokensAwarded: state.progressBroadChoiceTokensAwarded,
+    progressFiveWordResultTokenAwarded: state.progressFiveWordResultTokenAwarded,
     coins: state.coins,
     totalCoinsEarned: state.totalCoinsEarned,
     purchasedUpgrades: { ...state.purchasedUpgrades },
@@ -3024,6 +3027,17 @@ function applyProgressSnapshot(snapshot, { statusMessage = "Loaded your saved ga
     getUnlockedSecondResultTokenCount(discovered.size),
     getSafeCount(snapshot.progressSecondResultTokensAwarded, getUnlockedSecondResultTokenCount(discovered.size)),
   );
+  if (snapshotVersion < 24) {
+    state.progressFiveWordResultTokenAwarded = getUnlockedFiveWordResultTokenCount(discovered.size);
+  } else {
+    state.progressFiveWordResultTokenAwarded = Math.min(
+      getUnlockedFiveWordResultTokenCount(discovered.size),
+      getSafeCount(
+        snapshot.progressFiveWordResultTokenAwarded,
+        getUnlockedFiveWordResultTokenCount(discovered.size),
+      ),
+    );
+  }
   state.runEncyclopediaSlots = normalizeRunEncyclopediaSlotsFromSnapshot(snapshot, snapshotVersion);
   applyEncyclopediaCategoriesForRunFromSlots();
   const validEncCatNames = new Set(ENCYCLOPEDIA_CATEGORIES.map((c) => c.name));
@@ -3599,13 +3613,23 @@ function getEncyclopediaDiscoveryCount() {
 }
 
 function getUnlockedBroadChoiceTokenCount(discoveredCount = state.discovered.size) {
+  let base;
   if (discoveredCount < BROAD_CHOICE_FIRST_UNLOCK_WORDS) {
-    return 0;
+    base = 0;
+  } else if (discoveredCount < WORDS_PER_BROAD_CHOICE_TOKEN) {
+    base = 1;
+  } else {
+    base = 2 + Math.floor((discoveredCount - WORDS_PER_BROAD_CHOICE_TOKEN) / WORDS_PER_BROAD_CHOICE_TOKEN);
   }
-  if (discoveredCount < WORDS_PER_BROAD_CHOICE_TOKEN) {
-    return 1;
+  if (discoveredCount >= BROAD_CHOICE_FIRST_UNLOCK_WORDS) {
+    return Math.max(0, base - 1);
   }
-  return 2 + Math.floor((discoveredCount - WORDS_PER_BROAD_CHOICE_TOKEN) / WORDS_PER_BROAD_CHOICE_TOKEN);
+  return base;
+}
+
+/** First progression token at BROAD_CHOICE_FIRST_UNLOCK_WORDS is a random 2nd–5th result token (not Broad Choice). */
+function getUnlockedFiveWordResultTokenCount(discoveredCount = state.discovered.size) {
+  return discoveredCount >= BROAD_CHOICE_FIRST_UNLOCK_WORDS ? 1 : 0;
 }
 
 function getUnlockedSecondResultTokenCount(discoveredCount = state.discovered.size) {
@@ -6650,6 +6674,7 @@ function applyConfirmedStageAdvance(selectedKeys) {
   state.recentDiscoveredWordKeys = [...state.discovered.keys()].slice(-RECENT_DISCOVERED_WORD_LIMIT);
   state.hiddenWordPanelWords = new Set();
   state.progressBroadChoiceTokensAwarded = getUnlockedBroadChoiceTokenCount();
+  state.progressFiveWordResultTokenAwarded = getUnlockedFiveWordResultTokenCount();
   state.progressSecondResultTokensAwarded = getUnlockedSecondResultTokenCount();
   state.removedResultWords = new Set();
   carryWords.forEach((word) => {
@@ -9144,6 +9169,16 @@ function rememberResult(result, normalized = result, metadata = {}) {
     bumpUnseenTokenRewards(newBroadChoiceTokens);
   }
 
+  const unlockedFiveWordResult = getUnlockedFiveWordResultTokenCount();
+  const newFiveWordResultTokens = Math.max(0, unlockedFiveWordResult - state.progressFiveWordResultTokenAwarded);
+  if (newFiveWordResultTokens > 0) {
+    state.progressFiveWordResultTokenAwarded = unlockedFiveWordResult;
+    const rank = POSITION_TOKEN_RANKS[Math.floor(Math.random() * POSITION_TOKEN_RANKS.length)];
+    addPositionTokens(rank, newFiveWordResultTokens);
+    bumpUnseenTokenRewards(newFiveWordResultTokens);
+    newPositionTokenRewards[rank] += newFiveWordResultTokens;
+  }
+
   if (didDiscoverNewWord && isInEncyclopedia && encyclopediaEntry) {
     hiddenEncyclopediaDiscovery = !isEncyclopediaCategoryRevealed(encyclopediaEntry.category);
     const encTokenDelta = {
@@ -10022,6 +10057,7 @@ function resetRun() {
   state.availableBroadChoiceTokens = 0;
   state.totalBroadChoiceTokensEarned = 0;
   state.progressBroadChoiceTokensAwarded = 0;
+  state.progressFiveWordResultTokenAwarded = 0;
   state.coins = getStartingGoldForRunStage(1);
   state.totalCoinsEarned = state.coins;
   state.purchasedUpgrades = createDefaultPurchasedUpgradeState();
@@ -10569,6 +10605,7 @@ function init() {
       tokenDock: els.tokenDock,
       playfield: els.playfield,
       questInkPanel: els.questInkPanel,
+      questWord: els.questWord,
     },
     tutorialDefaultBlockEl: els.tutorialFieldBlock,
     getUiLang,
@@ -10583,6 +10620,7 @@ function init() {
         .slice(0, 2);
     },
     refreshTileRender: () => renderTiles(),
+    getQuestTargetWord: () => state.quest.targetWord,
   });
   initEvents();
   if (!loadProgress()) {
